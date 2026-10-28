@@ -1,4 +1,5 @@
 import React from "react";
+import { Check } from "lucide-react";
 import { OrderStatus, OrderStatusHistoryItem } from "@/types/orders";
 
 interface TimelineProps {
@@ -25,10 +26,10 @@ export function OrderLifecycleTimeline({ currentStatus, history = [] }: Timeline
   const progressPercent = Math.min(100, Math.max(0, (safeCurrentIndex / (MILESTONES.length - 1)) * 100));
 
   return (
-    <section className="bg-surface-container-lowest border border-[#E4E0DB] rounded-xl p-5 shadow-xs">
+    <section className="bg-white border border-[#E4E0DB] rounded-[10px] p-5 shadow-xs">
       <div className="flex items-center justify-between mb-5">
-        <h2 className="text-body-md font-bold text-on-surface">Order Lifecycle Timeline</h2>
-        <span className="text-label-xs font-label-xs text-secondary font-medium">
+        <h2 className="text-[15px] font-semibold text-[#111111]">Order Lifecycle Timeline</h2>
+        <span className="text-xs text-[#6B6667] font-medium">
           8 Canonical Milestones
         </span>
       </div>
@@ -38,7 +39,7 @@ export function OrderLifecycleTimeline({ currentStatus, history = [] }: Timeline
           {/* Continuous Track Line */}
           <div className="absolute left-6 right-6 top-3.5 h-[2px] bg-[#E4E0DB] -z-0">
             <div
-              className="h-full bg-[#10B981] transition-all duration-500"
+              className="h-full bg-[#20885A] transition-all duration-500"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
@@ -61,19 +62,19 @@ export function OrderLifecycleTimeline({ currentStatus, history = [] }: Timeline
                 }`}
               >
                 {isCompleted && (
-                  <div className="w-7 h-7 rounded-full bg-[#ECFDF5] border border-[#10B981] text-[#059669] flex items-center justify-center">
-                    <span className="material-symbols-outlined text-[15px] font-bold">check</span>
+                  <div className="w-7 h-7 rounded-full bg-[#ECFDF5] border border-[#20885A] text-[#20885A] flex items-center justify-center">
+                    <Check className="w-3.5 h-3.5" />
                   </div>
                 )}
 
                 {isActive && (
-                  <div className="w-7 h-7 rounded-full bg-[#FFFBEB] border-2 border-[#FF5A1F] text-[#FF5A1F] flex items-center justify-center shadow-xs ring-4 ring-[#FF5A1F]/15">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#FF5A1F] animate-pulse" />
+                  <div className="w-7 h-7 rounded-full bg-[#FFF0E8] border-2 border-[#FF5A1F] text-[#FF5A1F] flex items-center justify-center shadow-xs">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#FF5A1F]" />
                   </div>
                 )}
 
                 {isPending && (
-                  <div className="w-7 h-7 rounded-full bg-[#F7F7F5] border border-[#E4E0DB] text-[#8E8B85] flex items-center justify-center text-xs font-medium">
+                  <div className="w-7 h-7 rounded-full bg-[#F7F7F5] border border-[#E4E0DB] text-[#6B6667] flex items-center justify-center text-xs font-medium">
                     {milestone.stepNumber}
                   </div>
                 )}
@@ -81,10 +82,10 @@ export function OrderLifecycleTimeline({ currentStatus, history = [] }: Timeline
                 <span
                   className={`text-xs mt-2 leading-tight ${
                     isActive
-                      ? "font-bold text-[#FF5A1F]"
+                      ? "font-semibold text-[#FF5A1F]"
                       : isCompleted
-                      ? "font-semibold text-on-surface"
-                      : "font-medium text-secondary"
+                      ? "font-medium text-[#111111]"
+                      : "font-normal text-[#6B6667]"
                   }`}
                 >
                   {milestone.label}
@@ -94,7 +95,7 @@ export function OrderLifecycleTimeline({ currentStatus, history = [] }: Timeline
                   className={`text-[11px] font-mono mt-0.5 ${
                     isActive
                       ? "font-semibold text-[#FF5A1F]"
-                      : "text-secondary"
+                      : "text-[#6B6667]"
                   }`}
                 >
                   {timeLabel}
@@ -107,3 +108,4 @@ export function OrderLifecycleTimeline({ currentStatus, history = [] }: Timeline
     </section>
   );
 }
+

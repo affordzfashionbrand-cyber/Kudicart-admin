@@ -3,122 +3,108 @@ import Link from "next/link";
 
 interface FinancialHealthSnapshotProps {
   grossVolume?: number;
-  successRate?: number;
-  escrowRate?: number;
-  failureRate?: number;
+  recordedTransactions?: number;
 }
 
 export function FinancialHealthSnapshot({
   grossVolume = 482450,
-  successRate = 94.2,
-  escrowRate = 4.1,
-  failureRate = 1.7,
+  recordedTransactions = 148,
 }: FinancialHealthSnapshotProps) {
-  const successAmount = Math.round((grossVolume * successRate) / 100);
-  const escrowAmount = Math.round((grossVolume * escrowRate) / 100);
-  const failureAmount = Math.round((grossVolume * failureRate) / 100);
-
   return (
-    <div className="bg-white border border-[#E4E0DB] rounded-xl p-space-lg shadow-sm">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E4E0DB] pb-space-sm mb-space-md">
+    <section className="bg-white border border-[#E4E0DB] rounded-[10px] p-4 sm:p-5 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E4E0DB]">
         <div>
-          <h2 className="font-headline-sm text-headline-sm font-bold text-on-surface">
-            Financial Health &amp; Transaction Snapshot
+          <h2 className="text-[17px] font-semibold text-[#111111]">
+            Financial Summary
           </h2>
-          <p className="font-body-sm text-body-sm text-secondary">
-            Settlement escrow clearance and payment gateway integrity for current cycle.
+          <p className="text-xs text-[#6B6667] mt-0.5">
+            Recorded transaction totals and accounting references
           </p>
         </div>
-        <div className="flex items-center gap-space-md font-label-sm text-label-sm">
+        <div className="flex items-center gap-3 text-xs">
           <Link
-            href="/admin/ledger"
-            className="text-primary hover:text-pressed-orange font-semibold flex items-center gap-1"
+            href="/admin/payments"
+            className="font-medium text-[#FF5A1F] hover:text-[#D94B17] transition-colors"
           >
-            View Payments Ledger →
+            View Payments →
           </Link>
           <span className="text-[#E4E0DB]">|</span>
           <Link
-            href="/admin/reports"
-            className="text-secondary hover:text-on-surface font-semibold flex items-center gap-1"
+            href="/admin/ledger"
+            className="font-medium text-[#6B6667] hover:text-[#111111] transition-colors"
           >
-            Reconciliation Reports →
+            Commission &amp; Ledger →
           </Link>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-space-md items-center">
-        <div className="md:col-span-3 md:border-r md:border-[#E4E0DB] md:pr-space-md">
-          <span className="font-label-xs text-label-xs text-secondary block uppercase tracking-wider font-semibold">
-            Gross Transaction Volume
-          </span>
-          <div className="flex items-baseline gap-1 mt-1 font-headline-lg text-3xl font-extrabold text-on-surface">
-            <span className="text-xl font-medium text-secondary">₹</span>
-            {grossVolume.toLocaleString("en-IN")}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-3.5">
+        {/* Metric 1: Recorded Gross Volume */}
+        <div className="bg-[#F7F7F5] rounded-lg p-3.5 border border-[#E4E0DB]/60 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-[#6B6667] block font-medium">
+                Gross Order Value (Recorded)
+              </span>
+              <div className="w-7 h-7 rounded-[6px] bg-white border border-[#E4E0DB] flex items-center justify-center text-[#6B6667] shrink-0">
+                <span className="material-symbols-outlined text-[17px]">
+                  payments
+                </span>
+              </div>
+            </div>
+            <div className="text-xl sm:text-2xl font-semibold text-[#111111] mt-2 leading-tight">
+              ₹{grossVolume.toLocaleString("en-IN")}
+            </div>
           </div>
-          <span className="font-label-xs text-label-xs text-[#20885A] block mt-1 font-medium">
-            100% Settled within 24h SLA
+          <span className="text-[11px] text-[#6B6667] block mt-1.5">
+            Cumulative order volume
           </span>
         </div>
 
-        <div className="md:col-span-9 space-y-3">
-          {/* Success bar */}
+        {/* Metric 2: Recorded Transactions */}
+        <div className="bg-[#F7F7F5] rounded-lg p-3.5 border border-[#E4E0DB]/60 flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between text-body-sm mb-1 font-label-xs text-label-xs">
-              <span className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#20885A]" />
-                <strong className="text-on-surface">Successful Cleared Payments</strong>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-[#6B6667] block font-medium">
+                Recorded Transactions
               </span>
-              <span className="font-code-xs text-secondary">
-                ₹{successAmount.toLocaleString("en-IN")} ({successRate}%)
-              </span>
+              <div className="w-7 h-7 rounded-[6px] bg-white border border-[#E4E0DB] flex items-center justify-center text-[#6B6667] shrink-0">
+                <span className="material-symbols-outlined text-[17px]">
+                  receipt_long
+                </span>
+              </div>
             </div>
-            <div className="w-full h-2 rounded-full bg-[#F4F1EA] overflow-hidden">
-              <div
-                className="h-full bg-[#20885A] rounded-full transition-all"
-                style={{ width: `${successRate}%` }}
-              />
+            <div className="text-xl sm:text-2xl font-semibold text-[#111111] mt-2 leading-tight">
+              {recordedTransactions} Orders
             </div>
           </div>
+          <span className="text-[11px] text-[#6B6667] block mt-1.5">
+            Total marketplace orders logged
+          </span>
+        </div>
 
-          {/* Pending Escrow */}
+        {/* Metric 3: Accounting Status */}
+        <div className="bg-[#F7F7F5] rounded-lg p-3.5 border border-[#E4E0DB]/60 flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between text-body-sm mb-1 font-label-xs text-label-xs">
-              <span className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#C9822E]" />
-                <strong className="text-on-surface">Pending Escrow Settlement</strong>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-[#6B6667] block font-medium">
+                Settlement &amp; Reconciliation
               </span>
-              <span className="font-code-xs text-secondary">
-                ₹{escrowAmount.toLocaleString("en-IN")} ({escrowRate}%)
-              </span>
+              <div className="w-7 h-7 rounded-[6px] bg-white border border-[#E4E0DB] flex items-center justify-center text-[#6B6667] shrink-0">
+                <span className="material-symbols-outlined text-[17px]">
+                  account_balance
+                </span>
+              </div>
             </div>
-            <div className="w-full h-2 rounded-full bg-[#F4F1EA] overflow-hidden">
-              <div
-                className="h-full bg-[#C9822E] rounded-full transition-all"
-                style={{ width: `${escrowRate}%` }}
-              />
+            <div className="text-base sm:text-lg font-medium text-[#111111] mt-2 leading-tight">
+              Managed via Ledger
             </div>
           </div>
-
-          {/* Failed / Disputes */}
-          <div>
-            <div className="flex items-center justify-between text-body-sm mb-1 font-label-xs text-label-xs">
-              <span className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#DA1E28]" />
-                <strong className="text-on-surface">Payment Gateway Exceptions</strong>
-              </span>
-              <span className="font-code-xs text-secondary">
-                ₹{failureAmount.toLocaleString("en-IN")} ({failureRate}%)
-              </span>
-            </div>
-            <div className="w-full h-2 rounded-full bg-[#F4F1EA] overflow-hidden">
-              <div
-                className="h-full bg-[#DA1E28] rounded-full transition-all"
-                style={{ width: `${failureRate}%` }}
-              />
-            </div>
-          </div>
+          <span className="text-[11px] text-[#6B6667] block mt-1.5">
+            Authoritative tracking in Payments
+          </span>
         </div>
       </div>
-    </div>
+    </section>
   );
 }

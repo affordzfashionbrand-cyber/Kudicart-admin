@@ -2,7 +2,22 @@
 
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
-import { AuditEvent, AuditActionType, AuditEntityType } from "@/types/audit";
+import {
+  Download,
+  Search,
+  ChevronDown,
+  Calendar,
+  FilterX,
+  Copy,
+  Check,
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+  Shield,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
+import { AuditEvent } from "@/types/audit";
 import { MOCK_AUDIT_EVENTS } from "@/mocks/audit";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -19,7 +34,12 @@ export default function AdminAuditPage() {
   const [dateRange, setDateRange] = useState<string>("LAST_7_DAYS");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [exportNotice, setExportNotice] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  const showToast = (text: string, type: "success" | "error" = "success") => {
+    setToastMessage({ text, type });
+    setTimeout(() => setToastMessage(null), 4000);
+  };
 
   const pageSize = 8;
 
@@ -86,6 +106,7 @@ export default function AdminAuditPage() {
       navigator.clipboard.writeText(text);
       setCopiedId(text);
       setTimeout(() => setCopiedId(null), 2000);
+      showToast("Event ID copied to clipboard.");
     }
   };
 
@@ -93,7 +114,7 @@ export default function AdminAuditPage() {
     try {
       const headers = [
         "Event ID",
-        "Timestamp (IST)",
+        "Timestamp",
         "Actor ID",
         "Actor Name",
         "Actor Role",
@@ -121,64 +142,65 @@ export default function AdminAuditPage() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.setAttribute("href", url);
-      link.setAttribute("download", `kudicart_audit_digest_${Date.now()}.csv`);
+      link.setAttribute("download", `kudicart_audit_export_${Date.now()}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      setExportNotice("Audit digest exported successfully.");
-      setTimeout(() => setExportNotice(null), 4000);
+      showToast(`Exported ${filteredEvents.length} audit records.`);
     } catch {
-      setExportNotice("Export failed. Please try again.");
+      showToast("Export failed. Please try again.", "error");
     }
   };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1440px] w-full mx-auto space-y-6">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div
+          role="status"
+          className={`fixed top-20 right-8 z-50 p-4 rounded-[8px] shadow-lg border flex items-center gap-3 animate-in fade-in slide-in-from-top-4 ${
+            toastMessage.type === "success"
+              ? "bg-[#ECFDF5] border-[#A7F3D0] text-[#20885A]"
+              : "bg-[#FEF2F2] border-[#ffdad6] text-[#DA1E28]"
+          }`}
+        >
+          {toastMessage.type === "success" ? (
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+          ) : (
+            <AlertCircle className="w-5 h-5 shrink-0" />
+          )}
+          <span className="text-xs font-medium">{toastMessage.text}</span>
+        </div>
+      )}
+
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-[#111111] tracking-tight">
+          <h1 className="text-[26px] font-semibold text-[#111111] tracking-tight">
             Audit Log
           </h1>
-          <p className="text-sm text-[#6B6667] mt-1">
-            Inspect recorded administrative activity, entity mutations, and operational authorization events.
+          <p className="text-[13px] text-[#6B6667] mt-1">
+            Review recorded administrative actions and operational authorization history.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={handleExportCsv}
-            className="h-9 px-4 bg-white border border-[#E4E0DB] hover:bg-[#F7F7F5] rounded-lg text-xs font-semibold text-[#111111] flex items-center gap-2 shadow-2xs transition-colors"
+            className="h-9 px-3.5 bg-white border border-[#E4E0DB] hover:bg-[#F7F7F5] rounded-[8px] text-xs font-medium text-[#111111] flex items-center gap-1.5 shadow-xs transition-colors"
           >
-            <span className="material-symbols-outlined text-base">file_download</span>
-            <span>Export Audit Digest (CSV)</span>
+            <Download className="w-3.5 h-3.5 text-[#6B6667]" />
+            <span>Export Audit Log</span>
           </button>
         </div>
       </div>
 
-      {exportNotice && (
-        <div className="p-3 bg-[#ECFDF5] border border-[#A7F3D0] rounded-xl flex items-center justify-between text-xs text-[#20885A]">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-base">check_circle</span>
-            <span>{exportNotice}</span>
-          </div>
-          <button
-            onClick={() => setExportNotice(null)}
-            className="text-[#20885A] hover:text-[#111111]"
-          >
-            <span className="material-symbols-outlined text-base">close</span>
-          </button>
-        </div>
-      )}
-
       {/* Filter Toolbar */}
-      <section className="bg-white p-3 rounded-xl border border-[#E4E0DB] shadow-2xs flex flex-wrap items-center gap-2.5">
+      <section className="bg-white p-3 rounded-[10px] border border-[#E4E0DB] shadow-xs flex flex-wrap items-center gap-2.5">
         {/* Search input */}
-        <div className="relative flex-1 min-w-[240px]">
-          <span className="material-symbols-outlined absolute left-3 top-2.5 text-[#6B6667] text-base">
-            filter_list
-          </span>
+        <div className="relative flex-1 min-w-[240px] max-w-md">
+          <Search className="w-4 h-4 text-[#6B6667] absolute left-3 top-2.5 pointer-events-none" />
           <input
             type="text"
             value={searchTerm}
@@ -186,8 +208,8 @@ export default function AdminAuditPage() {
               setSearchTerm(e.target.value);
               setCurrentPage(1);
             }}
-            placeholder="Filter by actor ID, #VEN-..., #DRV-..., or action..."
-            className="w-full h-9 pl-9 pr-3 bg-white border border-[#E4E0DB] rounded-lg text-xs text-[#111111] placeholder:text-[#6B6667] focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] outline-none"
+            placeholder="Search by actor ID, entity ID, or action..."
+            className="w-full h-9 pl-9 pr-3 bg-white border border-[#E4E0DB] rounded-[8px] text-xs text-[#111111] placeholder:text-[#6B6667] focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] outline-none"
           />
         </div>
 
@@ -199,7 +221,7 @@ export default function AdminAuditPage() {
               setActionFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="h-9 pl-3 pr-8 bg-white border border-[#E4E0DB] rounded-lg text-xs text-[#111111] focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] outline-none appearance-none cursor-pointer"
+            className="h-9 pl-3 pr-8 bg-white border border-[#E4E0DB] rounded-[8px] text-xs font-medium text-[#111111] hover:bg-[#F7F7F5] focus:border-[#FF5A1F] outline-none appearance-none cursor-pointer"
           >
             <option value="ALL">All Action Types</option>
             <option value="DRIVER_KYC_APPROVED">Driver KYC Approved</option>
@@ -211,9 +233,7 @@ export default function AdminAuditPage() {
             <option value="PAYOUT_HOLD_UPDATED">Payout Hold Updated</option>
             <option value="CUSTOMER_TIER_UPGRADE">Customer Tier Upgrade</option>
           </select>
-          <span className="material-symbols-outlined absolute right-2.5 top-2.5 text-[#6B6667] text-base pointer-events-none">
-            expand_more
-          </span>
+          <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
         </div>
 
         {/* Actor Role filter */}
@@ -224,7 +244,7 @@ export default function AdminAuditPage() {
               setRoleFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="h-9 pl-3 pr-8 bg-white border border-[#E4E0DB] rounded-lg text-xs text-[#111111] focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] outline-none appearance-none cursor-pointer"
+            className="h-9 pl-3 pr-8 bg-white border border-[#E4E0DB] rounded-[8px] text-xs font-medium text-[#111111] hover:bg-[#F7F7F5] focus:border-[#FF5A1F] outline-none appearance-none cursor-pointer"
           >
             <option value="ALL">All Roles</option>
             <option value="Central Ops Lead">Central Ops Lead</option>
@@ -232,9 +252,7 @@ export default function AdminAuditPage() {
             <option value="System Automation">System Automation</option>
             <option value="Finance Settlement">Finance Settlement</option>
           </select>
-          <span className="material-symbols-outlined absolute right-2.5 top-2.5 text-[#6B6667] text-base pointer-events-none">
-            expand_more
-          </span>
+          <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
         </div>
 
         {/* Entity Type filter */}
@@ -245,7 +263,7 @@ export default function AdminAuditPage() {
               setEntityFilter(e.target.value);
               setCurrentPage(1);
             }}
-            className="h-9 pl-3 pr-8 bg-white border border-[#E4E0DB] rounded-lg text-xs text-[#111111] focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] outline-none appearance-none cursor-pointer"
+            className="h-9 pl-3 pr-8 bg-white border border-[#E4E0DB] rounded-[8px] text-xs font-medium text-[#111111] hover:bg-[#F7F7F5] focus:border-[#FF5A1F] outline-none appearance-none cursor-pointer"
           >
             <option value="ALL">All Entities</option>
             <option value="Driver">Driver</option>
@@ -255,9 +273,7 @@ export default function AdminAuditPage() {
             <option value="Payment">Payment</option>
             <option value="Customer">Customer</option>
           </select>
-          <span className="material-symbols-outlined absolute right-2.5 top-2.5 text-[#6B6667] text-base pointer-events-none">
-            expand_more
-          </span>
+          <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
         </div>
 
         {/* Date Range filter */}
@@ -265,46 +281,44 @@ export default function AdminAuditPage() {
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
-            className="h-9 pl-3 pr-8 bg-white border border-[#E4E0DB] rounded-lg text-xs text-[#111111] focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] outline-none appearance-none cursor-pointer"
+            className="h-9 pl-3 pr-8 bg-white border border-[#E4E0DB] rounded-[8px] text-xs font-medium text-[#111111] hover:bg-[#F7F7F5] focus:border-[#FF5A1F] outline-none appearance-none cursor-pointer"
           >
             <option value="LAST_7_DAYS">Last 7 Days</option>
             <option value="TODAY">Today</option>
             <option value="LAST_24_HOURS">Last 24 Hours</option>
             <option value="LAST_30_DAYS">Last 30 Days</option>
           </select>
-          <span className="material-symbols-outlined absolute right-2.5 top-2.5 text-[#6B6667] text-base pointer-events-none">
-            calendar_today
-          </span>
+          <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
         </div>
 
         {/* Clear Filters */}
         <button
           onClick={clearFilters}
-          className="h-9 px-3 text-[#6B6667] hover:text-[#111111] hover:bg-[#F7F7F5] rounded-lg text-xs flex items-center gap-1 transition-colors"
+          className="h-9 px-2 text-[#6B6667] hover:text-[#111111] rounded-[8px] text-xs flex items-center gap-1 transition-colors"
         >
-          <span className="material-symbols-outlined text-base">close</span>
-          <span>Clear Filters</span>
+          <FilterX className="w-3.5 h-3.5" />
+          <span>Clear</span>
         </button>
       </section>
 
       {/* 2-Column Split Layout */}
-      <section className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         {/* Left Side: Audit Table (8 cols / 65%) */}
-        <div className="lg:col-span-8 bg-white rounded-xl border border-[#E4E0DB] overflow-hidden flex flex-col shadow-2xs">
+        <div className="lg:col-span-8 bg-white rounded-[10px] border border-[#E4E0DB] overflow-hidden flex flex-col shadow-xs">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[700px]">
               <thead>
-                <tr className="h-10 bg-[#F7F7F5] border-b border-[#E4E0DB] text-[11px] text-[#6B6667] uppercase font-semibold tracking-wider">
-                  <th className="py-2 px-4">Timestamp (IST)</th>
-                  <th className="py-2 px-3">Actor</th>
-                  <th className="py-2 px-3">Action Type</th>
-                  <th className="py-2 px-3">Entity ID</th>
-                  <th className="py-2 px-3">IP Address</th>
-                  <th className="py-2 px-3">Details Summary</th>
-                  <th className="py-2 px-4 text-right">Actions</th>
+                <tr className="h-10 bg-[#F7F7F5] border-b border-[#E4E0DB] text-xs text-[#6B6667] font-medium">
+                  <th className="py-2 px-4 font-medium">Timestamp</th>
+                  <th className="py-2 px-3 font-medium">Actor</th>
+                  <th className="py-2 px-3 font-medium">Action</th>
+                  <th className="py-2 px-3 font-medium">Entity ID</th>
+                  <th className="py-2 px-3 font-medium">IP Address</th>
+                  <th className="py-2 px-3 font-medium">Summary</th>
+                  <th className="py-2 px-4 text-right font-medium">Inspect</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E4E0DB] text-xs">
+              <tbody className="divide-y divide-[#E4E0DB] text-xs text-[#111111]">
                 {paginatedEvents.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-8 text-center">
@@ -323,48 +337,48 @@ export default function AdminAuditPage() {
                       <tr
                         key={ev.id}
                         onClick={() => setSelectedEvent(ev)}
-                        className={`h-12 transition-colors cursor-pointer ${
+                        className={`h-11 sm:h-12 transition-colors cursor-pointer border-b border-[#E4E0DB] ${
                           isSelected
-                            ? "bg-[#FFF8F5] border-l-4 border-l-[#FF5A1F]"
-                            : "hover:bg-[#F7F7F5]"
+                            ? "bg-[#FFF0E8] border-l-2 border-l-[#FF5A1F]"
+                            : "hover:bg-[#F7F7F5]/50"
                         }`}
                       >
-                        <td className="py-2.5 px-4 font-mono text-[11px] whitespace-nowrap text-[#111111]">
+                        <td className="py-2 px-4 font-mono text-[11px] whitespace-nowrap text-[#111111]">
                           {ev.timestamp}
                         </td>
-                        <td className="py-2.5 px-3 whitespace-nowrap">
-                          <span className="font-semibold text-[#111111] block">
+                        <td className="py-2 px-3 whitespace-nowrap">
+                          <span className="font-medium text-[#111111] block">
                             {ev.actorName}
                           </span>
                           <span className="font-mono text-[10px] text-[#6B6667]">
                             {ev.actorId}
                           </span>
                         </td>
-                        <td className="py-2.5 px-3 whitespace-nowrap">
+                        <td className="py-2 px-3 whitespace-nowrap">
                           <StatusBadge status={ev.actionType} variant="audit" />
                         </td>
-                        <td className="py-2.5 px-3 whitespace-nowrap font-mono text-[11px] text-[#FF5A1F] font-semibold">
+                        <td className="py-2 px-3 whitespace-nowrap font-mono text-[11px] text-[#FF5A1F] font-medium">
                           {ev.entityId}
                         </td>
-                        <td className="py-2.5 px-3 whitespace-nowrap font-mono text-[11px] text-[#6B6667]">
+                        <td className="py-2 px-3 whitespace-nowrap font-mono text-[11px] text-[#6B6667]">
                           {ev.ipAddress}
                         </td>
                         <td
-                          className="py-2.5 px-3 text-[#6B6667] max-w-[180px] truncate"
+                          className="py-2 px-3 text-[#6B6667] max-w-[180px] truncate"
                           title={ev.summary}
                         >
                           {ev.summary}
                         </td>
-                        <td className="py-2.5 px-4 text-right whitespace-nowrap">
+                        <td className="py-2 px-4 text-right whitespace-nowrap">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedEvent(ev);
                             }}
-                            className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
+                            className={`px-2.5 py-1 rounded-[8px] text-xs font-medium transition-colors ${
                               isSelected
                                 ? "bg-[#FF5A1F] text-white"
-                                : "border border-[#E4E0DB] text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA]"
+                                : "border border-[#E4E0DB] text-[#6B6667] hover:text-[#111111] hover:bg-[#F7F7F5]"
                             }`}
                           >
                             Inspect
@@ -379,8 +393,8 @@ export default function AdminAuditPage() {
           </div>
 
           {/* Table Pagination Footer */}
-          <div className="px-4 py-3 border-t border-[#E4E0DB] bg-[#F7F7F5] flex items-center justify-between">
-            <span className="text-xs text-[#6B6667]">
+          <div className="px-4 py-3 border-t border-[#E4E0DB] bg-[#F4F1EA] flex items-center justify-between text-xs text-[#6B6667]">
+            <span>
               Showing{" "}
               <strong className="text-[#111111]">
                 {filteredEvents.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}–
@@ -388,76 +402,70 @@ export default function AdminAuditPage() {
               </strong>{" "}
               of <strong className="text-[#111111]">{filteredEvents.length}</strong> events
             </span>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
                 disabled={currentPage === 1}
-                className="w-8 h-8 rounded border border-[#E4E0DB] bg-white text-[#6B6667] flex items-center justify-center hover:bg-[#F4F1EA] disabled:opacity-50"
+                className="h-8 px-2.5 rounded-[8px] border border-[#E4E0DB] bg-white text-[#111111] flex items-center gap-1 hover:bg-[#F7F7F5] disabled:opacity-50 font-medium"
               >
-                <span className="material-symbols-outlined text-sm">chevron_left</span>
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Previous</span>
               </button>
-              <span className="px-2 text-xs font-semibold text-[#111111]">
+              <span className="px-2 font-medium text-[#111111]">
                 Page {currentPage} of {totalPages}
               </span>
               <button
                 onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
                 disabled={currentPage === totalPages}
-                className="w-8 h-8 rounded border border-[#E4E0DB] bg-white text-[#6B6667] flex items-center justify-center hover:bg-[#F4F1EA] disabled:opacity-50"
+                className="h-8 px-2.5 rounded-[8px] border border-[#E4E0DB] bg-white text-[#111111] flex items-center gap-1 hover:bg-[#F7F7F5] disabled:opacity-50 font-medium"
               >
-                <span className="material-symbols-outlined text-sm">chevron_right</span>
+                <span>Next</span>
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
         </div>
 
         {/* Right Side: Event Dossier Panel (4 cols / 35%) */}
-        <div className="lg:col-span-4 bg-white rounded-xl border border-[#E4E0DB] p-5 space-y-5 shadow-2xs">
+        <div className="lg:col-span-4 bg-white rounded-[10px] border border-[#E4E0DB] p-5 space-y-4 shadow-xs">
           {selectedEvent ? (
             <>
               {/* Dossier Header */}
               <div className="flex items-center justify-between pb-3 border-b border-[#E4E0DB]">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-base font-bold text-[#111111]">Event Dossier</h3>
-                    <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-[#F4F1EA] text-[#6B6667]">
+                    <h3 className="text-sm font-semibold text-[#111111]">Event Details</h3>
+                    <span className="font-mono text-xs px-2 py-0.5 rounded-[4px] bg-[#F4F1EA] text-[#6B6667]">
                       {selectedEvent.id}
                     </span>
                   </div>
                   <p className="text-[11px] text-[#6B6667] mt-0.5">
-                    Recorded administrative mutation artifact
+                    Recorded administrative event
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0]">
-                    <span className="material-symbols-outlined text-[12px]">verified_user</span>
-                    Immutable
-                  </span>
                   <button
                     onClick={() => handleCopy(selectedEvent.id)}
-                    className="p-1.5 text-[#6B6667] hover:text-[#111111] rounded hover:bg-[#F7F7F5] relative"
+                    className="p-1.5 text-[#6B6667] hover:text-[#111111] rounded-[6px] hover:bg-[#F7F7F5]"
                     title="Copy Event ID"
                   >
-                    <span className="material-symbols-outlined text-base">content_copy</span>
-                    {copiedId === selectedEvent.id && (
-                      <span className="absolute -top-6 right-0 bg-[#111111] text-white text-[10px] px-1.5 py-0.5 rounded shadow">
-                        Copied
-                      </span>
+                    {copiedId === selectedEvent.id ? (
+                      <Check className="w-4 h-4 text-[#20885A]" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
                     )}
                   </button>
                 </div>
               </div>
 
               {/* Action Summary Card */}
-              <div className="p-3.5 rounded-lg bg-[#FFF8F5] border border-[#FFDBD0]">
-                <div className="flex items-center gap-2 text-[#AE3200]">
-                  <span className="material-symbols-outlined text-lg">task_alt</span>
-                  <span className="text-xs font-bold tracking-wide">
-                    {selectedEvent.actionType}
-                  </span>
-                </div>
-                <div className="mt-2 text-xs text-[#111111]">
+              <div className="p-3.5 rounded-[8px] bg-[#FFF0E8]/50 border border-[#FF5A1F]/20">
+                <span className="text-xs font-semibold text-[#FF5A1F] block">
+                  {selectedEvent.actionType}
+                </span>
+                <div className="mt-1.5 text-xs text-[#111111]">
                   Target Entity:{" "}
-                  <span className="font-semibold text-[#FF5A1F] font-mono">
+                  <span className="font-medium text-[#FF5A1F] font-mono">
                     {selectedEvent.entityId}
                   </span>{" "}
                   {selectedEvent.entityName && (
@@ -471,16 +479,16 @@ export default function AdminAuditPage() {
 
               {/* Actor Identity Grid */}
               <div className="space-y-1.5">
-                <h4 className="text-[11px] uppercase tracking-wider text-[#6B6667] font-semibold">
+                <h4 className="text-[11px] text-[#6B6667] font-medium">
                   Actor Identity
                 </h4>
-                <div className="p-3 rounded-lg bg-[#F7F7F5] border border-[#E4E0DB] flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#FF5A1F] text-white text-xs font-bold flex items-center justify-center">
+                <div className="p-3 rounded-[8px] bg-[#F7F7F5] border border-[#E4E0DB] flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-full bg-[#F4F1EA] text-[#111111] text-xs font-medium flex items-center justify-center">
                       {selectedEvent.actorInitials}
                     </div>
                     <div>
-                      <div className="text-xs font-bold text-[#111111]">
+                      <div className="text-xs font-medium text-[#111111]">
                         {selectedEvent.actorName}
                       </div>
                       <div className="text-[11px] text-[#6B6667]">
@@ -488,7 +496,7 @@ export default function AdminAuditPage() {
                       </div>
                     </div>
                   </div>
-                  <span className="font-mono text-xs bg-white px-2 py-0.5 rounded border border-[#E4E0DB] text-[#6B6667] font-semibold">
+                  <span className="font-mono text-xs bg-white px-2 py-0.5 rounded-[4px] border border-[#E4E0DB] text-[#6B6667]">
                     {selectedEvent.actorId}
                   </span>
                 </div>
@@ -496,28 +504,23 @@ export default function AdminAuditPage() {
 
               {/* Technical Metadata Block */}
               <div className="space-y-1.5">
-                <h4 className="text-[11px] uppercase tracking-wider text-[#6B6667] font-semibold">
-                  Technical Origin & Seals
+                <h4 className="text-[11px] text-[#6B6667] font-medium">
+                  Event Parameters
                 </h4>
-                <div className="p-3 rounded-lg bg-[#F7F7F5] border border-[#E4E0DB] space-y-2 text-xs">
-                  <div className="flex justify-between items-center py-0.5 border-b border-[#E4E0DB]/60">
+                <div className="p-3 rounded-[8px] bg-[#F7F7F5] border border-[#E4E0DB] space-y-2 text-xs">
+                  <div className="flex justify-between items-center py-0.5 border-b border-[#E4E0DB]">
                     <span className="text-[#6B6667]">Timestamp:</span>
-                    <span className="font-mono text-[11px] text-[#111111] font-semibold">
+                    <span className="font-mono text-[11px] text-[#111111] font-medium">
                       {selectedEvent.timestampFull}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center py-0.5 border-b border-[#E4E0DB]/60">
-                    <span className="text-[#6B6667]">Origin IP:</span>
-                    <span className="font-mono text-[11px] text-[#111111] font-semibold">
-                      {selectedEvent.ipAddress}{" "}
-                      {selectedEvent.gatewayVpn && (
-                        <span className="text-[10px] text-[#6B6667] font-normal">
-                          ({selectedEvent.gatewayVpn})
-                        </span>
-                      )}
+                  <div className="flex justify-between items-center py-0.5 border-b border-[#E4E0DB]">
+                    <span className="text-[#6B6667]">IP Address:</span>
+                    <span className="font-mono text-[11px] text-[#111111] font-medium">
+                      {selectedEvent.ipAddress}
                     </span>
                   </div>
-                  <div className="flex justify-between items-start py-0.5 border-b border-[#E4E0DB]/60">
+                  <div className="flex justify-between items-start py-0.5">
                     <span className="text-[#6B6667] shrink-0">User Agent:</span>
                     <span
                       className="font-mono text-[10px] text-right text-[#6B6667] truncate max-w-[190px]"
@@ -526,27 +529,20 @@ export default function AdminAuditPage() {
                       {selectedEvent.userAgent}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center py-0.5">
-                    <span className="text-[#6B6667]">Session Token Hash:</span>
-                    <span className="font-mono text-[11px] text-[#20885A] font-semibold flex items-center gap-1">
-                      <span className="material-symbols-outlined text-xs">lock</span>
-                      {selectedEvent.sessionTokenHash}
-                    </span>
-                  </div>
                 </div>
               </div>
 
               {/* Recorded Change Payload (JSON block) */}
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-[11px] uppercase tracking-wider text-[#6B6667] font-semibold">
-                    Recorded Change Payload
+                  <h4 className="text-[11px] text-[#6B6667] font-medium">
+                    Change Payload
                   </h4>
                   <span className="text-[10px] font-mono text-[#6B6667]">
-                    application/json
+                    JSON
                   </span>
                 </div>
-                <div className="p-3 rounded-lg bg-[#1E1B1C] text-[#F1F1EF] font-mono text-[11px] leading-relaxed overflow-x-auto space-y-1">
+                <div className="p-3 rounded-[8px] bg-[#1E1B1C] text-[#F1F1EF] font-mono text-[11px] leading-relaxed overflow-x-auto space-y-1">
                   {Object.entries(selectedEvent.changePayload).map(([k, v]) => (
                     <div key={k}>
                       <span className="text-[#FFB59E]">"{k}"</span>:{" "}
@@ -563,30 +559,18 @@ export default function AdminAuditPage() {
               {selectedEvent.entityLink && (
                 <Link
                   href={selectedEvent.entityLink}
-                  className="w-full h-10 px-4 rounded-lg bg-white border border-[#E4E0DB] hover:bg-[#F7F7F5] active:scale-[0.99] text-[#111111] font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-2xs"
+                  className="w-full h-9 px-4 rounded-[8px] bg-white border border-[#E4E0DB] hover:bg-[#F7F7F5] text-[#111111] font-medium text-xs flex items-center justify-center gap-1.5 transition-colors shadow-xs"
                 >
                   <span>
-                    View {selectedEvent.entityType} Record ({selectedEvent.entityId})
+                    View {selectedEvent.entityType} ({selectedEvent.entityId})
                   </span>
-                  <span className="material-symbols-outlined text-base text-[#6B6667]">
-                    open_in_new
-                  </span>
+                  <ExternalLink className="w-3.5 h-3.5 text-[#6B6667]" />
                 </Link>
               )}
-
-              {/* Governance notice */}
-              <div className="p-2.5 bg-[#F4F4F2] rounded border border-[#E4E0DB] flex items-start gap-2">
-                <span className="material-symbols-outlined text-base text-[#6B6667] shrink-0 mt-0.5">
-                  policy
-                </span>
-                <p className="text-[11px] text-[#6B6667] leading-normal">
-                  Audit log entries are write-once and cryptographically sealed. Modifications are prohibited by platform governance.
-                </p>
-              </div>
             </>
           ) : (
             <div className="py-12 text-center text-xs text-[#6B6667]">
-              Select an event to view full audit dossier
+              Select an event to view full audit details.
             </div>
           )}
         </div>

@@ -2,7 +2,23 @@
 
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
-import { SupportTicketItem, TicketStatus, TicketPriority, TicketCategory } from "@/types/support";
+import {
+  Download,
+  RefreshCw,
+  Search,
+  ChevronDown,
+  FilterX,
+  User,
+  Phone,
+  MapPin,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  FileText,
+  Clock,
+  AlertTriangle,
+} from "lucide-react";
+import { SupportTicketItem, TicketStatus } from "@/types/support";
 import { MOCK_TICKETS } from "@/mocks/support";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -16,12 +32,12 @@ export default function AdminSupportPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [priorityFilter, setPriorityFilter] = useState<string>("ALL");
   const [assigneeFilter, setAssigneeFilter] = useState<string>("ALL");
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
-  // State transition note
-  const [adminNote, setAdminNote] = useState<string>(
-    "Coordinated with Bandra West hub dispatch. Rider briefed on 15-min protocol + granted 5-min extension under High Value Try & Buy exemption."
-  );
-  const [transitionFeedback, setTransitionFeedback] = useState<string | null>(null);
+  const showToast = (text: string, type: "success" | "error" = "success") => {
+    setToastMessage({ text, type });
+    setTimeout(() => setToastMessage(null), 4000);
+  };
 
   // Tab counts
   const allCount = tickets.length;
@@ -87,147 +103,141 @@ export default function AdminSupportPage() {
     link.href = url;
     link.download = `kudicart_support_tickets_${new Date().toISOString().split("T")[0]}.csv`;
     link.click();
+    showToast(`Exported ${filteredTickets.length} support tickets.`);
   };
 
-  // State Transition Sequence: OPEN -> IN_PROGRESS -> RESOLVED
   const handleTransition = (newStatus: TicketStatus) => {
-    if (!selectedTicket) return;
-    const ticketId = selectedTicket.id;
-    const updated = {
-      ...selectedTicket,
-      status: newStatus,
-      resolutionRemarks: adminNote.trim() || selectedTicket.resolutionRemarks,
-      resolvedAt: newStatus === "RESOLVED" ? "Just now" : selectedTicket.resolvedAt,
-    };
-
-    setTickets((prev) => prev.map((t) => (t.id === ticketId ? updated : t)));
-    setSelectedTicket(updated);
-    setTransitionFeedback(`Ticket ${ticketId} status transitioned to ${newStatus}. Internal audit note recorded.`);
-    setTimeout(() => setTransitionFeedback(null), 5000);
+    showToast(
+      "Not connected in this build: Ticket status transitions require backend service.",
+      "error"
+    );
   };
 
   return (
-    <div className="space-y-space-md max-w-[1440px] mx-auto select-none">
+    <div className="space-y-6 max-w-[1440px] mx-auto select-none">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div
+          role="status"
+          className={`fixed top-20 right-8 z-50 p-4 rounded-[8px] shadow-lg border flex items-center gap-3 animate-in fade-in slide-in-from-top-4 ${
+            toastMessage.type === "success"
+              ? "bg-[#ECFDF5] border-[#A7F3D0] text-[#20885A]"
+              : "bg-[#FEF2F2] border-[#ffdad6] text-[#DA1E28]"
+          }`}
+        >
+          {toastMessage.type === "success" ? (
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+          ) : (
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+          )}
+          <span className="text-xs font-medium">{toastMessage.text}</span>
+        </div>
+      )}
+
       {/* ================= SECTION 1: PAGE HEADER ================= */}
-      <section className="flex flex-col md:flex-row md:items-center justify-between gap-space-md">
+      <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-space-xs">
-            <h1 className="font-headline-lg text-headline-lg font-bold text-on-surface tracking-tight">
-              Support Tickets
-            </h1>
-            <span className="px-2 py-0.5 rounded-full bg-surface-container text-secondary font-mono text-[11px] font-semibold">
-              SLA Engine Active
-            </span>
-          </div>
-          <p className="font-body-md text-body-md text-secondary mt-1 max-w-3xl">
-            Track customer and merchant fulfillment issues, manage resolution workflows, and oversee operational SLAs across multi-hub deliveries.
+          <h1 className="text-[26px] font-semibold text-[#111111] tracking-tight">
+            Support Tickets
+          </h1>
+          <p className="text-[13px] text-[#6B6667] mt-1">
+            Track customer inquiries, delivery questions, and order resolution workflows.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 self-start md:self-auto shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
-            onClick={() => setTickets([...MOCK_TICKETS])}
-            className="h-9 px-3 rounded-lg border border-surface-container-highest bg-surface-container-lowest text-on-surface font-label-sm text-xs hover:bg-surface-container-low transition-colors flex items-center gap-1.5 shadow-xs active:scale-[0.98]"
+            onClick={() => {
+              setTickets([...MOCK_TICKETS]);
+              showToast("Support ticket list refreshed.");
+            }}
+            className="h-9 px-3.5 rounded-[8px] border border-[#E4E0DB] bg-white text-[#111111] text-xs font-medium hover:bg-[#F7F7F5] transition-colors flex items-center gap-1.5 shadow-xs"
             title="Refresh Queue"
           >
-            <span className="material-symbols-outlined text-[18px] text-secondary">refresh</span>
+            <RefreshCw className="w-3.5 h-3.5 text-[#6B6667]" />
             <span>Refresh</span>
           </button>
           <button
             onClick={handleExportCsv}
-            className="h-9 px-3.5 rounded-lg border border-surface-container-highest bg-surface-container-lowest text-on-surface font-label-sm text-xs font-semibold hover:bg-surface-container-low transition-colors flex items-center gap-1.5 shadow-xs active:scale-[0.98]"
+            className="h-9 px-3.5 rounded-[8px] border border-[#E4E0DB] bg-white text-[#111111] text-xs font-medium hover:bg-[#F7F7F5] transition-colors flex items-center gap-1.5 shadow-xs"
           >
-            <span className="material-symbols-outlined text-[18px] text-secondary">file_download</span>
-            <span>Export Tickets CSV</span>
+            <Download className="w-3.5 h-3.5 text-[#6B6667]" />
+            <span>Export CSV</span>
           </button>
         </div>
       </section>
 
-      {/* Transition Notification Feedback */}
-      {transitionFeedback && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center gap-2 text-xs font-medium animate-in fade-in">
-          <span className="material-symbols-outlined text-[18px] text-emerald-600">check_circle</span>
-          <span>{transitionFeedback}</span>
-        </div>
-      )}
-
       {/* ================= SECTION 2: QUEUE STATUS TABS ================= */}
-      <nav className="flex items-center border-b border-surface-container-highest gap-6 text-sm">
-        {/* All Tickets */}
+      <nav className="flex items-center border-b border-[#E4E0DB] gap-6 text-xs whitespace-nowrap overflow-x-auto pb-1">
         <button
           onClick={() => setActiveTab("ALL")}
-          className={`pb-3 flex items-center gap-2 font-semibold transition-colors border-b-2 ${
+          className={`pb-2.5 flex items-center gap-1.5 font-medium transition-colors border-b-2 -mb-[1px] ${
             activeTab === "ALL"
               ? "text-[#FF5A1F] border-[#FF5A1F]"
-              : "text-secondary hover:text-on-surface border-transparent"
+              : "text-[#6B6667] hover:text-[#111111] border-transparent"
           }`}
         >
           <span>All Tickets</span>
-          <span className="px-2 py-0.5 rounded-full bg-surface-container text-secondary font-mono text-[11px] font-semibold">
+          <span className="px-1.5 py-0.5 rounded-[4px] bg-[#F4F1EA] text-[#6B6667] font-mono text-[10px]">
             {allCount}
           </span>
         </button>
 
-        {/* Open (Action Req.) */}
         <button
           onClick={() => setActiveTab("OPEN")}
-          className={`pb-3 flex items-center gap-2 font-semibold transition-colors border-b-2 ${
+          className={`pb-2.5 flex items-center gap-1.5 font-medium transition-colors border-b-2 -mb-[1px] ${
             activeTab === "OPEN"
               ? "text-[#C9822E] border-[#C9822E]"
-              : "text-secondary hover:text-on-surface border-transparent"
+              : "text-[#6B6667] hover:text-[#111111] border-transparent"
           }`}
         >
           <span>Open</span>
-          <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 font-mono text-[11px] font-semibold">
-            {openCount} Action Req.
+          <span className="px-1.5 py-0.5 rounded-[4px] bg-[#FFFBEB] text-[#C9822E] border border-[#FDE68A] font-mono text-[10px]">
+            {openCount}
           </span>
         </button>
 
-        {/* In Progress */}
         <button
           onClick={() => setActiveTab("IN_PROGRESS")}
-          className={`pb-3 flex items-center gap-2 font-semibold transition-colors border-b-2 ${
+          className={`pb-2.5 flex items-center gap-1.5 font-medium transition-colors border-b-2 -mb-[1px] ${
             activeTab === "IN_PROGRESS"
               ? "text-[#FF5A1F] border-[#FF5A1F]"
-              : "text-secondary hover:text-on-surface border-transparent"
+              : "text-[#6B6667] hover:text-[#111111] border-transparent"
           }`}
         >
           <span>In Progress</span>
-          <span className="px-2 py-0.5 rounded-full bg-orange-50 text-[#FF5A1F] border border-orange-200 font-mono text-[11px] font-semibold">
+          <span className="px-1.5 py-0.5 rounded-[4px] bg-[#FFF0E8] text-[#FF5A1F] border border-[#FF5A1F]/20 font-mono text-[10px]">
             {inProgressCount}
           </span>
         </button>
 
-        {/* Resolved */}
         <button
           onClick={() => setActiveTab("RESOLVED")}
-          className={`pb-3 flex items-center gap-2 font-semibold transition-colors border-b-2 ${
+          className={`pb-2.5 flex items-center gap-1.5 font-medium transition-colors border-b-2 -mb-[1px] ${
             activeTab === "RESOLVED"
               ? "text-[#20885A] border-[#20885A]"
-              : "text-secondary hover:text-on-surface border-transparent"
+              : "text-[#6B6667] hover:text-[#111111] border-transparent"
           }`}
         >
           <span>Resolved</span>
-          <span className="px-2 py-0.5 rounded-full bg-surface-container text-secondary font-mono text-[11px] font-semibold">
+          <span className="px-1.5 py-0.5 rounded-[4px] bg-[#ECFDF5] text-[#20885A] font-mono text-[10px]">
             {resolvedCount}
           </span>
         </button>
       </nav>
 
       {/* ================= SECTION 3: SEARCH & MULTI-PARAM FILTERS ================= */}
-      <section className="bg-surface-container-lowest p-space-sm rounded-xl border border-surface-container-highest flex flex-wrap items-center justify-between gap-space-sm shadow-xs">
-        <div className="flex flex-1 items-center gap-space-xs min-w-[280px] flex-wrap">
+      <section className="bg-white p-3 rounded-[10px] border border-[#E4E0DB] flex flex-wrap items-center justify-between gap-3 shadow-xs">
+        <div className="flex flex-1 items-center gap-2.5 min-w-[280px] flex-wrap">
           {/* Keyword Search */}
           <div className="relative w-full max-w-md">
-            <span className="material-symbols-outlined text-[18px] text-secondary absolute left-3 top-2.5">
-              search
-            </span>
+            <Search className="w-4 h-4 text-[#6B6667] absolute left-3 top-2.5 pointer-events-none" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by Ticket ID (#TICK-...), customer, subject, or order ID..."
-              className="w-full h-9 pl-9 pr-3 rounded-lg border border-surface-container-highest bg-white text-on-surface font-body-sm text-xs focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] placeholder:text-secondary"
+              placeholder="Search by ticket ID, customer, or order ID..."
+              className="w-full h-9 pl-9 pr-3 rounded-[8px] border border-[#E4E0DB] bg-white text-[#111111] text-xs focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] outline-none placeholder:text-[#6B6667]"
             />
           </div>
 
@@ -236,19 +246,17 @@ export default function AdminSupportPage() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="h-9 pl-3 pr-8 rounded-lg border border-surface-container-highest bg-white font-medium text-xs text-on-surface focus:border-[#FF5A1F] appearance-none cursor-pointer"
+              className="h-9 pl-3 pr-8 rounded-[8px] border border-[#E4E0DB] bg-white font-medium text-xs text-[#111111] hover:bg-[#F7F7F5] focus:border-[#FF5A1F] outline-none appearance-none cursor-pointer"
             >
               <option value="ALL">All Categories</option>
-              <option value="Try & Buy Inspection">Try &amp; Buy Inspection</option>
+              <option value="Try & Buy Inspection">Try &amp; Buy</option>
               <option value="Delivery Delay">Delivery Delay</option>
               <option value="Damaged Goods">Damaged Goods</option>
               <option value="Payment Failure">Payment Failure</option>
               <option value="Vendor Dispute">Vendor Dispute</option>
               <option value="Address Correction">Address Correction</option>
             </select>
-            <span className="material-symbols-outlined text-[16px] text-secondary absolute right-2.5 top-2.5 pointer-events-none">
-              expand_more
-            </span>
+            <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
           </div>
 
           {/* Priority Filter */}
@@ -256,16 +264,14 @@ export default function AdminSupportPage() {
             <select
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value)}
-              className="h-9 pl-3 pr-8 rounded-lg border border-surface-container-highest bg-white font-medium text-xs text-on-surface focus:border-[#FF5A1F] appearance-none cursor-pointer"
+              className="h-9 pl-3 pr-8 rounded-[8px] border border-[#E4E0DB] bg-white font-medium text-xs text-[#111111] hover:bg-[#F7F7F5] focus:border-[#FF5A1F] outline-none appearance-none cursor-pointer"
             >
               <option value="ALL">All Priorities</option>
-              <option value="HIGH">High</option>
-              <option value="MEDIUM">Medium</option>
-              <option value="NORMAL">Normal</option>
+              <option value="HIGH">High Priority</option>
+              <option value="MEDIUM">Medium Priority</option>
+              <option value="NORMAL">Normal Priority</option>
             </select>
-            <span className="material-symbols-outlined text-[16px] text-secondary absolute right-2.5 top-2.5 pointer-events-none">
-              expand_more
-            </span>
+            <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
           </div>
 
           {/* Assignee Filter */}
@@ -273,17 +279,15 @@ export default function AdminSupportPage() {
             <select
               value={assigneeFilter}
               onChange={(e) => setAssigneeFilter(e.target.value)}
-              className="h-9 pl-3 pr-8 rounded-lg border border-surface-container-highest bg-white font-medium text-xs text-on-surface focus:border-[#FF5A1F] appearance-none cursor-pointer"
+              className="h-9 pl-3 pr-8 rounded-[8px] border border-[#E4E0DB] bg-white font-medium text-xs text-[#111111] hover:bg-[#F7F7F5] focus:border-[#FF5A1F] outline-none appearance-none cursor-pointer"
             >
               <option value="ALL">All Assignees</option>
-              <option value="Rahul M.">Rahul M. (Ops Lead)</option>
-              <option value="Sneha K.">Sneha K. (Finance)</option>
-              <option value="Amara O.">Amara O. (Chief Ops)</option>
+              <option value="Rahul M.">Rahul M.</option>
+              <option value="Sneha K.">Sneha K.</option>
+              <option value="Amara O.">Amara O.</option>
               <option value="UNASSIGNED">Unassigned</option>
             </select>
-            <span className="material-symbols-outlined text-[16px] text-secondary absolute right-2.5 top-2.5 pointer-events-none">
-              expand_more
-            </span>
+            <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
           </div>
         </div>
 
@@ -291,42 +295,32 @@ export default function AdminSupportPage() {
         {(searchTerm || categoryFilter !== "ALL" || priorityFilter !== "ALL" || assigneeFilter !== "ALL") && (
           <button
             onClick={clearFilters}
-            className="font-medium text-xs text-primary hover:underline flex items-center gap-1 pr-2"
+            className="text-xs font-medium text-[#6B6667] hover:text-[#FF5A1F] flex items-center gap-1 pr-2 transition-colors"
           >
-            <span className="material-symbols-outlined text-[16px]">filter_alt_off</span>
+            <FilterX className="w-3.5 h-3.5" />
             <span>Clear Filters</span>
           </button>
         )}
       </section>
 
       {/* ================= SECTION 4 & 5: WORKBENCH SPLIT LAYOUT ================= */}
-      <section className="grid grid-cols-1 xl:grid-cols-12 gap-space-md items-start">
+      <section className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
         {/* Table View (7 Cols) */}
-        <div className="xl:col-span-7 bg-surface-container-lowest rounded-xl border border-surface-container-highest overflow-hidden shadow-xs">
-          <div className="px-4 py-2.5 border-b border-surface-container-highest bg-surface-container-low flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-secondary text-[18px]">view_list</span>
-              <span className="font-semibold text-xs text-on-surface">Active Operational Tickets</span>
-            </div>
-            <span className="font-mono text-[11px] text-secondary">
-              Showing {filteredTickets.length} of {tickets.length} records
-            </span>
-          </div>
-
+        <div className="xl:col-span-7 bg-white rounded-[10px] border border-[#E4E0DB] overflow-hidden shadow-xs">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[700px]">
               <thead>
-                <tr className="h-10 bg-surface border-b border-surface-container-highest text-secondary text-label-xs uppercase tracking-wider font-semibold">
-                  <th className="py-2 pl-4 pr-2">Ticket ID</th>
-                  <th className="py-2 px-2">Customer / Requester</th>
-                  <th className="py-2 px-2">Issue Context</th>
-                  <th className="py-2 px-2">Status</th>
-                  <th className="py-2 px-2">Priority</th>
-                  <th className="py-2 px-2">Assignee</th>
-                  <th className="py-2 pr-4 pl-2 text-right">Action</th>
+                <tr className="h-10 bg-[#F7F7F5] border-b border-[#E4E0DB] text-[#6B6667] text-xs font-medium">
+                  <th className="py-2 pl-4 pr-2 font-medium">Ticket ID</th>
+                  <th className="py-2 px-2 font-medium">Customer</th>
+                  <th className="py-2 px-2 font-medium">Category / Order</th>
+                  <th className="py-2 px-2 font-medium">Status</th>
+                  <th className="py-2 px-2 font-medium">Priority</th>
+                  <th className="py-2 px-2 font-medium">Assignee</th>
+                  <th className="py-2 pr-4 pl-2 text-right font-medium">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-surface-container-highest text-xs font-body-sm">
+              <tbody className="divide-y divide-[#E4E0DB] text-xs text-[#111111]">
                 {filteredTickets.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-10">
@@ -346,33 +340,30 @@ export default function AdminSupportPage() {
                     return (
                       <tr
                         key={tick.id}
-                        onClick={() => {
-                          setSelectedTicket(tick);
-                          if (tick.resolutionRemarks) setAdminNote(tick.resolutionRemarks);
-                        }}
-                        className={`h-14 cursor-pointer transition-colors ${
+                        onClick={() => setSelectedTicket(tick)}
+                        className={`h-12 cursor-pointer transition-colors border-b border-[#E4E0DB] ${
                           isSelected
-                            ? "bg-[#FFF0E8] border-l-4 border-l-[#FF5A1F]"
-                            : "hover:bg-surface-container-low"
+                            ? "bg-[#FFF0E8] border-l-2 border-l-[#FF5A1F]"
+                            : "hover:bg-[#F7F7F5]/50"
                         }`}
                       >
                         <td className="py-2 pl-4 pr-2">
-                          <div className="font-mono font-semibold text-primary">{tick.id}</div>
-                          <span className="text-[10px] font-mono text-secondary">{tick.timeAgo}</span>
+                          <div className="font-mono font-medium text-[#FF5A1F]">{tick.id}</div>
+                          <span className="text-[10px] text-[#6B6667]">{tick.timeAgo}</span>
                         </td>
                         <td className="py-2 px-2">
-                          <div className="font-semibold text-on-surface truncate max-w-[120px]">
+                          <div className="font-medium text-[#111111] truncate max-w-[120px]">
                             {tick.customerName}
                           </div>
-                          <div className="text-[11px] text-secondary truncate max-w-[120px]">
+                          <div className="text-[11px] text-[#6B6667] truncate max-w-[120px]">
                             {tick.customerEmail}
                           </div>
                         </td>
                         <td className="py-2 px-2 max-w-[180px]">
-                          <span className="inline-block px-1.5 py-0.5 rounded bg-surface-container text-on-surface text-[11px] truncate max-w-full">
+                          <span className="inline-block px-1.5 py-0.5 rounded-[4px] bg-[#F4F1EA] text-[#6B6667] text-[11px] truncate max-w-full">
                             {tick.category}
                           </span>
-                          <div className="text-[11px] text-secondary truncate mt-0.5 font-mono">
+                          <div className="text-[11px] text-[#6B6667] truncate mt-0.5 font-mono">
                             {tick.orderNumber}
                           </div>
                         </td>
@@ -381,32 +372,19 @@ export default function AdminSupportPage() {
                         </td>
                         <td className="py-2 px-2">
                           <span
-                            className={`inline-flex items-center gap-1 text-[11px] font-semibold ${
+                            className={`inline-flex items-center text-[11px] font-medium ${
                               tick.priority === "HIGH"
                                 ? "text-[#DA1E28]"
                                 : tick.priority === "MEDIUM"
                                 ? "text-[#C9822E]"
-                                : "text-secondary"
+                                : "text-[#6B6667]"
                             }`}
                           >
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                tick.priority === "HIGH"
-                                  ? "bg-[#DA1E28]"
-                                  : tick.priority === "MEDIUM"
-                                  ? "bg-[#C9822E]"
-                                  : "bg-secondary"
-                              }`}
-                            />
                             {tick.priority}
                           </span>
                         </td>
                         <td className="py-2 px-2">
-                          <span
-                            className={`text-xs ${
-                              tick.assignee === "Unassigned" ? "italic text-secondary" : "text-on-surface"
-                            }`}
-                          >
+                          <span className="text-xs text-[#6B6667]">
                             {tick.assignee}
                           </span>
                         </td>
@@ -415,15 +393,14 @@ export default function AdminSupportPage() {
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedTicket(tick);
-                              if (tick.resolutionRemarks) setAdminNote(tick.resolutionRemarks);
                             }}
-                            className={`px-2.5 py-1 rounded text-xs font-semibold shadow-xs transition-all ${
+                            className={`px-2.5 py-1 rounded-[8px] text-xs font-medium transition-colors ${
                               isSelected
                                 ? "bg-[#FF5A1F] text-white"
-                                : "border border-surface-container-highest text-on-surface hover:bg-surface-container"
+                                : "border border-[#E4E0DB] text-[#111111] hover:bg-[#F7F7F5]"
                             }`}
                           >
-                            Dossier
+                            View
                           </button>
                         </td>
                       </tr>
@@ -437,24 +414,24 @@ export default function AdminSupportPage() {
 
         {/* Detail Resolution Dossier Panel (5 Cols) */}
         {selectedTicket ? (
-          <div className="xl:col-span-5 bg-surface-container-lowest rounded-xl border border-surface-container-highest shadow-xs p-5 space-y-4 sticky top-20">
+          <div className="xl:col-span-5 bg-white rounded-[10px] border border-[#E4E0DB] shadow-xs p-5 space-y-4 sticky top-20">
             {/* Header */}
-            <div className="flex items-start justify-between pb-3 border-b border-surface-container-highest">
+            <div className="flex items-start justify-between pb-3 border-b border-[#E4E0DB]">
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-base font-bold text-on-surface">Ticket Dossier</h2>
-                  <span className="font-mono text-sm font-bold text-[#FF5A1F]">{selectedTicket.id}</span>
+                  <h2 className="text-sm font-semibold text-[#111111]">Ticket Details</h2>
+                  <span className="font-mono text-xs font-medium text-[#FF5A1F]">{selectedTicket.id}</span>
                 </div>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="px-2 py-0.5 rounded bg-surface-container text-[11px] text-on-surface">
+                  <span className="px-1.5 py-0.5 rounded-[4px] bg-[#F4F1EA] text-[11px] text-[#6B6667]">
                     {selectedTicket.category}
                   </span>
                   <StatusBadge status={selectedTicket.status} variant="ticket" />
                   <span
-                    className={`px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                    className={`px-1.5 py-0.5 rounded-[4px] text-[11px] font-medium border ${
                       selectedTicket.priority === "HIGH"
                         ? "bg-red-50 text-[#DA1E28] border-red-200"
-                        : "bg-surface-container text-secondary border-surface-container-highest"
+                        : "bg-[#F4F1EA] text-[#6B6667] border-[#E4E0DB]"
                     }`}
                   >
                     {selectedTicket.priority} Priority
@@ -463,173 +440,114 @@ export default function AdminSupportPage() {
               </div>
               <button
                 onClick={() => setSelectedTicket(null)}
-                className="text-secondary hover:text-on-surface"
+                className="text-[#6B6667] hover:text-[#111111]"
               >
-                <span className="material-symbols-outlined">close</span>
+                <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Customer Identity Card */}
-            <div className="p-3 rounded-lg bg-surface-container-low border border-surface-container-highest space-y-2 text-xs">
+            <div className="p-3 rounded-[8px] bg-[#F7F7F5] border border-[#E4E0DB] space-y-2 text-xs">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-secondary text-[18px]">account_circle</span>
-                  <strong className="text-on-surface">{selectedTicket.customerName}</strong>
-                  <span className="font-mono text-secondary">{selectedTicket.customerNumber}</span>
+                  <User className="w-4 h-4 text-[#6B6667]" />
+                  <strong className="text-[#111111] font-medium">{selectedTicket.customerName}</strong>
                 </div>
-                <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 font-semibold text-[10px]">
+                <span className="px-1.5 py-0.5 rounded-[4px] bg-[#ECFDF5] text-[#20885A] text-[10px] font-medium">
                   {selectedTicket.customerTier}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-secondary text-[11px] pt-1.5 border-t border-surface-container-highest/60">
+              <div className="grid grid-cols-2 gap-2 text-[#6B6667] text-[11px] pt-1.5 border-t border-[#E4E0DB]">
                 <div className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[14px]">call</span>
-                  <span className="font-mono text-on-surface">{selectedTicket.customerPhone}</span>
+                  <Phone className="w-3.5 h-3.5" />
+                  <span className="font-mono text-[#111111]">{selectedTicket.customerPhone}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[14px]">location_on</span>
-                  <span className="truncate text-on-surface">{selectedTicket.location}</span>
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span className="truncate text-[#111111]">{selectedTicket.location}</span>
                 </div>
               </div>
             </div>
 
             {/* Associated Order Context */}
-            <div className="p-3 rounded-lg bg-white border border-surface-container-highest space-y-1.5 text-xs">
-              <div className="flex items-center justify-between text-secondary">
-                <span className="font-semibold uppercase tracking-wider text-[10px]">Associated Order</span>
+            <div className="p-3 rounded-[8px] bg-white border border-[#E4E0DB] space-y-1.5 text-xs">
+              <div className="flex items-center justify-between text-[#6B6667]">
+                <span className="font-medium text-[11px]">Associated Order</span>
                 <Link
                   href={`/admin/orders/${selectedTicket.orderNumber.replace("#", "")}`}
-                  className="font-mono font-bold text-[#FF5A1F] hover:underline"
+                  className="font-mono font-medium text-[#FF5A1F] hover:underline"
                 >
                   {selectedTicket.orderNumber}
                 </Link>
               </div>
               <div className="flex justify-between items-baseline">
-                <p className="font-medium text-on-surface text-xs leading-snug">
+                <p className="font-medium text-[#111111] text-xs leading-snug">
                   {selectedTicket.orderProductSummary}
                 </p>
-                <span className="font-mono font-bold text-on-surface ml-2 shrink-0">
+                <span className="font-mono font-medium text-[#111111] ml-2 shrink-0">
                   {formatINR(selectedTicket.orderAmount)}
                 </span>
               </div>
-              <div className="text-[11px] text-secondary flex items-center gap-3 pt-1 border-t border-surface-container-highest">
-                <span>Status: <strong className="text-on-surface">{selectedTicket.orderDeliveryStatus}</strong></span>
-                {selectedTicket.assignedCourier && (
-                  <span>Courier: <strong className="text-on-surface">{selectedTicket.assignedCourier}</strong></span>
-                )}
+              <div className="text-[11px] text-[#6B6667] flex items-center gap-3 pt-1 border-t border-[#E4E0DB]">
+                <span>Status: <strong className="text-[#111111] font-medium">{selectedTicket.orderDeliveryStatus}</strong></span>
               </div>
             </div>
 
             {/* Issue Description */}
             <div className="space-y-1 text-xs">
-              <span className="font-semibold text-secondary uppercase tracking-wider text-[10px]">
+              <span className="font-medium text-[#6B6667] text-[11px]">
                 Issue Description
               </span>
-              <div className="p-3 bg-surface-container-low rounded-lg border border-surface-container-highest text-on-surface leading-relaxed italic">
+              <div className="p-3 bg-[#F7F7F5] rounded-[8px] border border-[#E4E0DB] text-[#111111] leading-relaxed italic">
                 &ldquo;{selectedTicket.description}&rdquo;
               </div>
             </div>
 
-            {/* Resolution Workflow Sequencer (OPEN -> IN_PROGRESS -> RESOLVED) */}
-            <div className="p-3 bg-surface-container-low rounded-lg border border-surface-container-highest space-y-3 text-xs">
+            {/* Resolution Actions */}
+            <div className="p-3 bg-[#F7F7F5] rounded-[8px] border border-[#E4E0DB] space-y-3 text-xs">
               <div className="flex items-center justify-between">
-                <span className="font-bold text-secondary uppercase tracking-wider text-[10px]">
-                  Permitted Resolution Sequence
+                <span className="font-medium text-[#6B6667] text-[11px]">
+                  Status Progression
                 </span>
-                <span className="font-mono text-primary font-semibold text-[11px]">
-                  STAGE: {selectedTicket.status}
+                <span className="font-mono text-xs font-medium text-[#111111]">
+                  {selectedTicket.status}
                 </span>
               </div>
 
-              {/* Progress Bar */}
-              <div className="flex items-center gap-1.5">
-                <div
-                  className={`flex-1 h-1.5 rounded-full ${
-                    selectedTicket.status === "OPEN" || selectedTicket.status === "IN_PROGRESS" || selectedTicket.status === "RESOLVED"
-                      ? "bg-emerald-600"
-                      : "bg-surface-container-highest"
-                  }`}
-                  title="Stage 1: OPEN"
-                />
-                <div
-                  className={`flex-1 h-1.5 rounded-full ${
-                    selectedTicket.status === "IN_PROGRESS" || selectedTicket.status === "RESOLVED"
-                      ? "bg-[#FF5A1F]"
-                      : "bg-surface-container-highest"
-                  }`}
-                  title="Stage 2: IN_PROGRESS"
-                />
-                <div
-                  className={`flex-1 h-1.5 rounded-full ${
-                    selectedTicket.status === "RESOLVED" ? "bg-emerald-600" : "bg-surface-container-highest"
-                  }`}
-                  title="Stage 3: RESOLVED"
-                />
-              </div>
-
-              {/* Administrative Action Buttons */}
+              {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 {selectedTicket.status === "OPEN" && (
                   <button
                     onClick={() => handleTransition("IN_PROGRESS")}
-                    className="h-8 px-3.5 rounded-lg bg-[#FF5A1F] text-white font-semibold text-xs hover:bg-[#D94B17] transition-all flex items-center gap-1.5 shadow-sm active:scale-[0.98]"
+                    className="h-8 px-3.5 rounded-[8px] bg-[#FF5A1F] text-white font-medium text-xs hover:bg-[#D94B17] transition-colors shadow-xs"
                   >
-                    <span className="material-symbols-outlined text-[16px]">play_arrow</span>
-                    <span>Start Progress</span>
+                    Start Progress
                   </button>
                 )}
 
                 {selectedTicket.status === "IN_PROGRESS" && (
                   <button
                     onClick={() => handleTransition("RESOLVED")}
-                    className="h-8 px-3.5 rounded-lg bg-emerald-600 text-white font-semibold text-xs hover:bg-emerald-700 transition-all flex items-center gap-1.5 shadow-sm active:scale-[0.98]"
+                    className="h-8 px-3.5 rounded-[8px] bg-[#20885A] text-white font-medium text-xs hover:bg-[#1b734c] transition-colors shadow-xs"
                   >
-                    <span className="material-symbols-outlined text-[16px]">task_alt</span>
-                    <span>Mark as Resolved</span>
+                    Mark as Resolved
                   </button>
                 )}
 
                 {selectedTicket.status === "RESOLVED" && (
-                  <span className="inline-flex items-center gap-1 text-xs text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200">
-                    <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                    Resolved on {selectedTicket.resolvedAt || "24 Oct 2024"}
+                  <span className="inline-flex items-center gap-1 text-xs text-[#20885A] font-medium bg-[#ECFDF5] px-2.5 py-1 rounded-[6px] border border-[#A7F3D0]">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Resolved {selectedTicket.resolvedAt || "24 Oct 2024"}
                   </span>
                 )}
               </div>
             </div>
-
-            {/* Internal Operational Note Logger */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <label className="font-semibold text-secondary uppercase tracking-wider text-[10px]">
-                  Internal Administrative Note
-                </label>
-                <span className="text-[10px] text-secondary">Logged in Central Audit Log</span>
-              </div>
-              <textarea
-                rows={3}
-                value={adminNote}
-                onChange={(e) => setAdminNote(e.target.value)}
-                placeholder="Log resolution remarks, dispatch instructions, or merchant coordination specifics..."
-                className="w-full rounded-lg border border-surface-container-highest bg-white text-on-surface text-xs p-2.5 focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] resize-none"
-              />
-            </div>
-
-            {/* Governance Guardrail Notice */}
-            <div className="flex items-start gap-2 p-2.5 rounded-lg bg-surface border border-surface-container-highest text-secondary text-[11px] leading-normal">
-              <span className="material-symbols-outlined text-[16px] text-primary shrink-0 mt-0.5">
-                verified_user
-              </span>
-              <p>
-                Support ticket resolution records are permanently archived in the Central Operations audit log. Customer notification is triggered via automated SMS/Push.
-              </p>
-            </div>
           </div>
         ) : (
-          <div className="xl:col-span-5 bg-surface-container-lowest rounded-xl border border-surface-container-highest p-8 text-center text-secondary">
-            <span className="material-symbols-outlined text-[32px] mb-2">touch_app</span>
-            <p className="text-sm font-semibold text-on-surface">Select a support ticket</p>
-            <p className="text-xs text-secondary mt-1">Click any ticket in the queue to inspect resolution dossier.</p>
+          <div className="xl:col-span-5 bg-white rounded-[10px] border border-[#E4E0DB] p-8 text-center text-[#6B6667]">
+            <FileText className="w-8 h-8 text-[#6B6667] mx-auto mb-2" />
+            <p className="text-sm font-medium text-[#111111]">Select a support ticket</p>
+            <p className="text-xs text-[#6B6667] mt-1">Click any ticket in the queue to inspect details.</p>
           </div>
         )}
       </section>

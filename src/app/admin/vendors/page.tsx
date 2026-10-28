@@ -1,360 +1,524 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { MOCK_VENDORS } from "@/mocks/vendors";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { VendorApprovalStatus } from "@/types/vendors";
+import { VendorBoutique } from "@/types/vendors";
+import { getDemoVendors, generateVendorsCSV } from "@/demo-data/vendors";
+
+const PAGE_SIZE = 8;
 
 export default function AdminVendorsPage() {
+  const [vendors, setVendors] = useState<VendorBoutique[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Filters & Search
   const [searchTerm, setSearchTerm] = useState("");
   const [statusTab, setStatusTab] = useState<"ALL" | "ACTIVE" | "PENDING" | "SUSPENDED">("ALL");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [dateFilter, setDateFilter] = useState("ALL");
+  const [currentPage, setCurrentPage] = useState(1);
 
+  // Modals & Feedback
+  const [isAddVendorModalOpen, setIsAddVendorModalOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    const data = getDemoVendors();
+    setVendors(data);
+    setLoading(false);
+  }, []);
+
+  // Dynamic status counts
+  const counts = useMemo(() => {
+    const total = vendors.length;
+    const active = vendors.filter((v) => v.status === "ACTIVE").length;
+    const pending = vendors.filter(
+      (v) =>
+        v.status === "PENDING_REVIEW" ||
+        v.status === "DOCS_SUBMITTED" ||
+        v.status === "KYC_PENDING"
+    ).length;
+    const suspended = vendors.filter((v) => v.status === "SUSPENDED").length;
+    return { total, active, pending, suspended };
+  }, [vendors]);
+
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    vendors.forEach((v) => {
+      if (v.category) set.add(v.category);
+    });
+    return Array.from(set).sort();
+  }, [vendors]);
+
+  // Filtered dataset
   const filteredVendors = useMemo(() => {
-    return MOCK_VENDORS.filter((vendor) => {
-      // Search term
+    return vendors.filter((vendor) => {
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase();
         const matchesStore = vendor.storeName.toLowerCase().includes(q);
         const matchesOwner = vendor.ownerName.toLowerCase().includes(q);
         const matchesEmail = vendor.email.toLowerCase().includes(q);
-        const matchesId = vendor.vendorNumber.toLowerCase().includes(q);
+        const matchesId = vendor.vendorNumber.toLowerCase().includes(q) || vendor.id.toLowerCase().includes(q);
         if (!matchesStore && !matchesOwner && !matchesEmail && !matchesId) return false;
       }
 
-      // Tab filter
       if (statusTab === "ACTIVE" && vendor.status !== "ACTIVE") return false;
       if (
         statusTab === "PENDING" &&
         vendor.status !== "PENDING_REVIEW" &&
         vendor.status !== "DOCS_SUBMITTED" &&
         vendor.status !== "KYC_PENDING"
-      )
+      ) {
         return false;
+      }
       if (statusTab === "SUSPENDED" && vendor.status !== "SUSPENDED") return false;
 
-      // Category filter
       if (categoryFilter !== "ALL" && vendor.category !== categoryFilter) {
         return false;
       }
 
       return true;
     });
-  }, [searchTerm, statusTab, categoryFilter]);
+  }, [vendors, searchTerm, statusTab, categoryFilter]);
 
-  const activeCount = MOCK_VENDORS.filter((v) => v.status === "ACTIVE").length;
-  const pendingCount = MOCK_VENDORS.filter(
-    (v) =>
-      v.status === "PENDING_REVIEW" ||
-      v.status === "DOCS_SUBMITTED" ||
-      v.status === "KYC_PENDING"
-  ).length;
-  const suspendedCount = MOCK_VENDORS.filter((v) => v.status === "SUSPENDED").length;
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusTab, categoryFilter, dateFilter]);
+
+  const totalRecords = filteredVendors.length;
+  const totalPages = Math.ceil(totalRecords / PAGE_SIZE) || 1;
+  const paginatedVendors = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredVendors.slice(start, start + PAGE_SIZE);
+  }, [filteredVendors, currentPage]);
 
   const clearFilters = () => {
     setSearchTerm("");
     setStatusTab("ALL");
     setCategoryFilter("ALL");
     setDateFilter("ALL");
+    setCurrentPage(1);
+  };
+
+  const handleExportCSV = () => {
+    if (filteredVendors.length === 0) return;
+    const csvContent = generateVendorsCSV(filteredVendors);
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `kudicart_vendors_${new Date().toISOString().split("T")[0]}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const getInitials = (name: string) => {
-    const parts = name.split(" ");
+    const parts = name.trim().split(" ");
     if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
     return name.slice(0, 2).toUpperCase();
   };
 
   return (
-    <div className="space-y-space-md max-w-[1440px] mx-auto">
-      {/* PAGE HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+    <div className="w-full max-w-[1400px] mx-auto box-border min-w-0 px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 pb-8 space-y-4">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#111111] text-white px-4 py-3 rounded-[8px] shadow-lg flex items-center gap-3 border border-[#333333] text-xs">
+          <span>{toastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="text-[#6B6667] hover:text-white ml-2"
+          >
+            <span className="material-symbols-outlined text-[16px]">close</span>
+          </button>
+        </div>
+      )}
+
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E4E0DB]">
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-headline-md font-headline-md font-bold text-on-surface">
-              Vendor Management
+            <h1 className="text-[26px] font-semibold text-[#111111] tracking-tight">
+              Vendors
             </h1>
-            <span className="px-2.5 py-0.5 text-label-xs font-label-xs rounded-full bg-[#FFF0E8] text-[#852400] font-semibold border border-outline-variant">
-              {MOCK_VENDORS.length} Boutiques Registered ({pendingCount} Pending Review)
+            <span className="px-2 py-0.5 rounded bg-[#F4F1EA] text-[#6B6667] border border-[#E4E0DB] text-xs font-medium tabular-nums">
+              {counts.total} Boutiques ({counts.pending} Pending Review)
             </span>
           </div>
-          <p className="text-body-sm font-body-sm text-secondary mt-0.5">
-            Oversee marketplace vendor boutiques, review onboarding applications, and manage partner status.
+          <p className="text-xs text-[#6B6667] mt-0.5">
+            Oversee marketplace boutiques, review onboarding applications, and manage partner status.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => alert("Export CSV: Generating merchant directory export...")}
-            className="px-3.5 py-1.5 rounded-lg border border-surface-container-highest bg-surface-container-lowest text-label-sm font-label-sm text-on-surface hover:bg-surface-container transition-colors flex items-center gap-1.5 shadow-sm"
+            type="button"
+            onClick={handleExportCSV}
+            className="h-9 px-3 rounded-[8px] border border-[#E4E0DB] bg-white text-xs font-medium text-[#111111] hover:bg-[#F7F7F5] transition-colors flex items-center gap-1.5 shadow-xs"
           >
-            <span className="material-symbols-outlined text-[16px] text-secondary">file_download</span>
+            <span className="material-symbols-outlined text-[18px] text-[#6B6667]">download</span>
             <span>Export CSV</span>
           </button>
 
           <button
-            onClick={() => alert("Add Vendor: Initiating manual boutique onboarding invitation flow...")}
-            className="px-3.5 py-1.5 rounded-lg bg-primary-container text-surface-container-lowest hover:bg-pressed-orange text-label-sm font-label-sm font-semibold transition-colors flex items-center gap-1.5 shadow-sm"
+            type="button"
+            onClick={() => setIsAddVendorModalOpen(true)}
+            className="h-9 px-3.5 rounded-[8px] bg-[#FF5A1F] text-white hover:bg-[#D94B17] text-xs font-medium transition-colors flex items-center gap-1.5 shadow-xs"
           >
-            <span className="material-symbols-outlined text-[16px]">add</span>
+            <span className="material-symbols-outlined text-[18px]">add</span>
             <span>Add Vendor</span>
           </button>
         </div>
       </div>
 
-      {/* STATUS TABS */}
-      <div className="flex items-center border-b border-surface-container-highest gap-1 text-label-sm font-label-sm">
+      {/* Status Tabs */}
+      <div className="flex items-center border-b border-[#E4E0DB] gap-1 text-xs font-medium">
         <button
+          type="button"
           onClick={() => setStatusTab("ALL")}
-          className={`px-3 py-2 transition-colors flex items-center gap-1.5 ${
+          className={`px-3 py-2 transition-colors flex items-center gap-1.5 border-b-2 ${
             statusTab === "ALL"
-              ? "border-b-2 border-primary-container text-primary font-bold"
-              : "text-secondary hover:text-on-surface"
+              ? "border-[#FF5A1F] text-[#FF5A1F] font-semibold"
+              : "border-transparent text-[#6B6667] hover:text-[#111111]"
           }`}
         >
-          <span>All Vendors ({MOCK_VENDORS.length})</span>
+          <span>All Vendors</span>
+          <span className="text-[11px] px-1.5 py-0.2 rounded bg-[#F4F1EA] text-[#6B6667]">
+            {counts.total}
+          </span>
         </button>
 
         <button
+          type="button"
           onClick={() => setStatusTab("ACTIVE")}
-          className={`px-3 py-2 transition-colors flex items-center gap-1.5 ${
+          className={`px-3 py-2 transition-colors flex items-center gap-1.5 border-b-2 ${
             statusTab === "ACTIVE"
-              ? "border-b-2 border-primary-container text-primary font-bold"
-              : "text-secondary hover:text-on-surface"
+              ? "border-[#FF5A1F] text-[#FF5A1F] font-semibold"
+              : "border-transparent text-[#6B6667] hover:text-[#111111]"
           }`}
         >
-          <span>Active ({activeCount})</span>
+          <span>Active</span>
+          <span className="text-[11px] px-1.5 py-0.2 rounded bg-[#F4F1EA] text-[#6B6667]">
+            {counts.active}
+          </span>
         </button>
 
         <button
+          type="button"
           onClick={() => setStatusTab("PENDING")}
-          className={`px-3 py-2 transition-colors flex items-center gap-2 ${
+          className={`px-3 py-2 transition-colors flex items-center gap-1.5 border-b-2 ${
             statusTab === "PENDING"
-              ? "border-b-2 border-primary-container text-primary font-bold"
-              : "text-secondary hover:text-on-surface"
+              ? "border-[#FF5A1F] text-[#FF5A1F] font-semibold"
+              : "border-transparent text-[#6B6667] hover:text-[#111111]"
           }`}
         >
-          <span>Pending Approvals ({pendingCount})</span>
-          <span className="w-2 h-2 rounded-full bg-[#FF5A1F] animate-pulse" />
+          <span>Pending Approvals</span>
+          <span className="text-[11px] px-1.5 py-0.2 rounded bg-[#FFF0E8] text-[#D94B17] font-medium">
+            {counts.pending}
+          </span>
         </button>
 
         <button
+          type="button"
           onClick={() => setStatusTab("SUSPENDED")}
-          className={`px-3 py-2 transition-colors flex items-center gap-1.5 ${
+          className={`px-3 py-2 transition-colors flex items-center gap-1.5 border-b-2 ${
             statusTab === "SUSPENDED"
-              ? "border-b-2 border-primary-container text-primary font-bold"
-              : "text-secondary hover:text-on-surface"
+              ? "border-[#FF5A1F] text-[#FF5A1F] font-semibold"
+              : "border-transparent text-[#6B6667] hover:text-[#111111]"
           }`}
         >
-          <span>Suspended ({suspendedCount})</span>
+          <span>Suspended</span>
+          <span className="text-[11px] px-1.5 py-0.2 rounded bg-[#F4F1EA] text-[#6B6667]">
+            {counts.suspended}
+          </span>
         </button>
       </div>
 
-      {/* SEARCH & FILTER TOOLBAR */}
-      <div className="p-3 bg-surface-container-lowest border border-surface-container-highest rounded-xl flex flex-wrap items-center justify-between gap-3 shadow-sm">
-        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[300px]">
-          {/* Input */}
-          <div className="relative flex-1 min-w-[240px]">
-            <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-secondary">
-              <span className="material-symbols-outlined text-[17px]">search</span>
+      {/* Filter Toolbar */}
+      <div className="bg-white border border-[#E4E0DB] rounded-[10px] p-3 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
+          {/* Search Input */}
+          <div className="relative w-full sm:w-72">
+            <span className="material-symbols-outlined absolute left-3 top-2.5 text-[#6B6667] text-[18px] pointer-events-none">
+              search
             </span>
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by boutique name, owner, or email..."
-              className="w-full pl-8 pr-3 py-1.5 text-body-sm font-body-sm bg-surface-container-low border border-surface-container-highest rounded-lg text-on-surface placeholder:text-secondary focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container"
+              placeholder="Search boutique name, owner, or email..."
+              className="w-full h-9 pl-9 pr-3 text-xs bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] placeholder:text-[#6B6667]/60 focus:bg-white focus:outline-none focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] transition-all font-normal"
             />
           </div>
 
-          {/* Category filter */}
+          {/* Category Filter */}
           <div className="relative">
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-1.5 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-body-sm font-body-sm text-on-surface hover:bg-surface-container-low focus:outline-none focus:border-primary-container cursor-pointer"
+              className="h-9 pl-3 pr-8 bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-xs font-medium text-[#111111] hover:bg-white focus:outline-none focus:border-[#FF5A1F] cursor-pointer appearance-none"
             >
               <option value="ALL">All Categories</option>
-              <option value="Textiles & Apparel">Textiles &amp; Apparel</option>
-              <option value="Artisanal Food">Artisanal Food</option>
-              <option value="Home & Decor">Home &amp; Decor</option>
-              <option value="Leathercraft">Leathercraft</option>
+              {availableCategories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
             </select>
-            <span className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none text-secondary">
-              <span className="material-symbols-outlined text-[16px]">expand_more</span>
+            <span className="material-symbols-outlined absolute right-2.5 top-2.5 text-[#6B6667] pointer-events-none text-[16px]">
+              expand_more
             </span>
           </div>
 
-          {/* Date Range */}
+          {/* Date Filter */}
           <div className="relative">
             <select
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-1.5 bg-surface-container-lowest border border-surface-container-highest rounded-lg text-body-sm font-body-sm text-on-surface hover:bg-surface-container-low focus:outline-none focus:border-primary-container cursor-pointer"
+              className="h-9 pl-3 pr-8 bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-xs font-medium text-[#111111] hover:bg-white focus:outline-none focus:border-[#FF5A1F] cursor-pointer appearance-none"
             >
               <option value="ALL">All Time</option>
               <option value="7_DAYS">Last 7 Days</option>
               <option value="30_DAYS">Last 30 Days</option>
-              <option value="QUARTER">This Quarter</option>
             </select>
-            <span className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none text-secondary">
-              <span className="material-symbols-outlined text-[16px]">calendar_today</span>
+            <span className="material-symbols-outlined absolute right-2.5 top-2.5 text-[#6B6667] pointer-events-none text-[16px]">
+              expand_more
             </span>
           </div>
 
           {(searchTerm || statusTab !== "ALL" || categoryFilter !== "ALL" || dateFilter !== "ALL") && (
             <button
+              type="button"
               onClick={clearFilters}
-              className="text-body-sm font-body-sm text-secondary hover:text-on-surface underline ml-1"
+              className="h-9 px-2.5 rounded-[8px] text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA] transition-colors flex items-center gap-1 text-xs font-medium"
             >
-              Clear Filters
+              <span className="material-symbols-outlined text-[16px]">filter_alt_off</span>
+              <span>Clear</span>
             </button>
           )}
         </div>
 
-        <div className="text-body-sm font-body-sm text-secondary">
-          Showing <span className="font-bold text-on-surface">{filteredVendors.length}</span> of{" "}
-          {MOCK_VENDORS.length} vendors
+        <div className="text-right text-[#6B6667] text-xs">
+          Showing <span className="font-semibold text-[#111111]">{filteredVendors.length}</span> of{" "}
+          <span className="font-semibold text-[#111111]">{vendors.length}</span> vendors
         </div>
       </div>
 
-      {/* HIGH DENSITY DATA TABLE */}
-      <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest overflow-hidden shadow-sm">
+      {/* Vendors Data Table */}
+      <div className="bg-white rounded-[10px] border border-[#E4E0DB] overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="h-10 bg-surface-container border-b border-surface-container-highest text-secondary text-label-xs font-label-xs uppercase tracking-wider">
-                <th className="px-4 font-semibold">STORE / BOUTIQUE</th>
-                <th className="px-4 font-semibold">OWNER / CONTACT</th>
-                <th className="px-4 font-semibold">CATEGORY</th>
-                <th className="px-4 font-semibold text-right">PRODUCTS</th>
-                <th className="px-4 font-semibold text-right">ACTIVE ORDERS</th>
-                <th className="px-4 font-semibold">SUBMISSION / REG. DATE</th>
-                <th className="px-4 font-semibold text-center">APPROVAL STATUS</th>
-                <th className="px-4 font-semibold text-right">ACTIONS</th>
+              <tr className="h-10 bg-[#F7F7F5] border-b border-[#E4E0DB] text-xs font-medium text-[#6B6667]">
+                <th className="px-4 sm:px-5 py-0 font-medium">Boutique</th>
+                <th className="px-4 py-0 font-medium">Owner & Contact</th>
+                <th className="px-4 py-0 font-medium">Category</th>
+                <th className="px-4 py-0 font-medium text-right">Products</th>
+                <th className="px-4 py-0 font-medium text-right">Active Orders</th>
+                <th className="px-4 py-0 font-medium whitespace-nowrap">Submission Date</th>
+                <th className="px-4 py-0 font-medium text-center whitespace-nowrap">Status</th>
+                <th className="px-4 sm:px-5 py-0 font-medium text-right whitespace-nowrap">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-surface-container-highest text-body-sm font-body-sm text-on-surface">
-              {filteredVendors.length === 0 ? (
+            <tbody className="divide-y divide-[#E4E0DB] text-[13px] text-[#111111]">
+              {loading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-secondary">
-                    <span className="material-symbols-outlined text-4xl block mx-auto text-secondary mb-2">
-                      store
-                    </span>
-                    <p className="font-medium text-on-surface">No vendors match your search filters</p>
+                  <td colSpan={8} className="px-4 py-12 text-center text-[#6B6667]">
+                    <p className="text-xs font-medium">Loading vendors...</p>
+                  </td>
+                </tr>
+              ) : paginatedVendors.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-4 py-12 text-center text-[#6B6667]">
+                    <p className="font-medium text-[#111111]">No vendor records found</p>
+                    <p className="text-xs text-[#6B6667] mt-1">Try adjusting search keywords or filters.</p>
                   </td>
                 </tr>
               ) : (
-                filteredVendors.map((vendor) => (
-                  <tr key={vendor.id} className="h-14 hover:bg-surface-container-low transition-colors">
-                    {/* Store / Boutique */}
-                    <td className="px-4 py-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-surface-container-high border border-surface-container-highest flex items-center justify-center font-bold text-label-xs text-on-surface shrink-0">
-                          {getInitials(vendor.storeName)}
-                        </div>
-                        <div>
-                          <p className="font-bold text-on-surface leading-snug">{vendor.storeName}</p>
-                          <p className="text-label-xs font-label-xs text-secondary truncate max-w-[200px]">
-                            {vendor.operatingHub}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
+                paginatedVendors.map((vendor) => {
+                  const isPending =
+                    vendor.status === "PENDING_REVIEW" ||
+                    vendor.status === "DOCS_SUBMITTED" ||
+                    vendor.status === "KYC_PENDING";
 
-                    {/* Owner / Contact */}
-                    <td className="px-4 py-2">
-                      <p className="font-medium text-on-surface leading-tight">{vendor.ownerName}</p>
-                      <p className="text-code-xs font-code-xs text-secondary">{vendor.email}</p>
-                      <p className="text-code-xs font-code-xs text-secondary">{vendor.phone}</p>
-                    </td>
+                  return (
+                    <tr key={vendor.id} className="h-12 hover:bg-[#F7F7F5]/50 transition-colors">
+                      {/* Store / Boutique */}
+                      <td className="px-4 sm:px-5 py-0">
+                        <div className="flex items-center gap-2.5">
+                          <Link
+                            href={`/admin/vendors/${vendor.id}`}
+                            className="w-7 h-7 rounded-[6px] bg-[#F4F1EA] border border-[#E4E0DB] flex items-center justify-center font-semibold text-xs text-[#111111] shrink-0 hover:border-[#FF5A1F] transition-colors"
+                          >
+                            {getInitials(vendor.storeName)}
+                          </Link>
+                          <div>
+                            <Link
+                              href={`/admin/vendors/${vendor.id}`}
+                              className="font-medium text-[#111111] hover:text-[#FF5A1F] transition-colors block leading-tight"
+                            >
+                              {vendor.storeName}
+                            </Link>
+                            <p className="text-xs text-[#6B6667] truncate max-w-[210px] mt-0.5">
+                              {vendor.operatingHub || "Bandra West Node"}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
 
-                    {/* Category */}
-                    <td className="px-4 py-2">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-label-xs font-label-xs bg-surface-container text-on-surface">
+                      {/* Owner / Contact */}
+                      <td className="px-4 py-0">
+                        <p className="font-medium text-[#111111] leading-tight">
+                          {vendor.ownerName}
+                        </p>
+                        <p className="text-xs text-[#6B6667] truncate max-w-[190px]">
+                          {vendor.email}
+                        </p>
+                      </td>
+
+                      {/* Category */}
+                      <td className="px-4 py-0 text-xs text-[#6B6667] whitespace-nowrap">
                         {vendor.category}
-                      </span>
-                    </td>
+                      </td>
 
-                    {/* Products */}
-                    <td className="px-4 py-2 text-right font-code-sm font-code-sm tabular-nums text-on-surface">
-                      {vendor.productCount} items
-                    </td>
+                      {/* Products */}
+                      <td className="px-4 py-0 text-right font-medium tabular-nums text-xs text-[#111111] whitespace-nowrap">
+                        {vendor.productCount}
+                      </td>
 
-                    {/* Active Orders */}
-                    <td className="px-4 py-2 text-right font-code-sm font-code-sm tabular-nums">
-                      {vendor.activeOrderCount > 0 ? (
-                        <span className="font-bold text-primary">{vendor.activeOrderCount} live</span>
-                      ) : (
-                        <span className="text-secondary">0 active</span>
-                      )}
-                    </td>
+                      {/* Active Orders */}
+                      <td className="px-4 py-0 text-right tabular-nums text-xs whitespace-nowrap">
+                        {vendor.activeOrderCount > 0 ? (
+                          <span className="font-semibold text-[#FF5A1F]">
+                            {vendor.activeOrderCount} live
+                          </span>
+                        ) : (
+                          <span className="text-[#6B6667]">0</span>
+                        )}
+                      </td>
 
-                    {/* Submission / Reg Date */}
-                    <td className="px-4 py-2 text-secondary text-label-xs">
-                      {vendor.submissionDate}
-                    </td>
+                      {/* Submission / Reg Date */}
+                      <td className="px-4 py-0 text-[#6B6667] text-xs whitespace-nowrap">
+                        {vendor.submissionDate}
+                      </td>
 
-                    {/* Approval Status */}
-                    <td className="px-4 py-2 text-center">
-                      <StatusBadge status={vendor.status} variant="vendor" />
-                    </td>
+                      {/* Approval Status */}
+                      <td className="px-4 py-0 text-center whitespace-nowrap">
+                        <StatusBadge status={vendor.status} variant="vendor" />
+                      </td>
 
-                    {/* Actions */}
-                    <td className="px-4 py-2 text-right">
-                      {vendor.status === "PENDING_REVIEW" ||
-                      vendor.status === "DOCS_SUBMITTED" ||
-                      vendor.status === "KYC_PENDING" ? (
+                      {/* Actions */}
+                      <td className="px-4 sm:px-5 py-0 text-right whitespace-nowrap">
                         <Link
                           href={`/admin/vendors/${vendor.id}`}
-                          className="h-7 px-3 bg-[#FF5A1F] hover:bg-[#D94B17] text-white font-label-sm text-label-sm font-semibold rounded-lg transition-colors inline-flex items-center shadow-xs"
+                          className={`text-xs font-medium px-2 py-0.5 rounded transition-colors inline-flex items-center gap-0.5 ${
+                            isPending
+                              ? "text-[#FF5A1F] hover:text-[#D94B17] hover:bg-[#FFF0E8]"
+                              : "text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA]"
+                          }`}
                         >
-                          Review
+                          <span>{isPending ? "Review" : "Manage"}</span>
+                          <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
                         </Link>
-                      ) : (
-                        <Link
-                          href={`/admin/vendors/${vendor.id}`}
-                          className="h-7 px-2.5 border border-surface-container-highest bg-surface-container-lowest hover:bg-surface text-on-surface font-label-sm text-label-sm font-medium rounded-lg transition-colors inline-flex items-center gap-1"
-                        >
-                          <span>Manage</span>
-                          <span className="material-symbols-outlined text-[14px]">chevron_right</span>
-                        </Link>
-                      )}
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
 
         {/* Pagination Bar */}
-        <div className="px-4 py-3 border-t border-surface-container-highest flex items-center justify-between text-label-xs text-secondary">
+        <div className="px-4 sm:px-5 py-3 border-t border-[#E4E0DB] bg-[#F7F7F5] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#6B6667]">
           <div>
-            Showing <span className="font-semibold text-on-surface">1</span> to{" "}
-            <span className="font-semibold text-on-surface">{filteredVendors.length}</span> of{" "}
-            <span className="font-semibold text-on-surface">48</span> boutiques
+            Showing <span className="font-semibold text-[#111111]">{totalRecords === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}</span> to{" "}
+            <span className="font-semibold text-[#111111]">{Math.min(currentPage * PAGE_SIZE, totalRecords)}</span> of{" "}
+            <span className="font-semibold text-[#111111]">{totalRecords}</span> boutiques
           </div>
+
           <div className="flex items-center gap-1">
             <button
-              disabled
-              className="px-2.5 py-1 rounded border border-surface-container-highest bg-surface-container-lowest text-secondary text-label-xs opacity-50 cursor-not-allowed"
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="px-2.5 py-1 rounded-[6px] border border-[#E4E0DB] bg-white text-[#6B6667] text-xs font-medium hover:bg-[#F4F1EA] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               Previous
             </button>
-            <button className="px-2.5 py-1 rounded border border-primary-container bg-primary-container text-surface-container-lowest text-label-xs font-bold">
-              1
-            </button>
-            <button className="px-2.5 py-1 rounded border border-surface-container-highest bg-surface-container-lowest text-secondary text-label-xs hover:bg-surface">
-              2
-            </button>
-            <button className="px-2.5 py-1 rounded border border-surface-container-highest bg-surface-container-lowest text-secondary text-label-xs hover:bg-surface">
+
+            {Array.from({ length: totalPages }).map((_, i) => {
+              const p = i + 1;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setCurrentPage(p)}
+                  className={`w-7 h-7 rounded-[6px] text-xs font-medium transition-colors ${
+                    currentPage === p
+                      ? "bg-[#FF5A1F] text-white"
+                      : "border border-[#E4E0DB] bg-white text-[#111111] hover:bg-[#F4F1EA]"
+                  }`}
+                >
+                  {p}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="px-2.5 py-1 rounded-[6px] border border-[#E4E0DB] bg-white text-[#6B6667] text-xs font-medium hover:bg-[#F4F1EA] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
               Next
             </button>
           </div>
         </div>
       </div>
+
+      {/* Add Vendor Modal */}
+      {isAddVendorModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4"
+          onClick={() => setIsAddVendorModalOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-[10px] border border-[#E4E0DB] max-w-md w-full p-5 shadow-xl space-y-3"
+          >
+            <div>
+              <h3 className="text-base font-semibold text-[#111111]">
+                Add Boutique Vendor
+              </h3>
+              <p className="text-xs text-[#6B6667] mt-1 leading-normal">
+                Boutique onboarding is initiated via the Vendor Portal onboarding flow.
+              </p>
+            </div>
+
+            <div className="bg-[#F4F1EA] rounded-[8px] p-3 text-xs text-[#6B6667]">
+              Not connected in this build. Administrative vendor creation requires backend server connectivity.
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E4E0DB]">
+              <button
+                type="button"
+                onClick={() => setIsAddVendorModalOpen(false)}
+                className="px-3.5 py-2 rounded-[8px] bg-[#111111] text-white font-medium text-xs hover:bg-[#333333] transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

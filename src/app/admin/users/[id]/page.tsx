@@ -1,455 +1,418 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { MOCK_CUSTOMERS } from "@/mocks/users";
+import { useParams, useRouter } from "next/navigation";
+import { CustomerUser } from "@/types/users";
+import { getDemoCustomerById } from "@/demo-data/users";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { cn } from "@/lib/utils";
+
+type DetailTab = "ORDERS" | "ADDRESSES" | "REVIEWS" | "TICKETS";
 
 export default function AdminCustomerDetailPage() {
   const params = useParams();
-  const customerId = (params?.id as string) || "cus_88219";
+  const router = useRouter();
+  const rawId = params?.id;
+  const customerId = Array.isArray(rawId) ? rawId[0] : (rawId as string);
 
-  // Find customer or default to first
-  const customer =
-    MOCK_CUSTOMERS.find((c) => c.id === customerId) || MOCK_CUSTOMERS[0];
+  const [customer, setCustomer] = useState<CustomerUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [activeTab, setActiveTab] = useState<"ORDERS" | "ADDRESSES" | "REVIEWS" | "TICKETS">("ORDERS");
-  const [accountStatus, setAccountStatus] = useState(customer.status);
+  const [activeTab, setActiveTab] = useState<DetailTab>("ORDERS");
   const [isSuspendModalOpen, setIsSuspendModalOpen] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const handleToggleSuspend = () => {
-    const newStatus = accountStatus === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
-    setAccountStatus(newStatus);
+  const loadCustomer = () => {
+    if (!customerId) return;
+    setIsLoading(true);
+    setError(null);
+
+    const found = getDemoCustomerById(customerId);
+    if (found) {
+      setCustomer(found);
+    } else {
+      setCustomer(null);
+      setError(`Customer record "${customerId}" was not found.`);
+    }
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    loadCustomer();
+  }, [customerId]);
+
+  const handleCopy = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(label);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const handleToggleStatus = () => {
+    if (!customer) return;
     setIsSuspendModalOpen(false);
-    setToastMessage(
-      `Account ${customer.customerNumber} has been updated to ${newStatus}. (Local development state)`
-    );
+    setToastMessage("Not connected in this build. Customer status modification requires backend connectivity.");
     setTimeout(() => setToastMessage(null), 4000);
   };
 
   const getInitials = (name: string) => {
-    const parts = name.split(" ");
+    const parts = name.trim().split(" ");
     if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
     return name.slice(0, 2).toUpperCase();
   };
 
+  if (isLoading) {
+    return (
+      <div className="w-full max-w-[1400px] mx-auto box-border min-w-0 px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 pb-8 space-y-4">
+        <div className="h-6 w-32 bg-[#E4E0DB]/60 rounded animate-pulse" />
+        <div className="h-28 bg-white border border-[#E4E0DB] rounded-[10px] p-6 animate-pulse" />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div className="lg:col-span-8 h-96 bg-white border border-[#E4E0DB] rounded-[10px] animate-pulse" />
+          <div className="lg:col-span-4 h-96 bg-white border border-[#E4E0DB] rounded-[10px] animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!customer) {
+    return (
+      <div className="w-full max-w-[1400px] mx-auto box-border min-w-0 px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 pb-8">
+        <div className="bg-white border border-[#E4E0DB] rounded-[10px] p-12 text-center max-w-lg mx-auto shadow-xs space-y-3">
+          <h1 className="text-base font-semibold text-[#111111]">Customer Not Found</h1>
+          <p className="text-xs text-[#6B6667]">
+            {error || `No customer was found matching the identifier "${customerId}".`}
+          </p>
+          <div className="pt-2 flex items-center justify-center gap-2">
+            <Link
+              href="/admin/users"
+              className="px-3.5 py-2 bg-[#FF5A1F] hover:bg-[#D94B17] text-white rounded-[8px] text-xs font-medium transition-colors"
+            >
+              Back to Users Directory
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-space-md max-w-[1440px] mx-auto">
-      {/* Toast Notification */}
+    <div className="w-full max-w-[1400px] mx-auto box-border min-w-0 px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 pb-8 space-y-4">
+      {/* Toast Feedback */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#111111] text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-3 border border-[#333333] animate-fadeIn">
-          <span className="material-symbols-outlined text-[#20885A] text-xl">info</span>
-          <span className="font-label-sm text-label-sm">{toastMessage}</span>
+        <div className="fixed bottom-6 right-6 z-50 bg-[#111111] text-white px-4 py-3 rounded-[8px] shadow-lg flex items-center gap-3 border border-[#333333] text-xs">
+          <span>{toastMessage}</span>
           <button
+            type="button"
             onClick={() => setToastMessage(null)}
-            className="text-secondary hover:text-white ml-2"
+            className="text-[#6B6667] hover:text-white"
           >
-            <span className="material-symbols-outlined text-sm">close</span>
+            <span className="material-symbols-outlined text-[16px]">close</span>
           </button>
         </div>
       )}
 
-      {/* Back Link */}
-      <div>
-        <Link
-          href="/admin/users"
-          className="inline-flex items-center gap-1.5 font-label-sm text-label-sm text-secondary hover:text-primary transition-colors group"
-        >
-          <span className="material-symbols-outlined text-[18px] group-hover:-translate-x-0.5 transition-transform">
-            arrow_back
-          </span>
-          Back to Users
-        </Link>
-      </div>
-
       {/* Header Action Card */}
-      <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-space-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white border border-[#E4E0DB] rounded-[10px] p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
         <div className="space-y-1">
           <div className="flex items-center flex-wrap gap-2.5">
-            <h1 className="font-headline-lg text-headline-lg font-bold text-on-surface">
+            <h1 className="text-[26px] font-semibold text-[#111111] tracking-tight">
               {customer.name}
             </h1>
-            <span className="font-code-sm text-code-sm bg-surface-container-low px-2 py-0.5 rounded border border-surface-container-highest text-secondary font-medium">
+            <span className="font-mono text-xs bg-[#F4F1EA] px-2 py-0.5 rounded border border-[#E4E0DB] text-[#6B6667] font-medium">
               {customer.customerNumber}
             </span>
-            <StatusBadge status={accountStatus} variant="user" />
-            <span className="px-2 py-0.5 rounded text-label-xs font-label-xs bg-surface-container text-secondary font-medium">
-              Tier: {customer.tier}
-            </span>
+            <StatusBadge status={customer.status} variant="user" />
           </div>
-          <p className="font-body-sm text-body-sm text-secondary">
-            Registered {customer.registrationDate} • Marketplace Direct Customer • {customer.kycLevel}
+          <p className="text-xs text-[#6B6667]">
+            Registered on {customer.registrationDate} • Marketplace Direct Customer
           </p>
         </div>
 
-        {/* Top Actions */}
-        <div className="flex items-center gap-2.5 self-start md:self-auto">
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
-            onClick={() => alert(`Exporting dossier for ${customer.name}...`)}
-            className="px-3.5 py-2 rounded-lg border border-surface-container-highest bg-surface-container-lowest hover:bg-surface-container-low text-on-surface font-label-sm text-label-sm font-semibold flex items-center gap-1.5 transition-colors"
-          >
-            <span className="material-symbols-outlined text-[18px] text-secondary">more_horiz</span>
-            More Actions
-          </button>
-
-          <button
+            type="button"
             onClick={() => setIsSuspendModalOpen(true)}
-            className={`px-3.5 py-2 rounded-lg border font-label-sm text-label-sm font-semibold flex items-center gap-1.5 transition-colors ${
-              accountStatus === "ACTIVE"
-                ? "border-red-200 bg-[#FEF2F2] hover:bg-[#DA1E28] hover:text-white text-[#DA1E28]"
-                : "border-emerald-200 bg-[#ECFDF5] hover:bg-[#20885A] hover:text-white text-[#20885A]"
-            }`}
+            className={cn(
+              "px-3.5 py-2 rounded-[8px] border text-xs font-medium flex items-center gap-1.5 transition-colors shadow-xs",
+              customer.status === "ACTIVE"
+                ? "border-[#DA1E28]/30 bg-[#FEF2F2] hover:bg-[#DA1E28] hover:text-white text-[#DA1E28]"
+                : "border-[#20885A]/30 bg-[#ECFDF5] hover:bg-[#20885A] hover:text-white text-[#20885A]"
+            )}
           >
-            <span className="material-symbols-outlined text-[18px]">
-              {accountStatus === "ACTIVE" ? "block" : "check_circle"}
-            </span>
-            {accountStatus === "ACTIVE" ? "Suspend Account" : "Reactivate Account"}
+            <span>{customer.status === "ACTIVE" ? "Suspend Account" : "Reactivate Account"}</span>
           </button>
         </div>
       </div>
 
-      {/* 2-Column Operational Workspace Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
-        {/* Left / Main Column (8 cols) */}
-        <div className="lg:col-span-8 space-y-space-md">
-          {/* Operational Summary Row / Metrics Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {/* Metric 1: Total Spent */}
-            <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-space-md flex flex-col justify-between">
-              <div className="flex items-center justify-between text-secondary">
-                <span className="font-label-xs text-label-xs uppercase tracking-wider">Total Spent</span>
-                <span className="material-symbols-outlined text-[18px] text-primary">account_balance_wallet</span>
+      {/* 2-Column Operational Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+        {/* Main Column: Metrics & Tabs (8 Cols) */}
+        <div className="lg:col-span-8 space-y-4">
+          {/* Key Metrics Row */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="bg-white border border-[#E4E0DB] rounded-[10px] p-4 shadow-xs">
+              <span className="text-xs font-medium text-[#6B6667] block">
+                Total Orders
+              </span>
+              <div className="mt-1 text-2xl font-semibold text-[#111111] tabular-nums">
+                {customer.totalOrders}
               </div>
-              <div className="mt-2">
-                <span className="font-headline-md text-headline-md font-bold text-on-surface font-code-sm">
-                  ₹{customer.totalSpent.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                </span>
-                <p className="font-label-xs text-label-xs text-secondary mt-0.5">Lifetime order spend</p>
-              </div>
+              <span className="text-xs text-[#6B6667] mt-0.5 block">Recorded checkouts</span>
             </div>
 
-            {/* Metric 2: Total Orders */}
-            <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-space-md flex flex-col justify-between">
-              <div className="flex items-center justify-between text-secondary">
-                <span className="font-label-xs text-label-xs uppercase tracking-wider">Total Orders</span>
-                <span className="material-symbols-outlined text-[18px] text-[#20885A]">shopping_bag</span>
+            <div className="bg-white border border-[#E4E0DB] rounded-[10px] p-4 shadow-xs">
+              <span className="text-xs font-medium text-[#6B6667] block">
+                Total Spent
+              </span>
+              <div className="mt-1 text-2xl font-semibold text-[#111111] tabular-nums">
+                ₹{customer.totalSpent.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
               </div>
-              <div className="mt-2">
-                <span className="font-headline-md text-headline-md font-bold text-on-surface font-code-sm">
-                  {customer.totalOrders} Orders
-                </span>
-                <p className="font-label-xs text-label-xs text-secondary mt-0.5">
-                  {customer.totalOrders > 0 ? `${customer.totalOrders - 1} Delivered, 1 In-Transit` : "No orders"}
-                </p>
-              </div>
+              <span className="text-xs text-[#6B6667] mt-0.5 block">Lifetime order volume</span>
             </div>
 
-            {/* Metric 3: Average Order Value */}
-            <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-space-md flex flex-col justify-between">
-              <div className="flex items-center justify-between text-secondary">
-                <span className="font-label-xs text-label-xs uppercase tracking-wider">Avg Order Value</span>
-                <span className="material-symbols-outlined text-[18px] text-tertiary">query_stats</span>
+            <div className="bg-white border border-[#E4E0DB] rounded-[10px] p-4 shadow-xs col-span-2 sm:col-span-1">
+              <span className="text-xs font-medium text-[#6B6667] block">
+                Saved Addresses
+              </span>
+              <div className="mt-1 text-2xl font-semibold text-[#111111] tabular-nums">
+                {customer.addresses.length}
               </div>
-              <div className="mt-2">
-                <span className="font-headline-md text-headline-md font-bold text-on-surface font-code-sm">
-                  ₹{customer.avgOrderValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                </span>
-                <p className="font-label-xs text-label-xs text-[#20885A] mt-0.5 font-semibold">
-                  ↑ 12% above platform avg
-                </p>
-              </div>
-            </div>
-
-            {/* Metric 4: Saved Addresses */}
-            <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-space-md flex flex-col justify-between">
-              <div className="flex items-center justify-between text-secondary">
-                <span className="font-label-xs text-label-xs uppercase tracking-wider">Saved Addresses</span>
-                <span className="material-symbols-outlined text-[18px] text-secondary">location_on</span>
-              </div>
-              <div className="mt-2">
-                <span className="font-headline-md text-headline-md font-bold text-on-surface font-code-sm">
-                  {customer.addresses.length} Locations
-                </span>
-                <p className="font-label-xs text-label-xs text-secondary mt-0.5">Home (Default), Office</p>
-              </div>
+              <span className="text-xs text-[#6B6667] mt-0.5 block">Delivery destinations</span>
             </div>
           </div>
 
-          {/* Section Navigation Tabs */}
-          <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-1 flex items-center justify-between">
-            <div className="flex items-center gap-1 overflow-x-auto">
+          {/* Tab Navigation */}
+          <div className="bg-white border border-[#E4E0DB] rounded-[10px] p-1 flex items-center justify-between shadow-xs">
+            <div className="flex items-center gap-1 overflow-x-auto w-full">
               <button
+                type="button"
                 onClick={() => setActiveTab("ORDERS")}
-                className={`px-4 py-2 rounded-lg font-label-sm text-label-sm transition-colors flex items-center gap-2 ${
+                className={cn(
+                  "px-3.5 py-1.5 rounded-[8px] text-xs font-medium transition-colors flex items-center gap-1.5 shrink-0",
                   activeTab === "ORDERS"
-                    ? "bg-surface text-on-surface font-bold border border-surface-container-highest shadow-sm"
-                    : "text-secondary hover:text-on-surface"
-                }`}
+                    ? "bg-[#111111] text-white"
+                    : "text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA]"
+                )}
               >
-                <span
-                  className={`material-symbols-outlined text-[18px] ${
-                    activeTab === "ORDERS" ? "text-primary" : "text-secondary"
-                  }`}
-                >
-                  shopping_cart
-                </span>
-                <span>Order History ({customer.orders.length})</span>
+                <span>Orders ({customer.orders.length})</span>
               </button>
 
               <button
+                type="button"
                 onClick={() => setActiveTab("ADDRESSES")}
-                className={`px-4 py-2 rounded-lg font-label-sm text-label-sm transition-colors flex items-center gap-1.5 ${
+                className={cn(
+                  "px-3.5 py-1.5 rounded-[8px] text-xs font-medium transition-colors flex items-center gap-1.5 shrink-0",
                   activeTab === "ADDRESSES"
-                    ? "bg-surface text-on-surface font-bold border border-surface-container-highest shadow-sm"
-                    : "text-secondary hover:text-on-surface"
-                }`}
+                    ? "bg-[#111111] text-white"
+                    : "text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA]"
+                )}
               >
-                <span className="material-symbols-outlined text-[18px]">home_pin</span>
-                <span>Saved Addresses ({customer.addresses.length})</span>
+                <span>Addresses ({customer.addresses.length})</span>
               </button>
 
               <button
+                type="button"
                 onClick={() => setActiveTab("REVIEWS")}
-                className={`px-4 py-2 rounded-lg font-label-sm text-label-sm transition-colors flex items-center gap-1.5 ${
+                className={cn(
+                  "px-3.5 py-1.5 rounded-[8px] text-xs font-medium transition-colors flex items-center gap-1.5 shrink-0",
                   activeTab === "REVIEWS"
-                    ? "bg-surface text-on-surface font-bold border border-surface-container-highest shadow-sm"
-                    : "text-secondary hover:text-on-surface"
-                }`}
+                    ? "bg-[#111111] text-white"
+                    : "text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA]"
+                )}
               >
-                <span className="material-symbols-outlined text-[18px]">star</span>
                 <span>Reviews ({customer.reviews.length})</span>
               </button>
 
               <button
+                type="button"
                 onClick={() => setActiveTab("TICKETS")}
-                className={`px-4 py-2 rounded-lg font-label-sm text-label-sm transition-colors flex items-center gap-1.5 ${
+                className={cn(
+                  "px-3.5 py-1.5 rounded-[8px] text-xs font-medium transition-colors flex items-center gap-1.5 shrink-0",
                   activeTab === "TICKETS"
-                    ? "bg-surface text-on-surface font-bold border border-surface-container-highest shadow-sm"
-                    : "text-secondary hover:text-on-surface"
-                }`}
+                    ? "bg-[#111111] text-white"
+                    : "text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA]"
+                )}
               >
-                <span className="material-symbols-outlined text-[18px]">confirmation_number</span>
-                <span>Support Tickets ({customer.tickets.length})</span>
-              </button>
-            </div>
-
-            <div className="hidden sm:flex items-center gap-2 pr-2">
-              <button
-                onClick={() => alert("Downloading customer CSV log...")}
-                className="p-1 rounded text-secondary hover:text-on-surface hover:bg-surface-container"
-                title="Download CSV"
-              >
-                <span className="material-symbols-outlined text-[18px]">download</span>
+                <span>Support ({customer.tickets.length})</span>
               </button>
             </div>
           </div>
 
-          {/* TAB 1: Order History */}
+          {/* TAB 1: ORDER HISTORY */}
           {activeTab === "ORDERS" && (
-            <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl overflow-hidden shadow-none">
-              <div className="px-space-md py-3 border-b border-surface-container-highest flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[20px] text-secondary">receipt_long</span>
-                  <h2 className="font-headline-sm text-headline-sm text-on-surface">Recent Customer Orders</h2>
-                  <span className="font-code-xs text-code-xs px-2 py-0.5 rounded-full bg-surface-container text-secondary font-medium">
-                    {customer.orders.length} recorded
-                  </span>
-                </div>
+            <div className="bg-white border border-[#E4E0DB] rounded-[10px] overflow-hidden shadow-xs">
+              <div className="px-4 py-3 border-b border-[#E4E0DB] bg-[#F7F7F5] flex items-center justify-between">
+                <span className="text-xs font-medium text-[#111111]">Order History</span>
+                <span className="text-xs text-[#6B6667]">
+                  {customer.orders.length} total orders
+                </span>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="h-10 bg-surface-container-low border-b border-surface-container-highest text-secondary font-label-xs text-label-xs uppercase tracking-wider">
-                      <th className="px-4 py-2 font-semibold">Order ID</th>
-                      <th className="px-4 py-2 font-semibold">Date &amp; Time</th>
-                      <th className="px-4 py-2 font-semibold">Boutique Vendor</th>
-                      <th className="px-4 py-2 font-semibold">Items</th>
-                      <th className="px-4 py-2 font-semibold text-right">Amount</th>
-                      <th className="px-4 py-2 font-semibold">Payment</th>
-                      <th className="px-4 py-2 font-semibold">Status</th>
-                      <th className="px-4 py-2 font-semibold text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-surface-container-highest text-body-sm font-body-sm">
-                    {customer.orders.length === 0 ? (
-                      <tr>
-                        <td colSpan={8} className="px-4 py-8 text-center text-secondary">
-                          No order history for this customer
-                        </td>
+              {customer.orders.length === 0 ? (
+                <div className="p-8 text-center text-[#6B6667]">
+                  <p className="text-xs font-medium">No order history recorded for this customer.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="h-10 bg-[#F7F7F5] border-b border-[#E4E0DB] text-xs font-medium text-[#6B6667]">
+                        <th className="px-4 py-0 font-medium">Order ID</th>
+                        <th className="px-4 py-0 font-medium">Date</th>
+                        <th className="px-4 py-0 font-medium">Vendor</th>
+                        <th className="px-4 py-0 font-medium text-right">Amount</th>
+                        <th className="px-4 py-0 font-medium text-center">Status</th>
+                        <th className="px-4 sm:px-5 py-0 font-medium text-right">Action</th>
                       </tr>
-                    ) : (
-                      customer.orders.map((order) => (
-                        <tr key={order.id} className="h-12 hover:bg-surface transition-colors">
-                          <td className="px-4 py-2 whitespace-nowrap">
-                            <span className="font-code-sm text-code-sm font-semibold text-on-surface">
-                              {order.orderNumber}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap text-secondary font-code-xs">
-                            {order.createdAt}
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap">
-                            <span className="font-body-sm-medium text-body-sm-medium text-on-surface">
-                              {order.vendorName}
-                            </span>
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap text-secondary">
-                            {order.itemCount} items
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap font-code-sm text-code-sm font-semibold text-right tabular-nums text-on-surface">
-                            ₹{order.totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap">
-                            <StatusBadge status={order.paymentStatus} variant="payment" />
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap">
-                            <StatusBadge status={order.status} variant="order" />
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap text-right">
+                    </thead>
+                    <tbody className="divide-y divide-[#E4E0DB] text-[13px] text-[#111111]">
+                      {customer.orders.map((order) => (
+                        <tr key={order.id} className="h-11 hover:bg-[#F7F7F5]/50 transition-colors">
+                          <td className="px-4 py-0 font-mono text-xs font-medium text-[#111111] whitespace-nowrap">
                             <Link
                               href={`/admin/orders/${order.id}`}
-                              className="text-primary hover:text-pressed-orange font-label-xs text-label-xs font-semibold"
+                              className="hover:text-[#FF5A1F]"
                             >
-                              View →
+                              {order.orderNumber}
+                            </Link>
+                          </td>
+                          <td className="px-4 py-0 text-xs text-[#6B6667] whitespace-nowrap">
+                            {order.createdAt}
+                          </td>
+                          <td className="px-4 py-0 font-medium text-[#111111]">{order.vendorName}</td>
+                          <td className="px-4 py-0 font-semibold text-right text-[#111111] tabular-nums whitespace-nowrap">
+                            ₹{order.totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-4 py-0 text-center whitespace-nowrap">
+                            <StatusBadge status={order.status} variant="order" />
+                          </td>
+                          <td className="px-4 sm:px-5 py-0 text-right whitespace-nowrap">
+                            <Link
+                              href={`/admin/orders/${order.id}`}
+                              className="text-xs font-medium text-[#FF5A1F] hover:text-[#D94B17] hover:bg-[#FFF0E8] px-2 py-0.5 rounded transition-colors inline-flex items-center gap-0.5"
+                            >
+                              <span>View</span>
+                              <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
                             </Link>
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
 
-          {/* TAB 2: Saved Addresses */}
+          {/* TAB 2: SAVED ADDRESSES */}
           {activeTab === "ADDRESSES" && (
             <div className="space-y-3">
               {customer.addresses.length === 0 ? (
-                <div className="p-8 bg-surface-container-lowest rounded-xl border border-surface-container-highest text-center text-secondary">
-                  No saved addresses recorded
+                <div className="p-8 bg-white rounded-[10px] border border-[#E4E0DB] text-center text-[#6B6667]">
+                  <p className="text-xs font-medium">No saved addresses on file.</p>
                 </div>
               ) : (
                 customer.addresses.map((address) => (
                   <div
                     key={address.id}
-                    className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-space-md flex items-start justify-between gap-4"
+                    className="bg-white border border-[#E4E0DB] rounded-[10px] p-4 shadow-xs space-y-1"
                   >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-headline-sm text-headline-sm font-bold text-on-surface">
-                          {address.recipientName}
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-xs text-[#111111]">
+                        {address.recipientName}
+                      </span>
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#F4F1EA] text-[#6B6667]">
+                        {address.type}
+                      </span>
+                      {address.isDefault && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0]">
+                          Default Address
                         </span>
-                        <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-surface-container text-secondary">
-                          {address.type}
-                        </span>
-                        {address.isDefault && (
-                          <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0]">
-                            Default Delivery Address
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-body-sm text-on-surface">
-                        {address.street}, {address.locality}, {address.city}, {address.state} - {address.pincode}
-                      </p>
-                      <p className="text-code-xs text-secondary font-medium">Contact: {address.phone}</p>
+                      )}
                     </div>
+                    <p className="text-xs text-[#111111]">
+                      {address.street}
+                      {address.locality ? `, ${address.locality}` : ""}, {address.city},{" "}
+                      {address.state} - {address.pincode}
+                    </p>
+                    <p className="text-xs font-mono text-[#6B6667]">Phone: {address.phone}</p>
                   </div>
                 ))
               )}
             </div>
           )}
 
-          {/* TAB 3: Reviews */}
+          {/* TAB 3: REVIEWS */}
           {activeTab === "REVIEWS" && (
             <div className="space-y-3">
               {customer.reviews.length === 0 ? (
-                <div className="p-8 bg-surface-container-lowest rounded-xl border border-surface-container-highest text-center text-secondary">
-                  No reviews submitted yet
+                <div className="p-8 bg-white rounded-[10px] border border-[#E4E0DB] text-center text-[#6B6667]">
+                  <p className="text-xs font-medium">No reviews submitted by this customer.</p>
                 </div>
               ) : (
                 customer.reviews.map((rev) => (
                   <div
                     key={rev.id}
-                    className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-space-md space-y-2"
+                    className="bg-white border border-[#E4E0DB] rounded-[10px] p-4 shadow-xs space-y-2"
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="font-body-sm-medium text-body-sm-medium text-on-surface font-semibold">
+                        <span className="text-xs font-medium text-[#111111]">
                           {rev.productTitle}
                         </span>
-                        <span className="font-code-xs text-code-xs text-secondary">from {rev.vendorName}</span>
+                        <span className="text-xs text-[#6B6667]">({rev.vendorName})</span>
                         {rev.verifiedPurchase && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            Verified Purchase
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#ECFDF5] text-[#20885A]">
+                            Verified
                           </span>
                         )}
                       </div>
-                      <span className="font-code-xs text-code-xs text-secondary">{rev.createdAt}</span>
+                      <span className="text-xs text-[#6B6667]">{rev.createdAt}</span>
                     </div>
 
-                    <div className="flex items-center gap-1 text-amber-500">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <span
-                          key={star}
-                          className="material-symbols-outlined text-[16px] text-amber-500 material-symbols-fill"
-                        >
-                          star
-                        </span>
-                      ))}
-                      <span className="font-code-xs text-code-xs text-secondary ml-1 font-bold">
-                        {rev.rating.toFixed(1)} / 5.0
+                    <div className="flex items-center gap-1 text-[#C9822E]">
+                      <span className="font-mono text-xs font-semibold">{rev.rating.toFixed(1)}</span>
+                      <span className="material-symbols-outlined text-[15px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                        star
                       </span>
                     </div>
 
-                    <p className="font-body-sm text-body-sm text-on-surface italic">
-                      &quot;{rev.comment}&quot;
-                    </p>
+                    <p className="text-xs text-[#111111] italic">&quot;{rev.comment}&quot;</p>
                   </div>
                 ))
               )}
             </div>
           )}
 
-          {/* TAB 4: Support Tickets */}
+          {/* TAB 4: SUPPORT TICKETS */}
           {activeTab === "TICKETS" && (
             <div className="space-y-3">
               {customer.tickets.length === 0 ? (
-                <div className="p-8 bg-surface-container-lowest rounded-xl border border-surface-container-highest text-center text-secondary">
-                  No support inquiries on record
+                <div className="p-8 bg-white rounded-[10px] border border-[#E4E0DB] text-center text-[#6B6667]">
+                  <p className="text-xs font-medium">No support tickets associated with this account.</p>
                 </div>
               ) : (
-                customer.tickets.map((ticket) => (
+                customer.tickets.map((t) => (
                   <div
-                    key={ticket.id}
-                    className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-space-md flex items-center justify-between gap-4"
+                    key={t.id}
+                    className="bg-white border border-[#E4E0DB] rounded-[10px] p-4 shadow-xs flex items-center justify-between gap-3"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-                        <span className="material-symbols-outlined text-[20px]">check_circle</span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-medium text-[#111111]">
+                          {t.ticketNumber}
+                        </span>
+                        <span className="text-xs font-medium text-[#111111]">{t.subject}</span>
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-code-sm text-code-sm font-semibold text-on-surface">
-                            {ticket.ticketNumber}
-                          </span>
-                          <span className="font-body-sm-medium text-body-sm-medium text-on-surface">
-                            {ticket.subject}
-                          </span>
-                        </div>
-                        <p className="font-label-xs text-label-xs text-secondary mt-0.5">
-                          Assigned to: {ticket.assignedAgent} • SLA response: {ticket.slaResponseTime}
-                        </p>
-                      </div>
+                      <p className="text-xs text-[#6B6667] mt-0.5">
+                        Assigned: {t.assignedAgent}
+                      </p>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-label-xs font-label-xs bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0]">
-                        {ticket.status}
-                      </span>
-                    </div>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-[#F4F1EA] text-[#6B6667]">
+                      {t.status}
+                    </span>
                   </div>
                 ))
               )}
@@ -457,146 +420,111 @@ export default function AdminCustomerDetailPage() {
           )}
         </div>
 
-        {/* Right Column (4 cols) */}
-        <div className="lg:col-span-4 space-y-space-md">
-          {/* Customer Profile & Contact Card */}
-          <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-space-md space-y-4">
-            <div className="flex items-start gap-3.5">
-              <div className="w-14 h-14 rounded-xl bg-[#FFF0E8] text-primary flex items-center justify-center font-headline-md text-headline-md font-bold shrink-0 border border-[#FFDBCE]">
+        {/* Side Column: Profile Details & Contact (4 Cols) */}
+        <div className="lg:col-span-4 space-y-4">
+          <div className="bg-white border border-[#E4E0DB] rounded-[10px] p-5 shadow-xs space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 rounded-full bg-[#FFF0E8] text-[#D94B17] font-semibold text-sm flex items-center justify-center shrink-0 border border-[#FF5A1F]/20">
                 {getInitials(customer.name)}
               </div>
-              <div className="space-y-0.5">
-                <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">
-                  {customer.name}
-                </h3>
-                <p className="font-label-xs text-label-xs text-secondary uppercase tracking-wider font-semibold">
-                  End Customer Profile
-                </p>
-                <span className="inline-flex items-center gap-1 text-label-xs font-label-xs text-[#20885A] font-medium">
-                  <span className="material-symbols-outlined text-[14px]">shield</span>
-                  {customer.kycLevel}
+              <div>
+                <h2 className="text-sm font-semibold text-[#111111]">{customer.name}</h2>
+                <p className="text-xs text-[#6B6667]">Marketplace Customer</p>
+                <span className="inline-block mt-1 font-mono text-[11px] bg-[#F4F1EA] px-1.5 py-0.5 rounded text-[#6B6667]">
+                  {customer.customerNumber}
                 </span>
               </div>
             </div>
 
-            <div className="border-t border-surface-container-highest pt-3 space-y-3">
-              {/* Phone */}
-              <div className="flex items-center justify-between text-body-sm">
-                <div className="flex items-center gap-2 text-secondary">
-                  <span className="material-symbols-outlined text-[18px]">call</span>
-                  <span>Phone Number</span>
-                </div>
-                <span className="font-code-sm text-code-sm font-semibold text-on-surface">
-                  {customer.phone}
-                </span>
-              </div>
-
-              {/* Email */}
-              <div className="flex items-center justify-between text-body-sm">
-                <div className="flex items-center gap-2 text-secondary">
-                  <span className="material-symbols-outlined text-[18px]">mail</span>
-                  <span>Email Address</span>
-                </div>
-                <span className="text-on-surface truncate max-w-[180px] text-right font-medium">
-                  {customer.email}
-                </span>
-              </div>
-
-              {/* Languages */}
-              <div className="flex items-center justify-between text-body-sm">
-                <div className="flex items-center gap-2 text-secondary">
-                  <span className="material-symbols-outlined text-[18px]">translate</span>
-                  <span>Languages</span>
-                </div>
-                <span className="text-on-surface font-medium">English, Hindi</span>
-              </div>
-
-              {/* Communication Preferences */}
-              <div className="pt-2 border-t border-surface-container-highest">
-                <span className="font-label-xs text-label-xs text-secondary uppercase tracking-wider block mb-2 font-semibold">
-                  Communication Channels
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded text-label-xs bg-[#ECFDF5] text-[#20885A] font-medium">
-                    WhatsApp Active
+            <div className="border-t border-[#E4E0DB] pt-3 space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[#6B6667]">Phone</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono font-medium text-[#111111] tabular-nums">
+                    {customer.phone}
                   </span>
-                  <span className="px-2 py-0.5 rounded text-label-xs bg-[#ECFDF5] text-[#20885A] font-medium">
-                    SMS Active
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(customer.phone, "phone")}
+                    className="p-1 rounded text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA]"
+                    title="Copy phone number"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">
+                      {copiedField === "phone" ? "check" : "content_copy"}
+                    </span>
+                  </button>
                 </div>
               </div>
-            </div>
-          </div>
 
-          {/* Account Security & Metadata Card */}
-          <div className="bg-surface-container-lowest border border-surface-container-highest rounded-xl p-space-md space-y-3">
-            <h4 className="font-headline-sm text-headline-sm font-semibold text-on-surface">
-              Account Security &amp; Activity
-            </h4>
-            <div className="space-y-2 text-body-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-secondary">Account Created</span>
-                <span className="font-code-xs text-secondary font-medium">{customer.registrationDate}</span>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[#6B6667]">Email</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[#111111] font-medium truncate max-w-[170px]" title={customer.email}>
+                    {customer.email}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(customer.email, "email")}
+                    className="p-1 rounded text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA]"
+                    title="Copy email address"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">
+                      {copiedField === "email" ? "check" : "content_copy"}
+                    </span>
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-secondary">Last Login</span>
-                <span className="font-code-xs text-secondary font-medium">Today, 14:12 IST</span>
+
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[#6B6667]">Registration Date</span>
+                <span className="text-[#111111] font-medium">{customer.registrationDate}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-secondary">Device Platform</span>
-                <span className="font-medium text-on-surface">Apple iOS v2.4.1</span>
+
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-[#6B6667]">Account Status</span>
+                <StatusBadge status={customer.status} variant="user" />
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Account Suspension Confirmation Dialog */}
+      {/* Confirmation Modal for Suspend/Reactivate */}
       {isSuspendModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-xl border border-surface-container-highest max-w-md w-full p-space-lg shadow-2xl space-y-4 animate-scaleUp">
-            <div className="flex items-start gap-3">
-              <div
-                className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
-                  accountStatus === "ACTIVE"
-                    ? "bg-[#FEF2F2] text-[#DA1E28]"
-                    : "bg-[#ECFDF5] text-[#20885A]"
-                }`}
-              >
-                <span className="material-symbols-outlined text-2xl">
-                  {accountStatus === "ACTIVE" ? "warning" : "check_circle"}
-                </span>
-              </div>
-              <div>
-                <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">
-                  {accountStatus === "ACTIVE"
-                    ? `Suspend Customer ${customer.customerNumber}?`
-                    : `Reactivate Customer ${customer.customerNumber}?`}
-                </h3>
-                <p className="font-body-sm text-body-sm text-secondary mt-1">
-                  {accountStatus === "ACTIVE"
-                    ? `Suspending ${customer.name} will restrict their ability to place new marketplace orders and use Try & Buy doorstep services.`
-                    : `Reactivating ${customer.name} will restore regular marketplace checkout access.`}
-                </p>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-[12px] border border-[#E4E0DB] max-w-md w-full p-6 shadow-xl space-y-4">
+            <div>
+              <h3 className="text-base font-semibold text-[#111111]">
+                {customer.status === "ACTIVE"
+                  ? `Suspend Customer ${customer.customerNumber}?`
+                  : `Reactivate Customer ${customer.customerNumber}?`}
+              </h3>
+              <p className="text-xs text-[#6B6667] mt-1.5 leading-relaxed">
+                {customer.status === "ACTIVE"
+                  ? `Suspending ${customer.name} will restrict their ability to place new marketplace orders.`
+                  : `Reactivating ${customer.name} will restore regular marketplace checkout access.`}
+              </p>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-surface-container-highest">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E4E0DB]">
               <button
+                type="button"
                 onClick={() => setIsSuspendModalOpen(false)}
-                className="px-3.5 py-2 rounded-lg border border-surface-container-highest text-secondary hover:text-on-surface font-label-sm text-label-sm font-semibold transition-colors"
+                className="px-3.5 py-2 rounded-[8px] border border-[#E4E0DB] text-[#6B6667] hover:text-[#111111] text-xs font-medium"
               >
                 Cancel
               </button>
               <button
-                onClick={handleToggleSuspend}
-                className={`px-4 py-2 rounded-lg font-label-sm text-label-sm font-semibold text-white transition-colors ${
-                  accountStatus === "ACTIVE"
+                type="button"
+                onClick={handleToggleStatus}
+                className={cn(
+                  "px-4 py-2 rounded-[8px] text-xs font-medium text-white transition-colors",
+                  customer.status === "ACTIVE"
                     ? "bg-[#DA1E28] hover:bg-[#B91C1C]"
                     : "bg-[#20885A] hover:bg-[#15803D]"
-                }`}
+                )}
               >
-                {accountStatus === "ACTIVE" ? "Confirm Suspension" : "Confirm Reactivation"}
+                {customer.status === "ACTIVE" ? "Confirm Suspension" : "Confirm Reactivation"}
               </button>
             </div>
           </div>

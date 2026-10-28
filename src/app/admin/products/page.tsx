@@ -1,51 +1,134 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { MOCK_PRODUCTS } from "@/mocks/products";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { FulfillmentType, StockStatus, ProductListingStatus } from "@/types/products";
+import {
+  CatalogProduct,
+  FulfillmentType,
+  StockStatus,
+  ProductListingStatus,
+} from "@/types/products";
+import { getDemoProducts, generateProductsCSV } from "@/demo-data/products";
+
+const PAGE_SIZE = 8;
 
 export default function AdminProductsPage() {
+  const [products, setProducts] = useState<CatalogProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Filters & Search
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusTab, setStatusTab] = useState<"ALL" | "ACTIVE" | "LOW_STOCK" | "OUT_OF_STOCK" | "DRAFT">("ALL");
+  const [statusTab, setStatusTab] = useState<
+    "ALL" | "ACTIVE" | "LOW_STOCK" | "OUT_OF_STOCK" | "DRAFT"
+  >("ALL");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [vendorFilter, setVendorFilter] = useState("ALL");
   const [fulfillmentFilter, setFulfillmentFilter] = useState("ALL");
-  const [stockFilter, setStockFilter] = useState("ALL");
+  const [currentPage, setCurrentPage] = useState(1);
 
+  // Toast feedback
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const loadData = (showRefreshState = false) => {
+    if (showRefreshState) {
+      setIsRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    const data = getDemoProducts();
+    setProducts(data);
+    setLoading(false);
+
+    if (showRefreshState) {
+      setTimeout(() => {
+        setIsRefreshing(false);
+        setToastMessage("Catalog view refreshed.");
+        setTimeout(() => setToastMessage(null), 3000);
+      }, 300);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // Consistent dynamic counts
+  const counts = useMemo(() => {
+    const total = products.length;
+    const active = products.filter((p) => p.listingStatus === "ACTIVE").length;
+    const lowStock = products.filter((p) => p.stockStatus === "LOW_STOCK").length;
+    const outOfStock = products.filter((p) => p.stockStatus === "OUT_OF_STOCK").length;
+    const draft = products.filter(
+      (p) => p.listingStatus === "DRAFT" || p.listingStatus === "REVIEW"
+    ).length;
+
+    return { total, active, lowStock, outOfStock, draft };
+  }, [products]);
+
+  const availableCategories = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach((p) => {
+      if (p.category) set.add(p.category);
+    });
+    return Array.from(set).sort();
+  }, [products]);
+
+  const availableVendors = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach((p) => {
+      if (p.vendorName) set.add(p.vendorName);
+    });
+    return Array.from(set).sort();
+  }, [products]);
+
+  // Filtered dataset
   const filteredProducts = useMemo(() => {
-    return MOCK_PRODUCTS.filter((product) => {
-      // Search
+    return products.filter((product) => {
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase();
         const matchesTitle = product.title.toLowerCase().includes(q);
         const matchesBrand = product.brand.toLowerCase().includes(q);
         const matchesSku = product.sku.toLowerCase().includes(q);
         const matchesVendor = product.vendorName.toLowerCase().includes(q);
-        if (!matchesTitle && !matchesBrand && !matchesSku && !matchesVendor) return false;
+        if (!matchesTitle && !matchesBrand && !matchesSku && !matchesVendor) {
+          return false;
+        }
       }
 
-      // Status Tab
       if (statusTab === "ACTIVE" && product.listingStatus !== "ACTIVE") return false;
       if (statusTab === "LOW_STOCK" && product.stockStatus !== "LOW_STOCK") return false;
       if (statusTab === "OUT_OF_STOCK" && product.stockStatus !== "OUT_OF_STOCK") return false;
-      if (statusTab === "DRAFT" && product.listingStatus !== "DRAFT" && product.listingStatus !== "REVIEW") return false;
+      if (
+        statusTab === "DRAFT" &&
+        product.listingStatus !== "DRAFT" &&
+        product.listingStatus !== "REVIEW"
+      ) {
+        return false;
+      }
 
-      // Dropdown filters
       if (categoryFilter !== "ALL" && product.category !== categoryFilter) return false;
       if (vendorFilter !== "ALL" && product.vendorName !== vendorFilter) return false;
-      if (fulfillmentFilter !== "ALL" && product.fulfillmentType !== fulfillmentFilter) return false;
-      if (stockFilter !== "ALL" && product.stockStatus !== stockFilter) return false;
+      if (fulfillmentFilter !== "ALL" && product.fulfillmentType !== fulfillmentFilter) {
+        return false;
+      }
 
       return true;
     });
-  }, [searchTerm, statusTab, categoryFilter, vendorFilter, fulfillmentFilter, stockFilter]);
+  }, [products, searchTerm, statusTab, categoryFilter, vendorFilter, fulfillmentFilter]);
 
-  const activeCount = MOCK_PRODUCTS.filter((p) => p.listingStatus === "ACTIVE").length;
-  const lowStockCount = MOCK_PRODUCTS.filter((p) => p.stockStatus === "LOW_STOCK").length;
-  const outOfStockCount = MOCK_PRODUCTS.filter((p) => p.stockStatus === "OUT_OF_STOCK").length;
-  const draftCount = MOCK_PRODUCTS.filter((p) => p.listingStatus === "DRAFT" || p.listingStatus === "REVIEW").length;
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusTab, categoryFilter, vendorFilter, fulfillmentFilter]);
+
+  const totalFiltered = filteredProducts.length;
+  const totalPages = Math.ceil(totalFiltered / PAGE_SIZE) || 1;
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredProducts.slice(start, start + PAGE_SIZE);
+  }, [filteredProducts, currentPage]);
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -53,132 +136,174 @@ export default function AdminProductsPage() {
     setCategoryFilter("ALL");
     setVendorFilter("ALL");
     setFulfillmentFilter("ALL");
-    setStockFilter("ALL");
+    setCurrentPage(1);
+  };
+
+  const handleExportCSV = () => {
+    if (filteredProducts.length === 0) return;
+
+    const csvContent = generateProductsCSV(filteredProducts);
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `kudicart_catalog_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setToastMessage(`Exported ${filteredProducts.length} catalog items.`);
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
   return (
-    <div className="space-y-space-md max-w-[1440px] mx-auto">
+    <div className="w-full max-w-[1400px] mx-auto box-border min-w-0 px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 pb-8 space-y-4">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#111111] text-white px-4 py-3 rounded-[8px] shadow-lg flex items-center gap-3 border border-[#333333] text-xs">
+          <span>{toastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setToastMessage(null)}
+            className="text-[#6B6667] hover:text-white ml-2"
+          >
+            <span className="material-symbols-outlined text-[16px]">close</span>
+          </button>
+        </div>
+      )}
+
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-space-md">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E4E0DB]">
         <div>
-          <div className="flex items-center gap-space-sm">
-            <h1 className="text-headline-md font-headline-md font-bold text-on-surface tracking-tight">
-              Products &amp; Catalog
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-[26px] font-semibold text-[#111111] tracking-tight">
+              Products
             </h1>
-            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-label-xs font-label-xs font-semibold bg-surface-container-high text-secondary border border-surface-container-highest tabular-nums">
-              1,842 Catalog Items
+            <span className="inline-flex items-center px-2 py-0.5 rounded bg-[#F4F1EA] text-[#6B6667] border border-[#E4E0DB] text-xs font-medium tabular-nums">
+              {counts.total} Items
             </span>
           </div>
-          <p className="text-body-sm font-body-sm text-secondary mt-1">
-            Inspect marketplace products, catalog status, pricing, and stock availability.
+          <p className="text-xs text-[#6B6667] mt-0.5">
+            Inspect marketplace catalog, product details, pricing, and stock status.
           </p>
         </div>
 
-        <div className="flex items-center gap-space-xs">
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => alert("Catalog data refreshed.")}
-            className="h-[36px] p-2 rounded-lg text-secondary hover:text-on-surface bg-surface-container-lowest border border-surface-container-highest hover:bg-surface-container-low transition-colors flex items-center justify-center active:scale-[0.98]"
+            type="button"
+            onClick={() => loadData(true)}
+            disabled={isRefreshing || loading}
+            className="h-9 px-3 rounded-[8px] text-[#111111] bg-white border border-[#E4E0DB] hover:bg-[#F7F7F5] transition-colors flex items-center justify-center shadow-xs disabled:opacity-50"
             title="Refresh catalog data"
           >
-            <span className="material-symbols-outlined text-[18px]">refresh</span>
+            <span className={`material-symbols-outlined text-[18px] text-[#6B6667] ${isRefreshing ? "animate-spin text-[#FF5A1F]" : ""}`}>
+              refresh
+            </span>
           </button>
           <button
-            onClick={() => alert("Export CSV: Generating catalog items export...")}
-            className="h-[36px] px-space-md rounded-lg bg-surface-container-lowest border border-surface-container-highest hover:bg-surface-container-low text-on-surface text-label-sm font-label-sm font-semibold flex items-center gap-2 transition-colors active:scale-[0.98]"
+            type="button"
+            onClick={handleExportCSV}
+            className="h-9 px-3 rounded-[8px] bg-white border border-[#E4E0DB] hover:bg-[#F7F7F5] text-[#111111] text-xs font-medium flex items-center gap-1.5 transition-colors shadow-xs"
           >
-            <span className="material-symbols-outlined text-[18px] text-secondary">file_download</span>
+            <span className="material-symbols-outlined text-[18px] text-[#6B6667]">download</span>
             <span>Export CSV</span>
           </button>
         </div>
       </div>
 
       {/* Status Tabs */}
-      <div className="border-b border-surface-container-highest flex items-center gap-space-lg text-label-sm font-label-sm overflow-x-auto select-none">
+      <div className="border-b border-[#E4E0DB] flex items-center gap-1 text-xs font-medium overflow-x-auto select-none">
         <button
+          type="button"
           onClick={() => setStatusTab("ALL")}
-          className={`pb-3 flex items-center gap-2 whitespace-nowrap transition-colors ${
+          className={`px-3 py-2 flex items-center gap-1.5 whitespace-nowrap transition-colors border-b-2 ${
             statusTab === "ALL"
-              ? "border-b-2 border-primary-container text-primary-container font-semibold"
-              : "border-b-2 border-transparent text-secondary hover:text-on-surface font-medium"
+              ? "border-[#FF5A1F] text-[#FF5A1F] font-semibold"
+              : "border-transparent text-[#6B6667] hover:text-[#111111]"
           }`}
         >
           <span>All Products</span>
-          <span className="px-2 py-0.5 rounded-full bg-primary-fixed text-primary font-bold text-[11px] tabular-nums">
-            {MOCK_PRODUCTS.length}
+          <span className="px-1.5 py-0.2 rounded bg-[#F4F1EA] text-[#6B6667] text-[11px] tabular-nums">
+            {counts.total}
           </span>
         </button>
 
         <button
+          type="button"
           onClick={() => setStatusTab("ACTIVE")}
-          className={`pb-3 flex items-center gap-2 whitespace-nowrap transition-colors ${
+          className={`px-3 py-2 flex items-center gap-1.5 whitespace-nowrap transition-colors border-b-2 ${
             statusTab === "ACTIVE"
-              ? "border-b-2 border-primary-container text-primary-container font-semibold"
-              : "border-b-2 border-transparent text-secondary hover:text-on-surface font-medium"
+              ? "border-[#FF5A1F] text-[#FF5A1F] font-semibold"
+              : "border-transparent text-[#6B6667] hover:text-[#111111]"
           }`}
         >
           <span>Active Listings</span>
-          <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-secondary font-medium text-[11px] tabular-nums">
-            {activeCount}
+          <span className="px-1.5 py-0.2 rounded bg-[#F4F1EA] text-[#6B6667] text-[11px] tabular-nums">
+            {counts.active}
           </span>
         </button>
 
         <button
+          type="button"
           onClick={() => setStatusTab("LOW_STOCK")}
-          className={`pb-3 flex items-center gap-2 whitespace-nowrap transition-colors ${
+          className={`px-3 py-2 flex items-center gap-1.5 whitespace-nowrap transition-colors border-b-2 ${
             statusTab === "LOW_STOCK"
-              ? "border-b-2 border-primary-container text-primary-container font-semibold"
-              : "border-b-2 border-transparent text-secondary hover:text-on-surface font-medium"
+              ? "border-[#FF5A1F] text-[#FF5A1F] font-semibold"
+              : "border-transparent text-[#6B6667] hover:text-[#111111]"
           }`}
         >
           <span>Low Stock</span>
-          <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-secondary font-medium text-[11px] tabular-nums">
-            {lowStockCount}
+          <span className="px-1.5 py-0.2 rounded bg-[#FFFBEB] text-[#C9822E] text-[11px] tabular-nums">
+            {counts.lowStock}
           </span>
         </button>
 
         <button
+          type="button"
           onClick={() => setStatusTab("OUT_OF_STOCK")}
-          className={`pb-3 flex items-center gap-2 whitespace-nowrap transition-colors ${
+          className={`px-3 py-2 flex items-center gap-1.5 whitespace-nowrap transition-colors border-b-2 ${
             statusTab === "OUT_OF_STOCK"
-              ? "border-b-2 border-primary-container text-primary-container font-semibold"
-              : "border-b-2 border-transparent text-secondary hover:text-on-surface font-medium"
+              ? "border-[#FF5A1F] text-[#FF5A1F] font-semibold"
+              : "border-transparent text-[#6B6667] hover:text-[#111111]"
           }`}
         >
           <span>Out of Stock</span>
-          <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-secondary font-medium text-[11px] tabular-nums">
-            {outOfStockCount}
+          <span className="px-1.5 py-0.2 rounded bg-[#FEF2F2] text-[#DA1E28] text-[11px] tabular-nums">
+            {counts.outOfStock}
           </span>
         </button>
 
         <button
+          type="button"
           onClick={() => setStatusTab("DRAFT")}
-          className={`pb-3 flex items-center gap-2 whitespace-nowrap transition-colors ${
+          className={`px-3 py-2 flex items-center gap-1.5 whitespace-nowrap transition-colors border-b-2 ${
             statusTab === "DRAFT"
-              ? "border-b-2 border-primary-container text-primary-container font-semibold"
-              : "border-b-2 border-transparent text-secondary hover:text-on-surface font-medium"
+              ? "border-[#FF5A1F] text-[#FF5A1F] font-semibold"
+              : "border-transparent text-[#6B6667] hover:text-[#111111]"
           }`}
         >
           <span>Draft / Review</span>
-          <span className="px-2 py-0.5 rounded-full bg-surface-container-high text-secondary font-medium text-[11px] tabular-nums">
-            {draftCount}
+          <span className="px-1.5 py-0.2 rounded bg-[#F4F1EA] text-[#6B6667] text-[11px] tabular-nums">
+            {counts.draft}
           </span>
         </button>
       </div>
 
       {/* Search & Filter Toolbar */}
-      <div className="bg-surface-container-lowest p-space-sm rounded-xl border border-surface-container-highest flex flex-wrap items-center justify-between gap-space-sm">
-        <div className="flex flex-wrap items-center gap-space-xs flex-1 min-w-[320px]">
+      <div className="bg-white p-3 rounded-[10px] border border-[#E4E0DB] flex flex-wrap items-center justify-between gap-3 shadow-xs">
+        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
           {/* Search input */}
-          <div className="relative flex-1 min-w-[240px] max-w-sm">
-            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-secondary">
-              <span className="material-symbols-outlined text-[18px]">search</span>
+          <div className="relative w-full sm:w-72">
+            <span className="material-symbols-outlined text-[18px] text-[#6B6667] absolute left-3 top-2.5 pointer-events-none">
+              search
             </span>
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by product title, brand, or SKU..."
-              className="w-full h-[36px] pl-9 pr-3 text-body-sm font-body-sm bg-surface-container-low border border-surface-container-highest rounded-lg text-on-surface placeholder:text-secondary focus:outline-none focus:border-primary-container focus:ring-1 focus:ring-primary-container transition-all"
+              placeholder="Search title, brand, SKU..."
+              className="w-full h-9 pl-9 pr-3 text-xs bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] placeholder:text-[#6B6667]/60 focus:bg-white focus:outline-none focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] transition-all font-normal"
             />
           </div>
 
@@ -187,16 +312,17 @@ export default function AdminProductsPage() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="h-[36px] pl-3 pr-8 text-label-sm font-label-sm bg-surface-container-lowest border border-surface-container-highest rounded-lg text-on-surface focus:outline-none focus:border-primary-container cursor-pointer appearance-none"
+              className="h-9 pl-3 pr-8 text-xs font-medium bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:outline-none focus:border-[#FF5A1F] cursor-pointer appearance-none hover:bg-white"
             >
               <option value="ALL">All Categories</option>
-              <option value="Textiles & Apparel">Textiles &amp; Apparel</option>
-              <option value="Artisanal Food">Artisanal Food</option>
-              <option value="Home & Decor">Home &amp; Decor</option>
-              <option value="Leathercraft">Leathercraft</option>
+              {availableCategories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
             </select>
-            <span className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none text-secondary">
-              <span className="material-symbols-outlined text-[16px]">expand_more</span>
+            <span className="material-symbols-outlined absolute right-2.5 top-2.5 text-[#6B6667] pointer-events-none text-[16px]">
+              expand_more
             </span>
           </div>
 
@@ -205,19 +331,17 @@ export default function AdminProductsPage() {
             <select
               value={vendorFilter}
               onChange={(e) => setVendorFilter(e.target.value)}
-              className="h-[36px] pl-3 pr-8 text-label-sm font-label-sm bg-surface-container-lowest border border-surface-container-highest rounded-lg text-on-surface focus:outline-none focus:border-primary-container cursor-pointer appearance-none"
+              className="h-9 pl-3 pr-8 text-xs font-medium bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:outline-none focus:border-[#FF5A1F] cursor-pointer appearance-none hover:bg-white"
             >
               <option value="ALL">All Vendors</option>
-              <option value="Kashmir Loom Heritage">Kashmir Loom Heritage</option>
-              <option value="Malabar Spice Co.">Malabar Spice Co.</option>
-              <option value="Deccan Metalcraft">Deccan Metalcraft</option>
-              <option value="Minimalist Leather Works">Minimalist Leather Works</option>
-              <option value="Artisan Silks Co.">Artisan Silks Co.</option>
-              <option value="Nilgiri Tea Planters">Nilgiri Tea Planters</option>
-              <option value="Jaipur Blue Pottery">Jaipur Blue Pottery</option>
+              {availableVendors.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
             </select>
-            <span className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none text-secondary">
-              <span className="material-symbols-outlined text-[16px]">expand_more</span>
+            <span className="material-symbols-outlined absolute right-2.5 top-2.5 text-[#6B6667] pointer-events-none text-[16px]">
+              expand_more
             </span>
           </div>
 
@@ -226,137 +350,156 @@ export default function AdminProductsPage() {
             <select
               value={fulfillmentFilter}
               onChange={(e) => setFulfillmentFilter(e.target.value)}
-              className="h-[36px] pl-3 pr-8 text-label-sm font-label-sm bg-surface-container-lowest border border-surface-container-highest rounded-lg text-on-surface focus:outline-none focus:border-primary-container cursor-pointer appearance-none"
+              className="h-9 pl-3 pr-8 text-xs font-medium bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:outline-none focus:border-[#FF5A1F] cursor-pointer appearance-none hover:bg-white"
             >
-              <option value="ALL">All Fulfillment Types</option>
+              <option value="ALL">All Fulfillment</option>
               <option value="DARK_STORE">Dark Store</option>
               <option value="VENDOR">Vendor Fulfilled</option>
             </select>
-            <span className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none text-secondary">
-              <span className="material-symbols-outlined text-[16px]">expand_more</span>
+            <span className="material-symbols-outlined absolute right-2.5 top-2.5 text-[#6B6667] pointer-events-none text-[16px]">
+              expand_more
             </span>
           </div>
 
-          {/* Clear Filters */}
           {(searchTerm ||
             statusTab !== "ALL" ||
             categoryFilter !== "ALL" ||
             vendorFilter !== "ALL" ||
-            fulfillmentFilter !== "ALL" ||
-            stockFilter !== "ALL") && (
+            fulfillmentFilter !== "ALL") && (
             <button
+              type="button"
               onClick={clearFilters}
-              className="text-body-sm font-body-sm text-secondary hover:text-on-surface underline ml-1"
+              className="h-9 px-2.5 rounded-[8px] text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA] transition-colors flex items-center gap-1 text-xs font-medium"
             >
-              Clear Filters
+              <span className="material-symbols-outlined text-[16px]">filter_alt_off</span>
+              <span>Clear</span>
             </button>
           )}
         </div>
 
-        <div className="text-body-sm font-body-sm text-secondary">
-          Showing <span className="font-bold text-on-surface">{filteredProducts.length}</span> of{" "}
-          {MOCK_PRODUCTS.length} products
+        <div className="text-right text-[#6B6667] text-xs">
+          Showing <span className="font-semibold text-[#111111]">{filteredProducts.length}</span> of{" "}
+          <span className="font-semibold text-[#111111]">{products.length}</span> products
         </div>
       </div>
 
       {/* Product Data Table */}
-      <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest overflow-hidden shadow-sm">
+      <div className="bg-white rounded-[10px] border border-[#E4E0DB] overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="h-10 bg-surface-container border-b border-surface-container-highest text-secondary text-label-xs font-label-xs uppercase tracking-wider">
-                <th className="px-4 font-semibold">PRODUCT &amp; DETAILS</th>
-                <th className="px-4 font-semibold">SKU</th>
-                <th className="px-4 font-semibold">VENDOR / BOUTIQUE</th>
-                <th className="px-4 font-semibold">CATEGORY</th>
-                <th className="px-4 font-semibold text-right">SELLING PRICE</th>
-                <th className="px-4 font-semibold text-right">STOCK</th>
-                <th className="px-4 font-semibold text-center">FULFILLMENT</th>
-                <th className="px-4 font-semibold text-center">STATUS</th>
-                <th className="px-4 font-semibold text-right">ACTION</th>
+              <tr className="h-10 bg-[#F7F7F5] border-b border-[#E4E0DB] text-xs font-medium text-[#6B6667]">
+                <th className="px-4 sm:px-5 py-0 font-medium">Product</th>
+                <th className="px-4 py-0 font-medium whitespace-nowrap">SKU</th>
+                <th className="px-4 py-0 font-medium">Vendor</th>
+                <th className="px-4 py-0 font-medium">Category</th>
+                <th className="px-4 py-0 font-medium text-right whitespace-nowrap">Price</th>
+                <th className="px-4 py-0 font-medium text-right whitespace-nowrap">Stock</th>
+                <th className="px-4 py-0 font-medium text-center whitespace-nowrap">Fulfillment</th>
+                <th className="px-4 py-0 font-medium text-center whitespace-nowrap">Status</th>
+                <th className="px-4 sm:px-5 py-0 font-medium text-right whitespace-nowrap">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-surface-container-highest text-body-sm font-body-sm text-on-surface">
-              {filteredProducts.length === 0 ? (
+            <tbody className="divide-y divide-[#E4E0DB] text-[13px] text-[#111111]">
+              {loading ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-secondary">
-                    <span className="material-symbols-outlined text-4xl block mx-auto text-secondary mb-2">
-                      inventory_2
-                    </span>
-                    <p className="font-medium text-on-surface">No products match your filter criteria</p>
+                  <td colSpan={9} className="px-4 py-12 text-center text-[#6B6667]">
+                    <p className="text-xs font-medium">Loading catalog items...</p>
+                  </td>
+                </tr>
+              ) : paginatedProducts.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-4 py-12 text-center text-[#6B6667]">
+                    <p className="font-medium text-[#111111]">No products found</p>
+                    <p className="text-xs text-[#6B6667] mt-1">Try adjusting search or filters</p>
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map((product) => (
-                  <tr key={product.id} className="h-14 hover:bg-surface-container-low transition-colors">
+                paginatedProducts.map((product) => (
+                  <tr key={product.id} className="h-12 hover:bg-[#F7F7F5]/50 transition-colors">
                     {/* Product & Details */}
-                    <td className="px-4 py-2">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={product.primaryImageUrl}
-                          alt={product.title}
-                          className="w-10 h-10 rounded-lg object-cover border border-surface-container-highest shrink-0"
-                        />
+                    <td className="px-4 sm:px-5 py-0">
+                      <div className="flex items-center gap-2.5">
+                        <Link
+                          href={`/admin/products/${product.id}`}
+                          className="w-8 h-8 rounded-[6px] overflow-hidden border border-[#E4E0DB] shrink-0 bg-[#F4F1EA]"
+                        >
+                          <img
+                            src={product.primaryImageUrl}
+                            alt={product.title}
+                            className="w-full h-full object-cover"
+                          />
+                        </Link>
                         <div className="min-w-0">
-                          <p className="font-bold text-on-surface leading-tight truncate max-w-[220px]">
+                          <Link
+                            href={`/admin/products/${product.id}`}
+                            className="font-medium text-[#111111] hover:text-[#FF5A1F] transition-colors block leading-tight truncate max-w-[210px]"
+                            title={product.title}
+                          >
                             {product.title}
+                          </Link>
+                          <p className="text-xs text-[#6B6667] truncate max-w-[200px] mt-0.5">
+                            {product.brand}
                           </p>
-                          <p className="text-label-xs font-label-xs text-secondary">{product.brand}</p>
                         </div>
                       </div>
                     </td>
 
                     {/* SKU */}
-                    <td className="px-4 py-2 font-code-sm text-code-sm text-secondary">
+                    <td className="px-4 py-0 font-mono text-xs text-[#6B6667] whitespace-nowrap">
                       {product.sku}
                     </td>
 
                     {/* Vendor */}
-                    <td className="px-4 py-2">
-                      <span className="font-body-sm-medium text-on-surface">{product.vendorName}</span>
+                    <td className="px-4 py-0">
+                      <span
+                        className="text-xs text-[#111111] block truncate max-w-[170px]"
+                        title={product.vendorName}
+                      >
+                        {product.vendorName}
+                      </span>
                     </td>
 
                     {/* Category */}
-                    <td className="px-4 py-2 text-secondary">{product.category}</td>
-
-                    {/* Selling Price */}
-                    <td className="px-4 py-2 text-right">
-                      <span className="font-code-sm text-code-sm font-bold text-on-surface tabular-nums">
-                        ₹{product.sellingPrice.toLocaleString("en-IN")}
-                      </span>
-                      {product.originalPrice && (
-                        <span className="block font-code-xs text-[10px] text-tertiary line-through tabular-nums">
-                          ₹{product.originalPrice.toLocaleString("en-IN")}
-                        </span>
-                      )}
+                    <td className="px-4 py-0 text-xs text-[#6B6667] whitespace-nowrap">
+                      {product.category}
                     </td>
 
-                    {/* Stock */}
-                    <td className="px-4 py-2 text-right">
-                      <span className="font-code-sm text-code-sm tabular-nums block font-medium">
-                        {product.stockQuantity} units
+                    {/* Selling Price */}
+                    <td className="px-4 py-0 text-right whitespace-nowrap">
+                      <span className="font-semibold text-[#111111] tabular-nums block">
+                        ₹{product.sellingPrice.toLocaleString("en-IN")}
                       </span>
-                      <StatusBadge status={product.stockStatus} variant="stock" />
+                    </td>
+
+                    {/* Stock Quantity */}
+                    <td className="px-4 py-0 text-right whitespace-nowrap">
+                      <span className="font-medium tabular-nums text-[#111111]">
+                        {product.stockQuantity}
+                      </span>
+                      <span className="ml-1.5">
+                        <StatusBadge status={product.stockStatus} variant="stock" />
+                      </span>
                     </td>
 
                     {/* Fulfillment */}
-                    <td className="px-4 py-2 text-center">
+                    <td className="px-4 py-0 text-center whitespace-nowrap">
                       <StatusBadge status={product.fulfillmentType} variant="fulfillment" />
                     </td>
 
                     {/* Status */}
-                    <td className="px-4 py-2 text-center">
+                    <td className="px-4 py-0 text-center whitespace-nowrap">
                       <StatusBadge status={product.listingStatus} variant="product" />
                     </td>
 
                     {/* Action */}
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 sm:px-5 py-0 text-right whitespace-nowrap">
                       <Link
                         href={`/admin/products/${product.id}`}
-                        className="h-7 px-2.5 text-primary hover:text-pressed-orange font-label-xs text-label-xs font-semibold inline-flex items-center gap-0.5 hover:bg-[#FFF0E8]/50 rounded transition-colors"
+                        className="text-xs font-medium text-[#FF5A1F] hover:text-[#D94B17] hover:bg-[#FFF0E8] px-2 py-0.5 rounded transition-colors inline-flex items-center gap-0.5"
                       >
                         <span>View</span>
-                        <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+                        <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
                       </Link>
                     </td>
                   </tr>
@@ -367,26 +510,47 @@ export default function AdminProductsPage() {
         </div>
 
         {/* Pagination Bar */}
-        <div className="px-4 py-3 border-t border-surface-container-highest flex items-center justify-between text-label-xs text-secondary">
+        <div className="px-4 sm:px-5 py-3 border-t border-[#E4E0DB] bg-[#F7F7F5] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[#6B6667]">
           <div>
-            Showing <span className="font-semibold text-on-surface">1</span> to{" "}
-            <span className="font-semibold text-on-surface">{filteredProducts.length}</span> of{" "}
-            <span className="font-semibold text-on-surface">1,842</span> items
+            Showing <span className="font-semibold text-[#111111]">{totalFiltered === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}</span> to{" "}
+            <span className="font-semibold text-[#111111]">{Math.min(currentPage * PAGE_SIZE, totalFiltered)}</span> of{" "}
+            <span className="font-semibold text-[#111111]">{totalFiltered}</span> items
           </div>
+
           <div className="flex items-center gap-1">
             <button
-              disabled
-              className="px-2.5 py-1 rounded border border-surface-container-highest bg-surface-container-lowest text-secondary text-label-xs opacity-50 cursor-not-allowed"
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="px-2.5 py-1 rounded-[6px] border border-[#E4E0DB] bg-white text-[#6B6667] text-xs font-medium hover:bg-[#F4F1EA] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               Previous
             </button>
-            <button className="px-2.5 py-1 rounded border border-primary-container bg-primary-container text-surface-container-lowest text-label-xs font-bold">
-              1
-            </button>
-            <button className="px-2.5 py-1 rounded border border-surface-container-highest bg-surface-container-lowest text-secondary text-label-xs hover:bg-surface">
-              2
-            </button>
-            <button className="px-2.5 py-1 rounded border border-surface-container-highest bg-surface-container-lowest text-secondary text-label-xs hover:bg-surface">
+
+            {Array.from({ length: totalPages }).map((_, i) => {
+              const p = i + 1;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setCurrentPage(p)}
+                  className={`w-7 h-7 rounded-[6px] text-xs font-medium transition-colors ${
+                    currentPage === p
+                      ? "bg-[#FF5A1F] text-white"
+                      : "border border-[#E4E0DB] bg-white text-[#111111] hover:bg-[#F4F1EA]"
+                  }`}
+                >
+                  {p}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="px-2.5 py-1 rounded-[6px] border border-[#E4E0DB] bg-white text-[#6B6667] text-xs font-medium hover:bg-[#F4F1EA] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
               Next
             </button>
           </div>

@@ -1,259 +1,330 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { MOCK_VENDORS } from "@/mocks/vendors";
+import { useParams, useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { VendorDocument } from "@/types/vendors";
+import { VendorBoutique, VendorDocument } from "@/types/vendors";
+import { getDemoVendorById } from "@/demo-data/vendors";
 
 export default function AdminVendorDetailPage() {
   const params = useParams();
-  const vendorId = (params?.id as string) || "ven_7821";
+  const router = useRouter();
+  const vendorId = params?.id as string;
 
-  // Find vendor or default to first
-  const vendor =
-    MOCK_VENDORS.find((v) => v.id === vendorId) || MOCK_VENDORS[0];
+  const [vendor, setVendor] = useState<VendorBoutique | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const [approvalStatus, setApprovalStatus] = useState(vendor.status);
+  // Action modals & states
   const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [isSuspendModalOpen, setIsSuspendModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [previewDoc, setPreviewDoc] = useState<VendorDocument | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!vendorId) return;
+    setLoading(true);
+    setError(null);
+
+    const found = getDemoVendorById(vendorId);
+    if (found) {
+      setVendor(found);
+    } else {
+      setError(`Vendor boutique record "${vendorId}" was not found.`);
+    }
+    setLoading(false);
+  }, [vendorId]);
+
+  const copyToClipboard = (text: string, field: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
   const handleApprove = () => {
-    setApprovalStatus("ACTIVE");
+    if (!vendor) return;
     setIsApproveModalOpen(false);
-    setToastMessage(
-      `Vendor ${vendor.storeName} (#${vendor.vendorNumber}) has been approved and activated. (Local development state)`
-    );
-    setTimeout(() => setToastMessage(null), 5000);
+    setToastMessage("Not connected in this build. Vendor approval requires backend connectivity.");
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
   const handleReject = () => {
-    setApprovalStatus("SUSPENDED");
+    if (!vendor) return;
     setIsRejectModalOpen(false);
-    setToastMessage(
-      `Vendor application for ${vendor.storeName} was rejected with reason: "${rejectReason || "Compliance requirements not met"}". (Local development state)`
-    );
-    setTimeout(() => setToastMessage(null), 5000);
+    setToastMessage("Not connected in this build. Vendor rejection requires backend connectivity.");
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
+  const handleSuspend = () => {
+    if (!vendor) return;
+    setIsSuspendModalOpen(false);
+    setToastMessage("Not connected in this build. Vendor suspension requires backend connectivity.");
+    setTimeout(() => setToastMessage(null), 4000);
+  };
+
+  const handleDownloadDossier = () => {
+    if (!vendor) return;
+    const dossierText = JSON.stringify(vendor, null, 2);
+    const blob = new Blob([dossierText], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `kudicart_dossier_${vendor.vendorNumber.replace(/[^a-zA-Z0-9]/g, "")}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setToastMessage(`Exported JSON dossier for ${vendor.storeName}`);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  if (loading) {
+    return (
+      <div className="w-full max-w-[1400px] mx-auto box-border min-w-0 px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 pb-8 space-y-4">
+        <div className="w-36 h-4 bg-[#E4E0DB] rounded animate-pulse" />
+        <div className="h-28 bg-white rounded-[10px] border border-[#E4E0DB] p-6 animate-pulse" />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div className="lg:col-span-8 h-96 bg-white rounded-[10px] border border-[#E4E0DB] animate-pulse" />
+          <div className="lg:col-span-4 h-96 bg-white rounded-[10px] border border-[#E4E0DB] animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!vendor || error) {
+    return (
+      <div className="w-full max-w-[1400px] mx-auto box-border min-w-0 px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 pb-8">
+        <div className="bg-white border border-[#E4E0DB] rounded-[10px] p-12 text-center max-w-lg mx-auto shadow-xs space-y-3">
+          <h2 className="text-base font-semibold text-[#111111]">Vendor Not Found</h2>
+          <p className="text-xs text-[#6B6667]">
+            {error || `The requested vendor "${vendorId}" was not found.`}
+          </p>
+          <div className="pt-2">
+            <Link
+              href="/admin/vendors"
+              className="px-3.5 py-2 bg-[#FF5A1F] hover:bg-[#D94B17] text-white text-xs font-medium rounded-[8px] transition-colors inline-block"
+            >
+              Back to Vendors
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isPending =
+    vendor.status === "PENDING_REVIEW" ||
+    vendor.status === "DOCS_SUBMITTED" ||
+    vendor.status === "KYC_PENDING";
+
   return (
-    <div className="space-y-space-md max-w-[1440px] mx-auto">
+    <div className="w-full max-w-[1400px] mx-auto box-border min-w-0 px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 pb-8 space-y-4">
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#111111] text-white px-4 py-3 rounded-lg shadow-xl flex items-center gap-3 border border-[#333333] animate-fadeIn">
-          <span className="material-symbols-outlined text-[#20885A] text-xl">info</span>
-          <span className="font-label-sm text-label-sm">{toastMessage}</span>
+        <div className="fixed bottom-6 right-6 z-50 bg-[#111111] text-white px-4 py-3 rounded-[8px] shadow-lg flex items-center gap-3 border border-[#333333] text-xs">
+          <span>{toastMessage}</span>
           <button
+            type="button"
             onClick={() => setToastMessage(null)}
-            className="text-secondary hover:text-white ml-2"
+            className="text-[#6B6667] hover:text-white ml-2"
           >
-            <span className="material-symbols-outlined text-sm">close</span>
+            <span className="material-symbols-outlined text-[16px]">close</span>
           </button>
         </div>
       )}
 
-      {/* Back Navigation Header */}
-      <div>
-        <Link
-          href="/admin/vendors"
-          className="inline-flex items-center gap-1.5 text-label-sm font-label-sm font-semibold text-secondary hover:text-primary transition-colors group"
-        >
-          <span className="material-symbols-outlined text-[16px] group-hover:-translate-x-0.5 transition-transform">
-            arrow_back
-          </span>
-          &lt; Back to Vendors
-        </Link>
-      </div>
-
-      {/* Action-Oriented Header Area */}
-      <div className="bg-surface-container-lowest rounded-xl p-space-lg border border-surface-container-highest flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      {/* Header Area */}
+      <div className="bg-white rounded-[10px] p-4 sm:p-5 border border-[#E4E0DB] flex flex-col lg:flex-row lg:items-center justify-between gap-4 shadow-xs">
         <div>
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-headline-lg font-headline-lg font-bold text-on-surface tracking-tight">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-[26px] font-semibold text-[#111111] tracking-tight">
               {vendor.storeName}
             </h1>
-            <span className="font-code-sm text-code-sm text-secondary px-2.5 py-1 bg-surface-container rounded-md border border-surface-container-highest font-medium">
+            <span className="font-mono text-xs text-[#6B6667] px-2 py-0.5 bg-[#F4F1EA] rounded border border-[#E4E0DB] font-medium">
               {vendor.vendorNumber}
             </span>
-            <StatusBadge status={approvalStatus} variant="vendor" />
+            <StatusBadge status={vendor.status} variant="vendor" />
           </div>
-          <div className="flex flex-wrap items-center gap-2 mt-1.5 text-body-sm font-body-sm text-secondary">
-            <span className="material-symbols-outlined text-[16px] text-tertiary">schedule</span>
-            <span>Application Submitted {vendor.submissionDate}</span>
-            <span className="text-secondary">•</span>
-            <span>
-              Assigned Reviewer: <strong className="text-on-surface font-medium">{vendor.assignedReviewer}</strong>
-            </span>
-            <span className="text-secondary">•</span>
-            <span className="inline-flex items-center gap-1 text-[#20885A] font-medium">
-              <span className="material-symbols-outlined text-[15px]">verified</span>
-              Identity Screening Pass
-            </span>
+
+          <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-[#6B6667]">
+            <span>Submitted: <strong className="text-[#111111] font-medium">{vendor.submissionDate}</strong></span>
+            <span>•</span>
+            <span>Operating Hub: <strong className="text-[#111111] font-medium">{vendor.operatingHub || "Bandra West Node"}</strong></span>
+            {vendor.documents.length > 0 && (
+              <>
+                <span>•</span>
+                <span className="text-[#20885A] font-medium">
+                  {vendor.documents.filter((d) => d.verified).length} of {vendor.documents.length} Documents On File
+                </span>
+              </>
+            )}
           </div>
         </div>
 
-        {/* Header Action Toolbar */}
-        <div className="flex items-center flex-wrap gap-2.5 shrink-0">
+        {/* Action Toolbar */}
+        <div className="flex items-center flex-wrap gap-2 shrink-0">
           <button
-            onClick={() => alert(`Downloading merchant dossier PDF for ${vendor.storeName}...`)}
-            className="h-9 px-3.5 rounded-lg bg-surface-container-lowest text-on-surface border border-surface-container-highest hover:bg-surface text-label-sm font-label-sm font-semibold flex items-center gap-1.5 shadow-xs transition-colors"
+            type="button"
+            onClick={handleDownloadDossier}
+            className="h-9 px-3 rounded-[8px] bg-white text-[#111111] border border-[#E4E0DB] hover:bg-[#F7F7F5] text-xs font-medium flex items-center gap-1.5 shadow-xs transition-colors"
           >
-            <span className="material-symbols-outlined text-[17px] text-secondary">download</span>
-            Download Dossier (PDF)
+            <span className="material-symbols-outlined text-[18px] text-[#6B6667]">download</span>
+            <span>Export Record</span>
           </button>
 
-          {approvalStatus !== "ACTIVE" && (
+          {isPending && (
             <button
+              type="button"
               onClick={() => setIsRejectModalOpen(true)}
-              className="h-9 px-3.5 rounded-lg bg-surface-container-lowest text-[#DA1E28] border border-[#DA1E28]/40 hover:bg-[#FEF2F2] text-label-sm font-label-sm font-semibold flex items-center gap-1.5 transition-colors"
+              className="h-9 px-3 rounded-[8px] bg-white text-[#DA1E28] border border-[#DA1E28]/40 hover:bg-[#FEF2F2] text-xs font-medium transition-colors"
             >
-              <span className="material-symbols-outlined text-[17px]">cancel</span>
-              Reject Application
+              <span>Reject</span>
             </button>
           )}
 
-          {approvalStatus !== "ACTIVE" ? (
+          {isPending ? (
             <button
+              type="button"
               onClick={() => setIsApproveModalOpen(true)}
-              className="h-9 px-4 rounded-lg bg-primary-container text-surface-container-lowest hover:bg-[#D94B17] text-label-sm font-label-sm font-semibold flex items-center gap-1.5 shadow-sm active:scale-[0.98] transition-all"
+              className="h-9 px-3.5 rounded-[8px] bg-[#FF5A1F] text-white hover:bg-[#D94B17] text-xs font-medium shadow-xs transition-all"
             >
-              <span className="material-symbols-outlined text-[18px]">check_circle</span>
-              Approve Vendor
+              <span>Approve Vendor</span>
+            </button>
+          ) : vendor.status === "ACTIVE" ? (
+            <button
+              type="button"
+              onClick={() => setIsSuspendModalOpen(true)}
+              className="h-9 px-3 rounded-[8px] bg-[#FEF2F2] text-[#DA1E28] border border-[#FECACA] hover:bg-[#DA1E28] hover:text-white text-xs font-medium transition-colors"
+            >
+              <span>Suspend Boutique</span>
             </button>
           ) : (
             <button
-              onClick={() => {
-                setApprovalStatus("SUSPENDED");
-                setToastMessage(`Vendor ${vendor.storeName} suspended. (Local development state)`);
-              }}
-              className="h-9 px-3.5 rounded-lg bg-[#FEF2F2] text-[#DA1E28] border border-[#FECACA] hover:bg-[#DA1E28] hover:text-white text-label-sm font-label-sm font-semibold flex items-center gap-1.5 transition-colors"
+              type="button"
+              onClick={handleApprove}
+              className="h-9 px-3.5 rounded-[8px] bg-[#20885A] text-white hover:bg-[#15803D] text-xs font-medium transition-colors"
             >
-              <span className="material-symbols-outlined text-[18px]">pause_circle</span>
-              Suspend Store
+              <span>Reactivate Boutique</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Two-Column Operational Layout (8 cols Left, 4 cols Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* Two-Column Operational Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         {/* Left Column (8 cols) */}
-        <div className="lg:col-span-8 space-y-6">
-          {/* 1. Key Stats / Operational Summary Bar */}
-          <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest p-4 grid grid-cols-2 md:grid-cols-4 gap-4 divide-y md:divide-y-0 md:divide-x divide-surface-container-highest">
-            <div className="pt-2 md:pt-0">
-              <span className="text-label-xs font-label-xs text-secondary uppercase tracking-wider block">
-                Category
-              </span>
-              <p className="text-body-sm font-body-sm-medium text-on-surface mt-1 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[16px] text-primary">checkroom</span>
-                {vendor.category}
-              </p>
+        <div className="lg:col-span-8 space-y-4">
+          {/* Summary Metrics Bar */}
+          <div className="bg-white rounded-[10px] border border-[#E4E0DB] p-4 grid grid-cols-2 md:grid-cols-4 gap-4 shadow-xs">
+            <div>
+              <span className="text-xs text-[#6B6667] block">Category</span>
+              <p className="text-xs font-medium text-[#111111] mt-0.5">{vendor.category}</p>
             </div>
-
-            <div className="pt-2 md:pt-0 md:pl-4">
-              <span className="text-label-xs font-label-xs text-secondary uppercase tracking-wider block">
-                Operating Hub
-              </span>
-              <p
-                className="text-body-sm font-body-sm-medium text-on-surface mt-1 flex items-center gap-1.5 truncate"
-                title={vendor.operatingHub}
-              >
-                <span className="material-symbols-outlined text-[16px] text-[#20885A]">hub</span>
-                {vendor.operatingHub}
-              </p>
+            <div>
+              <span className="text-xs text-[#6B6667] block">Operating Hub</span>
+              <p className="text-xs font-medium text-[#111111] mt-0.5 truncate">{vendor.operatingHub || "Bandra West Node"}</p>
             </div>
-
-            <div className="pt-2 md:pt-0 md:pl-4">
-              <span className="text-label-xs font-label-xs text-secondary uppercase tracking-wider block">
-                Initial Products Catalog
-              </span>
-              <p className="text-body-sm font-body-sm-medium text-on-surface mt-1 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[16px] text-[#0043CE]">inventory_2</span>
-                {vendor.productCount} Draft Items
-              </p>
+            <div>
+              <span className="text-xs text-[#6B6667] block">Initial Catalog</span>
+              <p className="text-xs font-medium text-[#111111] mt-0.5">{vendor.productCount} Items</p>
             </div>
-
-            <div className="pt-2 md:pt-0 md:pl-4">
-              <span className="text-label-xs font-label-xs text-secondary uppercase tracking-wider block">
-                Target Fulfillment
-              </span>
-              <p className="text-body-sm font-body-sm-medium text-on-surface mt-1 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[16px] text-primary-container">bolt</span>
-                {vendor.targetFulfillment}
-              </p>
+            <div>
+              <span className="text-xs text-[#6B6667] block">Fulfillment Mode</span>
+              <p className="text-xs font-medium text-[#111111] mt-0.5">{vendor.targetFulfillment || "Hub Standard"}</p>
             </div>
           </div>
 
-          {/* 2. Business & Entity Details Panel */}
-          <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest overflow-hidden">
-            <div className="px-space-lg py-3.5 border-b border-surface-container-highest bg-surface-container-low flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[19px] text-secondary">domain</span>
-                <h3 className="text-headline-sm font-headline-sm font-semibold text-on-surface">
-                  Business &amp; Entity Details
-                </h3>
-              </div>
-              <span className="text-label-xs font-label-xs text-secondary font-medium">
-                Merchant Tier: Boutique Partner
+          {/* Business & Entity Details Panel */}
+          <div className="bg-white rounded-[10px] border border-[#E4E0DB] overflow-hidden shadow-xs">
+            <div className="px-4 py-3 border-b border-[#E4E0DB] bg-[#F7F7F5] flex items-center justify-between">
+              <h3 className="text-xs font-medium text-[#111111]">
+                Business Details
+              </h3>
+              <span className="text-xs text-[#6B6667]">
+                Tier 1 Boutique
               </span>
             </div>
 
-            <div className="p-space-lg grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 text-body-sm font-body-sm">
+            <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3.5 text-xs">
               <div>
-                <dt className="text-label-xs font-label-xs text-secondary">Legal Entity Name</dt>
-                <dd className="mt-1 font-body-md-medium text-on-surface">{vendor.legalEntityName}</dd>
+                <dt className="text-xs text-[#6B6667]">Legal Entity Name</dt>
+                <dd className="mt-0.5 font-medium text-[#111111]">{vendor.legalEntityName}</dd>
               </div>
 
               <div>
-                <dt className="text-label-xs font-label-xs text-secondary">Primary Store Contact</dt>
-                <dd className="mt-1 font-body-md-medium text-on-surface flex items-center gap-1.5">
+                <dt className="text-xs text-[#6B6667]">Primary Contact</dt>
+                <dd className="mt-0.5 font-medium text-[#111111] flex items-center gap-1.5">
                   <span>{vendor.ownerName}</span>
-                  <span className="text-label-xs font-label-xs text-secondary bg-surface-container px-1.5 py-0.5 rounded">
-                    {vendor.ownerRole}
-                  </span>
+                  {vendor.ownerRole && (
+                    <span className="text-[11px] text-[#6B6667] bg-[#F4F1EA] px-1.5 py-0.2 rounded border border-[#E4E0DB]">
+                      {vendor.ownerRole}
+                    </span>
+                  )}
                 </dd>
               </div>
 
-              <div className="md:col-span-2 pt-1 border-t border-surface-container-highest">
-                <dt className="text-label-xs font-label-xs text-secondary">Registered Business Address</dt>
-                <dd className="mt-1 text-on-surface flex items-start gap-1.5">
-                  <span className="material-symbols-outlined text-[16px] text-secondary mt-0.5">location_on</span>
-                  <span>{vendor.registeredAddress}</span>
+              <div className="md:col-span-2 pt-2 border-t border-[#E4E0DB]">
+                <dt className="text-xs text-[#6B6667]">Registered Business Address</dt>
+                <dd className="mt-0.5 text-[#111111]">{vendor.registeredAddress}</dd>
+              </div>
+
+              <div className="pt-2 border-t border-[#E4E0DB]">
+                <dt className="text-xs text-[#6B6667]">Email Address</dt>
+                <dd className="mt-0.5 font-mono text-[#111111] flex items-center gap-1.5">
+                  <span>{vendor.email}</span>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(vendor.email, "email")}
+                    className="text-[#6B6667] hover:text-[#FF5A1F]"
+                    title="Copy Email"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">
+                      {copiedField === "email" ? "check" : "content_copy"}
+                    </span>
+                  </button>
                 </dd>
               </div>
 
-              <div className="pt-1 border-t border-surface-container-highest">
-                <dt className="text-label-xs font-label-xs text-secondary">Email Address</dt>
-                <dd className="mt-1 text-on-surface font-code-xs">{vendor.email}</dd>
+              <div className="pt-2 border-t border-[#E4E0DB]">
+                <dt className="text-xs text-[#6B6667]">Phone Number</dt>
+                <dd className="mt-0.5 font-mono tabular-nums text-[#111111] flex items-center gap-1.5">
+                  <span>{vendor.phone}</span>
+                  <button
+                    type="button"
+                    onClick={() => copyToClipboard(vendor.phone, "phone")}
+                    className="text-[#6B6667] hover:text-[#FF5A1F]"
+                    title="Copy Phone"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">
+                      {copiedField === "phone" ? "check" : "content_copy"}
+                    </span>
+                  </button>
+                </dd>
               </div>
 
-              <div className="pt-1 border-t border-surface-container-highest">
-                <dt className="text-label-xs font-label-xs text-secondary">Phone Number</dt>
-                <dd className="mt-1 text-on-surface font-code-xs">{vendor.phone}</dd>
+              <div className="pt-2 border-t border-[#E4E0DB]">
+                <dt className="text-xs text-[#6B6667]">GSTIN Identifier</dt>
+                <dd className="mt-0.5 font-mono font-medium text-[#111111]">{vendor.gstin}</dd>
               </div>
 
-              <div className="pt-1 border-t border-surface-container-highest">
-                <dt className="text-label-xs font-label-xs text-secondary">GSTIN Tax Identifier</dt>
-                <dd className="mt-1 text-on-surface font-code-sm font-semibold">{vendor.gstin}</dd>
+              <div className="pt-2 border-t border-[#E4E0DB]">
+                <dt className="text-xs text-[#6B6667]">Permanent Account Number (PAN)</dt>
+                <dd className="mt-0.5 font-mono font-medium text-[#111111]">{vendor.pan}</dd>
               </div>
 
-              <div className="pt-1 border-t border-surface-container-highest">
-                <dt className="text-label-xs font-label-xs text-secondary">Permanent Account Number (PAN)</dt>
-                <dd className="mt-1 text-on-surface font-code-sm font-semibold">{vendor.pan}</dd>
-              </div>
-
-              <div className="md:col-span-2 pt-1 border-t border-surface-container-highest">
-                <dt className="text-label-xs font-label-xs text-secondary">Bank Account / Payout Destination</dt>
-                <dd className="mt-1 text-on-surface flex items-center gap-3">
-                  <span className="font-body-md-medium">
+              <div className="md:col-span-2 pt-2 border-t border-[#E4E0DB]">
+                <dt className="text-xs text-[#6B6667]">Bank Account / Payout Destination</dt>
+                <dd className="mt-0.5 text-[#111111] flex items-center gap-3">
+                  <span className="font-medium">
                     {vendor.bankDetails.bankName} {vendor.bankDetails.accountMasked}
                   </span>
-                  <span className="font-code-xs text-code-xs text-secondary">
+                  <span className="font-mono text-[#6B6667] bg-[#F4F1EA] px-1.5 py-0.5 rounded border border-[#E4E0DB]">
                     IFSC: {vendor.bankDetails.ifsc}
                   </span>
                 </dd>
@@ -261,59 +332,47 @@ export default function AdminVendorDetailPage() {
             </div>
           </div>
 
-          {/* 3. Submitted Compliance Documents Panel */}
-          <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest overflow-hidden">
-            <div className="px-space-lg py-3.5 border-b border-surface-container-highest bg-surface-container-low flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[19px] text-secondary">verified_user</span>
-                <h3 className="text-headline-sm font-headline-sm font-semibold text-on-surface">
-                  Submitted Compliance Documents
-                </h3>
-              </div>
-              <span className="text-label-xs font-label-xs font-semibold px-2 py-0.5 rounded bg-[#ECFDF5] text-[#20885A]">
-                {vendor.documents.length} of 5 Files Present
+          {/* Submitted Compliance Documents */}
+          <div className="bg-white rounded-[10px] border border-[#E4E0DB] overflow-hidden shadow-xs">
+            <div className="px-4 py-3 border-b border-[#E4E0DB] bg-[#F7F7F5] flex items-center justify-between">
+              <h3 className="text-xs font-medium text-[#111111]">
+                Compliance Documents
+              </h3>
+              <span className="text-xs text-[#6B6667]">
+                {vendor.documents.length} Files Uploaded
               </span>
             </div>
 
-            <div className="divide-y divide-surface-container-highest">
+            <div className="divide-y divide-[#E4E0DB]">
               {vendor.documents.length === 0 ? (
-                <div className="p-6 text-center text-secondary text-body-sm">
-                  No documents submitted yet for this vendor.
+                <div className="p-6 text-center text-[#6B6667] text-xs">
+                  No compliance documents submitted for this vendor.
                 </div>
               ) : (
                 vendor.documents.map((doc) => (
                   <div
                     key={doc.id}
-                    className="px-space-lg py-3 flex items-center justify-between hover:bg-surface-container-low transition-colors"
+                    className="px-4 py-3 flex items-center justify-between hover:bg-[#F7F7F5]/50 transition-colors"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-primary shrink-0">
-                        <span className="material-symbols-outlined text-[18px]">
-                          {doc.fileType === "JPG" || doc.fileType === "PNG"
-                            ? "photo_camera"
-                            : "description"}
-                        </span>
-                      </div>
-                      <div>
-                        <h4 className="text-body-sm font-body-sm-medium text-on-surface">
-                          {doc.title}
-                        </h4>
-                        <p className="text-code-xs text-code-xs text-secondary">
-                          {doc.fileType} • {doc.fileSize} • {doc.referenceOrHash}
-                        </p>
-                      </div>
+                    <div>
+                      <h4 className="text-xs font-medium text-[#111111]">
+                        {doc.title}
+                      </h4>
+                      <p className="font-mono text-[11px] text-[#6B6667] mt-0.5">
+                        {doc.fileType} • {doc.fileSize} • {doc.referenceOrHash}
+                      </p>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <span className="hidden sm:inline-block text-label-xs font-label-xs text-secondary bg-surface-container px-2 py-0.5 rounded">
+                    <div className="flex items-center gap-2">
+                      <span className="hidden sm:inline-block text-[11px] text-[#6B6667] bg-[#F4F1EA] px-2 py-0.5 rounded border border-[#E4E0DB]">
                         {doc.uploadedAt}
                       </span>
                       <button
+                        type="button"
                         onClick={() => setPreviewDoc(doc)}
-                        className="h-7 px-2.5 rounded border border-surface-container-highest text-label-xs font-label-xs font-semibold text-on-surface hover:bg-surface transition-colors flex items-center gap-1"
+                        className="h-7 px-2.5 rounded-[6px] border border-[#E4E0DB] text-xs font-medium text-[#111111] bg-white hover:bg-[#F4F1EA] transition-colors"
                       >
-                        <span className="material-symbols-outlined text-[14px]">visibility</span>
-                        Preview Document
+                        Preview
                       </button>
                     </div>
                   </div>
@@ -322,60 +381,51 @@ export default function AdminVendorDetailPage() {
             </div>
           </div>
 
-          {/* 4. Initial Product Catalog Preview Panel */}
-          {vendor.draftProducts.length > 0 && (
-            <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest overflow-hidden">
-              <div className="px-space-lg py-3.5 border-b border-surface-container-highest bg-surface-container-low flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[19px] text-secondary">inventory</span>
-                  <h3 className="text-headline-sm font-headline-sm font-semibold text-on-surface">
-                    Initial Catalog Submission ({vendor.draftProducts.length} Drafted)
-                  </h3>
-                </div>
-                <Link
-                  href="/admin/products"
-                  className="text-label-xs font-label-xs font-semibold text-primary hover:underline flex items-center gap-1"
-                >
-                  View All Products
-                  <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                </Link>
-              </div>
+          {/* Initial Product Catalog Summary */}
+          <div className="bg-white rounded-[10px] border border-[#E4E0DB] overflow-hidden shadow-xs">
+            <div className="px-4 py-3 border-b border-[#E4E0DB] bg-[#F7F7F5] flex items-center justify-between">
+              <h3 className="text-xs font-medium text-[#111111]">
+                Initial Catalog Submission ({vendor.draftProducts.length} Draft Items)
+              </h3>
+              <Link
+                href="/admin/products"
+                className="text-xs font-medium text-[#FF5A1F] hover:underline"
+              >
+                View Catalog →
+              </Link>
+            </div>
 
+            {vendor.draftProducts.length === 0 ? (
+              <div className="p-6 text-center text-[#6B6667] text-xs">
+                No draft products registered in initial catalog submission.
+              </div>
+            ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="h-10 bg-surface-container-low border-b border-surface-container-highest text-label-xs font-label-xs uppercase text-secondary">
-                      <th className="px-space-lg font-semibold">Item &amp; Details</th>
-                      <th className="px-4 font-semibold">SKU</th>
-                      <th className="px-4 font-semibold">Category</th>
-                      <th className="px-4 font-semibold text-right">Price</th>
-                      <th className="px-4 font-semibold text-right">Draft Stock</th>
-                      <th className="px-space-lg font-semibold text-center">Status</th>
+                    <tr className="h-10 bg-[#F7F7F5] border-b border-[#E4E0DB] text-xs font-medium text-[#6B6667]">
+                      <th className="px-4 py-0 font-medium">Item</th>
+                      <th className="px-4 py-0 font-medium">SKU</th>
+                      <th className="px-4 py-0 font-medium">Category</th>
+                      <th className="px-4 py-0 font-medium text-right">Price</th>
+                      <th className="px-4 py-0 font-medium text-right">Draft Stock</th>
+                      <th className="px-4 py-0 font-medium text-center">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-surface-container-highest text-body-sm font-body-sm">
+                  <tbody className="divide-y divide-[#E4E0DB] text-[13px] text-[#111111]">
                     {vendor.draftProducts.map((p) => (
-                      <tr key={p.id} className="h-12 hover:bg-surface-container-low transition-colors">
-                        <td className="px-space-lg">
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={p.imageUrl}
-                              alt={p.title}
-                              className="w-8 h-8 rounded object-cover border border-surface-container-highest"
-                            />
-                            <span className="font-body-sm-medium text-on-surface">{p.title}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 font-code-sm text-code-sm text-secondary">{p.sku}</td>
-                        <td className="px-4 text-secondary">{p.category}</td>
-                        <td className="px-4 text-right font-code-sm text-code-sm text-on-surface font-semibold tabular-nums">
+                      <tr key={p.id} className="h-11 hover:bg-[#F7F7F5]/50 transition-colors">
+                        <td className="px-4 py-0 font-medium text-[#111111]">{p.title}</td>
+                        <td className="px-4 py-0 font-mono text-xs text-[#6B6667]">{p.sku}</td>
+                        <td className="px-4 py-0 text-xs text-[#6B6667]">{p.category}</td>
+                        <td className="px-4 py-0 text-right font-mono font-semibold tabular-nums text-[#111111]">
                           ₹{p.price.toLocaleString("en-IN")}
                         </td>
-                        <td className="px-4 text-right font-code-sm text-code-sm text-on-surface tabular-nums">
-                          {p.draftStock} units
+                        <td className="px-4 py-0 text-right font-medium tabular-nums text-[#111111]">
+                          {p.draftStock}
                         </td>
-                        <td className="px-space-lg text-center">
-                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-label-xs font-semibold bg-surface-container text-secondary">
+                        <td className="px-4 py-0 text-center whitespace-nowrap">
+                          <span className="inline-block px-2 py-0.5 rounded text-[11px] font-medium bg-[#F4F1EA] text-[#6B6667] border border-[#E4E0DB]">
                             {p.status}
                           </span>
                         </td>
@@ -384,112 +434,97 @@ export default function AdminVendorDetailPage() {
                   </tbody>
                 </table>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Right Column (4 cols) */}
-        <div className="lg:col-span-4 space-y-6">
-          {/* Onboarding Checklist Card */}
-          <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest p-space-md space-y-3">
-            <h4 className="font-headline-sm text-headline-sm font-semibold text-on-surface">
-              Onboarding Review Checklist
+        <div className="lg:col-span-4 space-y-4">
+          {/* Compliance Checklist Card */}
+          <div className="bg-white rounded-[10px] border border-[#E4E0DB] p-4 space-y-3 shadow-xs">
+            <h4 className="text-xs font-medium text-[#111111]">
+              Document Checklist
             </h4>
-            <div className="space-y-2.5 text-body-sm">
-              <div className="flex items-center gap-2.5">
-                <span className="material-symbols-outlined text-[#20885A] text-lg">check_circle</span>
-                <span className="text-on-surface">Entity Legal Existence Verification</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <span className="material-symbols-outlined text-[#20885A] text-lg">check_circle</span>
-                <span className="text-on-surface">GSTIN Live Portal Cross-Check</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <span className="material-symbols-outlined text-[#20885A] text-lg">check_circle</span>
-                <span className="text-on-surface">Bank Account Name Match (Penny Drop)</span>
-              </div>
-              <div className="flex items-center gap-2.5">
-                <span className="material-symbols-outlined text-[#20885A] text-lg">check_circle</span>
-                <span className="text-on-surface">Physical Atelier / Storefront Geotag</span>
-              </div>
+            <div className="space-y-2 text-xs">
+              {vendor.documents.map((d) => (
+                <div key={d.id} className="flex items-center justify-between py-1 border-b border-[#F4F1EA] last:border-0">
+                  <span className="text-[#111111] font-medium truncate max-w-[210px]">{d.title}</span>
+                  <span className={`text-[11px] font-medium px-2 py-0.5 rounded border ${
+                    d.verified ? "bg-[#F0FDF4] text-[#15803D] border-[#BBF7D0]" : "bg-[#FFFBEB] text-[#B45309] border-[#FDE68A]"
+                  }`}>
+                    {d.verified ? "Verified" : "Under Review"}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Logistics & Dark Store Hub Linkage */}
-          <div className="bg-surface-container-lowest rounded-xl border border-surface-container-highest p-space-md space-y-3">
-            <h4 className="font-headline-sm text-headline-sm font-semibold text-on-surface">
-              Logistics &amp; Hub Assignment
+          {/* Hub Logistics Routing */}
+          <div className="bg-white rounded-[10px] border border-[#E4E0DB] p-4 space-y-2.5 shadow-xs">
+            <h4 className="text-xs font-medium text-[#111111]">
+              Fulfillment Routing
             </h4>
-            <div className="space-y-2 text-body-sm">
+            <div className="space-y-2 text-xs">
               <div>
-                <span className="text-label-xs text-secondary block">Assigned Delivery Hub</span>
-                <span className="font-medium text-on-surface">{vendor.operatingHub}</span>
+                <span className="text-xs text-[#6B6667] block">Assigned Terminal Hub</span>
+                <span className="font-medium text-[#111111] mt-0.5 block">
+                  {vendor.operatingHub || "Bandra West Node"}
+                </span>
               </div>
-              <div>
-                <span className="text-label-xs text-secondary block">Primary Courier Fleet</span>
-                <span className="text-on-surface">Bandra Zone EV Two-Wheelers</span>
-              </div>
-              <div>
-                <span className="text-label-xs text-secondary block">Express Delivery SLA</span>
-                <span className="text-[#20885A] font-semibold">60 Minutes Guaranteed</span>
+              <div className="pt-2 border-t border-[#E4E0DB]">
+                <span className="text-xs text-[#6B6667] block">Dispatch Protocol</span>
+                <span className="text-[#111111] mt-0.5 block">
+                  Manual Delivery Assignment
+                </span>
               </div>
             </div>
-          </div>
-
-          {/* Commercial Commission Terms Note */}
-          <div className="bg-[#FFF0E8] border border-[#FFDBCE] rounded-xl p-space-md space-y-2">
-            <div className="flex items-center gap-2 text-[#AE3200]">
-              <span className="material-symbols-outlined text-lg">info</span>
-              <h4 className="font-label-sm text-label-sm font-bold uppercase tracking-wider">
-                Commercial Agreement
-              </h4>
-            </div>
-            <p className="font-body-sm text-body-sm text-[#852400]">
-              Standard marketplace boutique commission rate is set at <strong>12.5%</strong>. Commission configuration remains provisional until formal physical countersignature by {vendor.ownerName}.
-            </p>
           </div>
         </div>
       </div>
 
       {/* Document Preview Modal */}
       {previewDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-xl border border-surface-container-highest max-w-2xl w-full p-space-lg shadow-2xl space-y-4 animate-scaleUp">
-            <div className="flex items-center justify-between border-b border-surface-container-highest pb-3">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4"
+          onClick={() => setPreviewDoc(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-[10px] border border-[#E4E0DB] max-w-xl w-full p-5 shadow-xl space-y-4"
+          >
+            <div className="flex items-center justify-between border-b border-[#E4E0DB] pb-3">
               <div>
-                <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">
+                <h3 className="text-base font-semibold text-[#111111]">
                   {previewDoc.title}
                 </h3>
-                <p className="font-code-xs text-code-xs text-secondary mt-0.5">
-                  {previewDoc.fileType} • {previewDoc.fileSize} • {previewDoc.referenceOrHash}
+                <p className="font-mono text-xs text-[#6B6667] mt-0.5">
+                  {previewDoc.fileType} • {previewDoc.fileSize}
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => setPreviewDoc(null)}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-secondary hover:text-on-surface hover:bg-surface-container transition-colors"
+                className="p-1 rounded text-[#6B6667] hover:text-[#111111]"
               >
-                <span className="material-symbols-outlined text-xl">close</span>
+                <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
 
-            <div className="h-64 bg-[#F4F1EA] rounded-lg border border-dashed border-[#E4E0DB] flex flex-col items-center justify-center text-secondary space-y-2 p-6 text-center">
-              <span className="material-symbols-outlined text-4xl text-primary">
-                {previewDoc.fileType === "JPG" || previewDoc.fileType === "PNG"
-                  ? "image"
-                  : "picture_as_pdf"}
-              </span>
-              <p className="font-label-sm text-label-sm font-semibold text-on-surface">
+            <div className="h-48 bg-[#F7F7F5] rounded-[8px] border border-dashed border-[#E4E0DB] flex flex-col items-center justify-center text-[#6B6667] space-y-1.5 p-6 text-center">
+              <span className="material-symbols-outlined text-[#FF5A1F] text-[36px]">description</span>
+              <p className="text-xs font-medium text-[#111111]">
                 {previewDoc.title}
               </p>
-              <p className="font-body-sm text-body-sm text-secondary max-w-md">
-                Verified compliance asset hash: {previewDoc.referenceOrHash}. Original archival file safely stored in encrypted compliance vault.
+              <p className="text-xs text-[#6B6667] font-mono">
+                Hash: {previewDoc.referenceOrHash}
               </p>
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-surface-container-highest">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E4E0DB]">
               <button
+                type="button"
                 onClick={() => setPreviewDoc(null)}
-                className="px-4 py-2 rounded-lg bg-surface-container hover:bg-surface-container-high text-on-surface font-label-sm text-label-sm font-semibold transition-colors"
+                className="px-3.5 py-2 rounded-[8px] bg-white border border-[#E4E0DB] text-[#111111] text-xs font-medium hover:bg-[#F7F7F5]"
               >
                 Close Preview
               </button>
@@ -500,32 +535,33 @@ export default function AdminVendorDetailPage() {
 
       {/* Approval Confirmation Dialog */}
       {isApproveModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-xl border border-surface-container-highest max-w-md w-full p-space-lg shadow-2xl space-y-4 animate-scaleUp">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-[#ECFDF5] text-[#20885A] flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-2xl">verified</span>
-              </div>
-              <div>
-                <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">
-                  Approve {vendor.storeName}?
-                </h3>
-                <p className="font-body-sm text-body-sm text-secondary mt-1">
-                  Approving this application will activate the boutique on KudiCart marketplace, enable their {vendor.productCount} catalog drafts for publishing, and assign Bandra West Hub fulfillment routing.
-                </p>
-              </div>
-            </div>
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4"
+          onClick={() => setIsApproveModalOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-[10px] border border-[#E4E0DB] max-w-md w-full p-5 shadow-xl space-y-3"
+          >
+            <h3 className="text-base font-semibold text-[#111111]">
+              Approve {vendor.storeName}?
+            </h3>
+            <p className="text-xs text-[#6B6667] leading-relaxed">
+              Approving this application will activate the boutique on the marketplace and allow catalog publishing.
+            </p>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-surface-container-highest">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E4E0DB]">
               <button
+                type="button"
                 onClick={() => setIsApproveModalOpen(false)}
-                className="px-3.5 py-2 rounded-lg border border-surface-container-highest text-secondary hover:text-on-surface font-label-sm text-label-sm font-semibold transition-colors"
+                className="px-3.5 py-2 rounded-[8px] border border-[#E4E0DB] text-[#6B6667] hover:text-[#111111] text-xs font-medium"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleApprove}
-                className="px-4 py-2 rounded-lg bg-[#20885A] hover:bg-[#15803D] font-label-sm text-label-sm font-semibold text-white transition-colors"
+                className="px-4 py-2 rounded-[8px] bg-[#FF5A1F] hover:bg-[#D94B17] text-white text-xs font-medium"
               >
                 Confirm Approval
               </button>
@@ -534,49 +570,77 @@ export default function AdminVendorDetailPage() {
         </div>
       )}
 
-      {/* Rejection Dialog with Reason Field */}
+      {/* Reject Confirmation Dialog */}
       {isRejectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-xl border border-surface-container-highest max-w-md w-full p-space-lg shadow-2xl space-y-4 animate-scaleUp">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-[#FEF2F2] text-[#DA1E28] flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-2xl">cancel</span>
-              </div>
-              <div>
-                <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface">
-                  Reject Application for {vendor.storeName}?
-                </h3>
-                <p className="font-body-sm text-body-sm text-secondary mt-1">
-                  Please provide a formal rejection reason to be communicated to {vendor.ownerName}.
-                </p>
-              </div>
-            </div>
-
-            <div>
-              <label className="font-label-xs text-label-xs text-secondary font-semibold uppercase tracking-wider block mb-1">
-                Rejection Reason
-              </label>
-              <textarea
-                value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value)}
-                placeholder="e.g. GST certificate mismatch with registered entity name..."
-                rows={3}
-                className="w-full p-2.5 bg-surface text-body-sm text-on-surface rounded-lg border border-surface-container-highest focus:outline-none focus:border-[#DA1E28]"
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-surface-container-highest">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4"
+          onClick={() => setIsRejectModalOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-[10px] border border-[#E4E0DB] max-w-md w-full p-5 shadow-xl space-y-3"
+          >
+            <h3 className="text-base font-semibold text-[#111111]">
+              Reject {vendor.storeName}?
+            </h3>
+            <textarea
+              rows={3}
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Reason for application rejection..."
+              className="w-full p-3 bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-xs text-[#111111] focus:bg-white focus:outline-none focus:border-[#DA1E28] resize-none"
+            />
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E4E0DB]">
               <button
+                type="button"
                 onClick={() => setIsRejectModalOpen(false)}
-                className="px-3.5 py-2 rounded-lg border border-surface-container-highest text-secondary hover:text-on-surface font-label-sm text-label-sm font-semibold transition-colors"
+                className="px-3.5 py-2 rounded-[8px] border border-[#E4E0DB] text-[#6B6667] hover:text-[#111111] text-xs font-medium"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleReject}
-                className="px-4 py-2 rounded-lg bg-[#DA1E28] hover:bg-[#B91C1C] font-label-sm text-label-sm font-semibold text-white transition-colors"
+                className="px-4 py-2 rounded-[8px] bg-[#DA1E28] hover:bg-[#B91C1C] text-white text-xs font-medium"
               >
                 Confirm Rejection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Suspend Confirmation Dialog */}
+      {isSuspendModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4"
+          onClick={() => setIsSuspendModalOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-[10px] border border-[#E4E0DB] max-w-md w-full p-5 shadow-xl space-y-3"
+          >
+            <h3 className="text-base font-semibold text-[#111111]">
+              Suspend {vendor.storeName}?
+            </h3>
+            <p className="text-xs text-[#6B6667] leading-relaxed">
+              Suspending this boutique will pause active customer checkout for their catalog items.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E4E0DB]">
+              <button
+                type="button"
+                onClick={() => setIsSuspendModalOpen(false)}
+                className="px-3.5 py-2 rounded-[8px] border border-[#E4E0DB] text-[#6B6667] hover:text-[#111111] text-xs font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSuspend}
+                className="px-4 py-2 rounded-[8px] bg-[#DA1E28] hover:bg-[#B91C1C] text-white text-xs font-medium"
+              >
+                Confirm Suspension
               </button>
             </div>
           </div>

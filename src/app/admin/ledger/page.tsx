@@ -1,6 +1,20 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import {
+  Download,
+  Calendar,
+  RefreshCw,
+  CreditCard,
+  Building2,
+  Truck,
+  Search,
+  ChevronDown,
+  X,
+  Wallet,
+  AlertCircle,
+  CheckCircle2,
+} from "lucide-react";
 import { VendorLedgerEntry } from "@/types/ledger";
 import { MOCK_LEDGER_ENTRIES, MOCK_LEDGER_METRICS } from "@/mocks/ledger";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -13,7 +27,12 @@ export default function AdminLedgerPage() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [reconciliationNotice, setReconciliationNotice] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  const showToast = (text: string, type: "success" | "error" = "success") => {
+    setToastMessage({ text, type });
+    setTimeout(() => setToastMessage(null), 4000);
+  };
 
   const filteredEntries = useMemo(() => {
     return entries.filter((e) => {
@@ -57,162 +76,164 @@ export default function AdminLedgerPage() {
     link.href = url;
     link.download = `kudicart_ledger_export_${new Date().toISOString().split("T")[0]}.csv`;
     link.click();
+    showToast(`Exported ${filteredEntries.length} ledger entries.`);
   };
 
   const handleReconciliationRun = () => {
-    setReconciliationNotice("Running ledger reconciliation against active marketplace order database...");
-    setTimeout(() => {
-      setReconciliationNotice("Reconciliation completed: All 42 boutique ledgers verified & balanced with bank gateway logs.");
-      setTimeout(() => setReconciliationNotice(null), 5000);
-    }, 1200);
+    showToast(
+      "Not connected in this build: Automated bank reconciliation requires backend integration.",
+      "error"
+    );
   };
 
   return (
-    <div className="space-y-space-md max-w-[1440px] mx-auto select-none">
+    <div className="space-y-6 max-w-[1440px] mx-auto select-none">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div
+          role="status"
+          className={`fixed top-20 right-8 z-50 p-4 rounded-[8px] shadow-lg border flex items-center gap-3 animate-in fade-in slide-in-from-top-4 ${
+            toastMessage.type === "success"
+              ? "bg-[#ECFDF5] border-[#A7F3D0] text-[#20885A]"
+              : "bg-[#FEF2F2] border-[#ffdad6] text-[#DA1E28]"
+          }`}
+        >
+          {toastMessage.type === "success" ? (
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+          ) : (
+            <AlertCircle className="w-5 h-5 shrink-0" />
+          )}
+          <span className="text-xs font-medium">{toastMessage.text}</span>
+        </div>
+      )}
+
       {/* ================= PAGE HEADER ================= */}
-      <section className="flex flex-col md:flex-row md:items-center justify-between gap-space-md border-b border-surface-container-highest pb-space-md">
-        <div className="space-y-1">
-          <div className="flex items-center gap-space-xs">
-            <h1 className="text-headline-lg font-headline-lg font-bold text-on-surface">
+      <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-3">
+            <h1 className="text-[26px] font-semibold text-[#111111] tracking-tight">
               Commission &amp; Ledger
             </h1>
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-label-xs font-label-xs bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold">
-              Audit Status: Balanced
+            <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-xs bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0] font-medium">
+              Cycle: {MOCK_LEDGER_METRICS.currentCycle}
             </span>
           </div>
-          <p className="text-body-md text-secondary">
-            Inspect boutique merchant gross merchandise value, commission retention, and net vendor payout settlements.
+          <p className="text-[13px] text-[#6B6667] mt-1">
+            Review boutique gross merchandise volume, platform commission, and net vendor payout settlements.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Cycle Badge */}
-          <div className="flex items-center gap-1.5 h-9 px-3 rounded-lg bg-surface-container-lowest border border-surface-container-highest text-xs font-medium text-on-surface shadow-xs">
-            <span className="material-symbols-outlined text-[16px] text-secondary">calendar_today</span>
-            <span>Current Cycle: <strong>{MOCK_LEDGER_METRICS.currentCycle}</strong></span>
-          </div>
-
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           {/* Download CSV */}
           <button
             onClick={handleDownloadCsv}
-            className="flex items-center gap-1.5 h-9 px-3.5 rounded-lg bg-surface-container-lowest text-on-surface border border-surface-container-highest hover:bg-surface-container-low text-xs font-semibold active:scale-[0.99] transition-transform shadow-xs"
+            className="flex items-center gap-1.5 h-9 px-3.5 rounded-[8px] bg-white text-[#111111] border border-[#E4E0DB] hover:bg-[#F7F7F5] text-xs font-medium transition-colors shadow-xs"
           >
-            <span className="material-symbols-outlined text-[16px] text-secondary">download</span>
-            <span>Download Ledger CSV</span>
+            <Download className="w-3.5 h-3.5 text-[#6B6667]" />
+            <span>Export CSV</span>
           </button>
 
           {/* Reconciliation Run Action */}
           <button
             onClick={handleReconciliationRun}
-            className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#FF5A1F] text-white hover:bg-[#D94B17] text-xs font-semibold active:scale-[0.98] transition-transform shadow-sm"
+            className="flex items-center gap-1.5 h-9 px-3.5 rounded-[8px] bg-[#FF5A1F] text-white hover:bg-[#D94B17] text-xs font-medium transition-colors shadow-xs"
           >
-            <span className="material-symbols-outlined text-[16px]">sync</span>
-            <span>Reconciliation Run</span>
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Reconcile Ledger</span>
           </button>
         </div>
       </section>
 
-      {/* Reconciliation Notice */}
-      {reconciliationNotice && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-center gap-2 text-xs font-medium animate-in fade-in">
-          <span className="material-symbols-outlined text-[18px] text-emerald-600">verified</span>
-          <span>{reconciliationNotice}</span>
-        </div>
-      )}
-
       {/* ================= LEDGER SUMMARY KPI ROW ================= */}
-      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-space-md">
+      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: GMV */}
-        <div className="p-space-md bg-surface-container-lowest rounded-xl border border-surface-container-highest space-y-2 relative overflow-hidden shadow-xs">
-          <div className="flex items-center justify-between text-secondary">
-            <span className="text-label-xs font-label-xs uppercase tracking-wider font-semibold">
+        <div className="p-4 bg-white rounded-[10px] border border-[#E4E0DB] space-y-2 shadow-xs">
+          <div className="flex items-center justify-between text-[#6B6667]">
+            <span className="text-xs font-medium">
               Gross Marketplace Volume (GMV)
             </span>
-            <span className="material-symbols-outlined text-[18px] text-secondary">payments</span>
+            <Wallet className="w-4 h-4 text-[#6B6667]" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-headline-lg text-2xl font-bold font-mono text-on-surface">
+          <div>
+            <span className="text-2xl font-semibold font-mono text-[#111111]">
               {formatINR(MOCK_LEDGER_METRICS.grossMarketplaceVolume)}
             </span>
           </div>
-          <p className="text-label-xs text-xs text-secondary border-t border-surface-container-highest pt-2">
-            Total order value captured across all merchant stores.
+          <p className="text-xs text-[#6B6667] border-t border-[#E4E0DB] pt-2">
+            Total gross order value across merchant boutiques.
           </p>
         </div>
 
         {/* Card 2: Commission Earned */}
-        <div className="p-space-md bg-surface-container-lowest rounded-xl border border-surface-container-highest space-y-2 relative overflow-hidden shadow-xs">
-          <div className="flex items-center justify-between text-secondary">
-            <span className="text-label-xs font-label-xs uppercase tracking-wider font-semibold">
-              Platform Commission Earned
+        <div className="p-4 bg-white rounded-[10px] border border-[#E4E0DB] space-y-2 shadow-xs">
+          <div className="flex items-center justify-between text-[#6B6667]">
+            <span className="text-xs font-medium">
+              Commission Retained
             </span>
-            <span className="material-symbols-outlined text-[18px] text-[#FF5A1F]">account_balance</span>
+            <CreditCard className="w-4 h-4 text-[#FF5A1F]" />
           </div>
           <div className="flex items-baseline gap-2">
-            <span className="text-headline-lg text-2xl font-bold font-mono text-[#FF5A1F]">
+            <span className="text-2xl font-semibold font-mono text-[#FF5A1F]">
               {formatINR(MOCK_LEDGER_METRICS.platformCommissionEarned)}
             </span>
-            <span className="text-label-xs text-xs text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-medium">
-              +14.2%
+            <span className="text-xs text-[#20885A] font-medium">
+              {MOCK_LEDGER_METRICS.averageTakeRate}% avg
             </span>
           </div>
-          <p className="text-label-xs text-xs text-secondary border-t border-surface-container-highest pt-2">
-            Weighted average take-rate: <strong className="text-on-surface">{MOCK_LEDGER_METRICS.averageTakeRate}%</strong> retained by KudiCart.
+          <p className="text-xs text-[#6B6667] border-t border-[#E4E0DB] pt-2">
+            Platform fee retained according to category terms.
           </p>
         </div>
 
         {/* Card 3: Net Vendor Payouts Due */}
-        <div className="p-space-md bg-surface-container-lowest rounded-xl border border-surface-container-highest space-y-2 relative overflow-hidden shadow-xs">
-          <div className="flex items-center justify-between text-secondary">
-            <span className="text-label-xs font-label-xs uppercase tracking-wider font-semibold">
+        <div className="p-4 bg-white rounded-[10px] border border-[#E4E0DB] space-y-2 shadow-xs">
+          <div className="flex items-center justify-between text-[#6B6667]">
+            <span className="text-xs font-medium">
               Net Vendor Payouts Due
             </span>
-            <span className="material-symbols-outlined text-[18px] text-secondary">storefront</span>
+            <Building2 className="w-4 h-4 text-[#6B6667]" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-headline-lg text-2xl font-bold font-mono text-on-surface">
+          <div>
+            <span className="text-2xl font-semibold font-mono text-[#111111]">
               {formatINR(MOCK_LEDGER_METRICS.netVendorPayoutsDue)}
             </span>
           </div>
-          <p className="text-label-xs text-xs text-secondary border-t border-surface-container-highest pt-2">
-            Payable to <strong className="text-on-surface">{MOCK_LEDGER_METRICS.activeVendorsCount} active verified boutiques</strong> upon cycle cutoff.
+          <p className="text-xs text-[#6B6667] border-t border-[#E4E0DB] pt-2">
+            Payable to {MOCK_LEDGER_METRICS.activeVendorsCount} verified boutique merchants.
           </p>
         </div>
 
         {/* Card 4: Fleet Logistics Costs */}
-        <div className="p-space-md bg-surface-container-lowest rounded-xl border border-surface-container-highest space-y-2 relative overflow-hidden shadow-xs">
-          <div className="flex items-center justify-between text-secondary">
-            <span className="text-label-xs font-label-xs uppercase tracking-wider font-semibold">
-              Fleet Logistics Costs
+        <div className="p-4 bg-white rounded-[10px] border border-[#E4E0DB] space-y-2 shadow-xs">
+          <div className="flex items-center justify-between text-[#6B6667]">
+            <span className="text-xs font-medium">
+              Fleet Logistics Pool
             </span>
-            <span className="material-symbols-outlined text-[18px] text-secondary">local_shipping</span>
+            <Truck className="w-4 h-4 text-[#6B6667]" />
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="text-headline-lg text-2xl font-bold font-mono text-on-surface">
+          <div>
+            <span className="text-2xl font-semibold font-mono text-[#111111]">
               {formatINR(MOCK_LEDGER_METRICS.fleetLogisticsCosts)}
             </span>
-            <span className="text-label-xs text-xs text-secondary">Escrow</span>
           </div>
-          <p className="text-label-xs text-xs text-secondary border-t border-surface-container-highest pt-2">
-            Delivery partner disbursement pool accrued.
+          <p className="text-xs text-[#6B6667] border-t border-[#E4E0DB] pt-2">
+            Delivery partner dispatches accrued this cycle.
           </p>
         </div>
       </section>
 
       {/* ================= SEARCH & FILTER BAR ================= */}
-      <section className="p-space-sm bg-surface-container-lowest rounded-xl border border-surface-container-highest flex flex-col md:flex-row items-center justify-between gap-space-sm shadow-xs">
-        <div className="flex flex-1 items-center gap-space-sm w-full md:w-auto">
+      <section className="p-3 bg-white rounded-[10px] border border-[#E4E0DB] flex flex-col md:flex-row items-center justify-between gap-3 shadow-xs">
+        <div className="flex flex-1 items-center gap-2.5 w-full md:w-auto">
           {/* Search field */}
           <div className="relative flex-1 max-w-md">
-            <span className="material-symbols-outlined text-[18px] text-secondary absolute left-3 top-2.5">
-              search
-            </span>
+            <Search className="w-4 h-4 text-[#6B6667] absolute left-3 top-2.5 pointer-events-none" />
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by vendor boutique name or merchant ID..."
-              className="w-full h-9 pl-9 pr-3 bg-surface-container-low text-xs font-body-sm text-on-surface placeholder:text-secondary rounded-lg border border-surface-container-highest focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] focus:outline-none"
+              placeholder="Search by vendor name or ID..."
+              className="w-full h-9 pl-9 pr-3 bg-white text-xs text-[#111111] placeholder:text-[#6B6667] rounded-[8px] border border-[#E4E0DB] focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] outline-none"
             />
           </div>
 
@@ -221,7 +242,7 @@ export default function AdminLedgerPage() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="w-full h-9 pl-3 pr-8 bg-surface-container-low text-xs font-medium text-on-surface rounded-lg border border-surface-container-highest focus:border-[#FF5A1F] focus:ring-0 cursor-pointer appearance-none"
+              className="w-full h-9 pl-3 pr-8 bg-white text-xs font-medium text-[#111111] rounded-[8px] border border-[#E4E0DB] hover:bg-[#F7F7F5] focus:border-[#FF5A1F] outline-none cursor-pointer appearance-none"
             >
               <option value="ALL">All Categories</option>
               <option value="Textiles & Apparel">Textiles &amp; Apparel</option>
@@ -229,9 +250,7 @@ export default function AdminLedgerPage() {
               <option value="Home & Decor">Home &amp; Decor</option>
               <option value="Leathercraft">Leathercraft</option>
             </select>
-            <span className="material-symbols-outlined text-[16px] text-secondary absolute right-2.5 top-2.5 pointer-events-none">
-              unfold_more
-            </span>
+            <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
           </div>
 
           {/* Payout Status Filter */}
@@ -239,7 +258,7 @@ export default function AdminLedgerPage() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full h-9 pl-3 pr-8 bg-surface-container-low text-xs font-medium text-on-surface rounded-lg border border-surface-container-highest focus:border-[#FF5A1F] focus:ring-0 cursor-pointer appearance-none"
+              className="w-full h-9 pl-3 pr-8 bg-white text-xs font-medium text-[#111111] rounded-[8px] border border-[#E4E0DB] hover:bg-[#F7F7F5] focus:border-[#FF5A1F] outline-none cursor-pointer appearance-none"
             >
               <option value="ALL">All Statuses</option>
               <option value="CYCLE_ACCRUING">Cycle Accruing</option>
@@ -247,9 +266,7 @@ export default function AdminLedgerPage() {
               <option value="TRANSFERRED">Transferred</option>
               <option value="HOLD">Hold</option>
             </select>
-            <span className="material-symbols-outlined text-[16px] text-secondary absolute right-2.5 top-2.5 pointer-events-none">
-              unfold_more
-            </span>
+            <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
           </div>
         </div>
 
@@ -257,33 +274,33 @@ export default function AdminLedgerPage() {
         {(searchTerm || categoryFilter !== "ALL" || statusFilter !== "ALL") && (
           <button
             onClick={clearFilters}
-            className="text-xs text-primary hover:underline transition-colors flex items-center gap-1 font-semibold pr-2"
+            className="text-xs text-[#6B6667] hover:text-[#FF5A1F] transition-colors flex items-center gap-1 font-medium pr-2"
           >
-            <span className="material-symbols-outlined text-[14px]">close</span>
+            <X className="w-3.5 h-3.5" />
             <span>Clear Filters</span>
           </button>
         )}
       </section>
 
       {/* ================= VENDOR LEDGER TABLE ================= */}
-      <section className="bg-surface-container-lowest rounded-xl border border-surface-container-highest shadow-xs overflow-hidden">
+      <section className="bg-white rounded-[10px] border border-[#E4E0DB] shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse text-left">
+          <table className="w-full border-collapse text-left min-w-[950px]">
             <thead>
-              <tr className="h-10 bg-surface-container-low text-secondary text-label-xs font-label-xs uppercase tracking-wider border-b border-surface-container-highest select-none">
-                <th className="px-4 py-2 font-semibold">Store / Boutique</th>
-                <th className="px-4 py-2 font-semibold">Category</th>
-                <th className="px-4 py-2 font-semibold text-right">Total Orders</th>
-                <th className="px-4 py-2 font-semibold text-right">Gross GMV (INR ₹)</th>
-                <th className="px-4 py-2 font-semibold text-right">Commission Rate</th>
-                <th className="px-4 py-2 font-semibold text-right">Commission Retained</th>
-                <th className="px-4 py-2 font-semibold text-right">Net Payable</th>
-                <th className="px-4 py-2 font-semibold text-center">Settlement Status</th>
-                <th className="px-4 py-2 font-semibold">Last Payout</th>
-                <th className="px-4 py-2 font-semibold text-right">Actions</th>
+              <tr className="h-10 bg-[#F7F7F5] text-[#6B6667] text-xs font-medium border-b border-[#E4E0DB]">
+                <th className="px-4 py-2 font-medium">Store / Boutique</th>
+                <th className="px-4 py-2 font-medium">Category</th>
+                <th className="px-4 py-2 font-medium text-right">Orders</th>
+                <th className="px-4 py-2 font-medium text-right">Gross GMV</th>
+                <th className="px-4 py-2 font-medium text-right">Commission Rate</th>
+                <th className="px-4 py-2 font-medium text-right">Commission</th>
+                <th className="px-4 py-2 font-medium text-right">Net Payable</th>
+                <th className="px-4 py-2 font-medium text-center">Settlement</th>
+                <th className="px-4 py-2 font-medium">Last Payout</th>
+                <th className="px-4 py-2 font-medium text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-surface-container-highest text-xs font-body-sm text-on-surface">
+            <tbody className="divide-y divide-[#E4E0DB] text-xs text-[#111111]">
               {filteredEntries.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="py-12">
@@ -298,47 +315,47 @@ export default function AdminLedgerPage() {
                 </tr>
               ) : (
                 filteredEntries.map((entry) => (
-                  <tr key={entry.id} className="h-12 hover:bg-surface-container-low transition-colors group">
+                  <tr key={entry.id} className="h-11 sm:h-12 hover:bg-[#F7F7F5]/50 transition-colors border-b border-[#E4E0DB]">
                     <td className="px-4 py-2.5">
                       <div className="flex flex-col">
-                        <span className="font-semibold text-on-surface group-hover:text-[#FF5A1F] transition-colors">
+                        <span className="font-medium text-[#111111]">
                           {entry.vendorName}
                         </span>
-                        <div className="flex items-center gap-1.5 text-[11px] text-secondary">
-                          <span className="font-mono text-secondary">{entry.id}</span>
+                        <div className="flex items-center gap-1.5 text-[11px] text-[#6B6667]">
+                          <span className="font-mono">{entry.id}</span>
                           <span>•</span>
                           <span>{entry.hub}</span>
                         </div>
                       </div>
                     </td>
                     <td className="px-4 py-2.5">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] bg-surface-container text-on-surface">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-[4px] text-[11px] bg-[#F4F1EA] text-[#6B6667]">
                         {entry.category}
                       </span>
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono">{entry.totalOrders}</td>
-                    <td className="px-4 py-2.5 text-right font-mono font-semibold">
+                    <td className="px-4 py-2.5 text-right font-mono font-medium">
                       {formatINR(entry.grossGmv)}
                     </td>
-                    <td className="px-4 py-2.5 text-right font-mono text-secondary">
+                    <td className="px-4 py-2.5 text-right font-mono text-[#6B6667]">
                       {entry.commissionRate}%
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono text-[#FF5A1F] font-medium">
                       {formatINR(entry.commissionRetained)}
                     </td>
-                    <td className="px-4 py-2.5 text-right font-mono font-bold text-on-surface">
+                    <td className="px-4 py-2.5 text-right font-mono font-semibold text-[#111111]">
                       {formatINR(entry.netPayable)}
                     </td>
                     <td className="px-4 py-2.5 text-center">
                       <StatusBadge status={entry.status} variant="ledger" />
                     </td>
-                    <td className="px-4 py-2.5 text-secondary text-[11px]">{entry.lastPayoutDate}</td>
+                    <td className="px-4 py-2.5 text-[#6B6667] text-[11px]">{entry.lastPayoutDate}</td>
                     <td className="px-4 py-2.5 text-right">
                       <button
                         onClick={() => setSelectedEntry(entry)}
-                        className="text-xs text-primary hover:underline font-semibold cursor-pointer"
+                        className="text-xs text-[#FF5A1F] hover:underline font-medium"
                       >
-                        View Breakdown
+                        Breakdown
                       </button>
                     </td>
                   </tr>
@@ -351,45 +368,45 @@ export default function AdminLedgerPage() {
 
       {/* ================= LEDGER DETAIL BREAKDOWN MODAL ================= */}
       {selectedEntry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-150">
-          <div className="bg-surface-container-lowest border border-[#E4E0DB] rounded-xl max-w-xl w-full p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-start justify-between border-b border-surface-container-highest pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white border border-[#E4E0DB] rounded-[10px] max-w-lg w-full p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between border-b border-[#E4E0DB] pb-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold text-on-surface">{selectedEntry.vendorName}</h3>
-                  <span className="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-surface-container text-secondary">
+                  <h3 className="text-base font-semibold text-[#111111]">{selectedEntry.vendorName}</h3>
+                  <span className="font-mono text-xs px-2 py-0.5 rounded-[4px] bg-[#F4F1EA] text-[#6B6667]">
                     {selectedEntry.id}
                   </span>
                 </div>
-                <p className="text-xs text-secondary mt-0.5">
-                  Operating Hub: {selectedEntry.hub} • {selectedEntry.category}
+                <p className="text-xs text-[#6B6667] mt-0.5">
+                  Hub: {selectedEntry.hub} • {selectedEntry.category}
                 </p>
               </div>
               <button
                 onClick={() => setSelectedEntry(null)}
-                className="text-secondary hover:text-on-surface"
+                className="text-[#6B6667] hover:text-[#111111]"
               >
-                <span className="material-symbols-outlined">close</span>
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Financial Reconciliation Formula Card */}
-            <div className="p-4 bg-surface-container-low rounded-xl border border-surface-container-highest space-y-2 text-xs">
-              <span className="font-bold uppercase tracking-wider text-secondary text-[10px]">
-                Cycle Settlement Calculation ({MOCK_LEDGER_METRICS.currentCycle})
+            {/* Financial Settlement Formula Card */}
+            <div className="p-4 bg-[#F7F7F5] rounded-[8px] border border-[#E4E0DB] space-y-2 text-xs">
+              <span className="font-medium text-[#6B6667] text-[11px] block">
+                Cycle Calculation ({MOCK_LEDGER_METRICS.currentCycle})
               </span>
               <div className="space-y-1.5 pt-1">
                 <div className="flex justify-between items-center">
-                  <span className="text-secondary">Gross Merchandise Volume ({selectedEntry.totalOrders} orders):</span>
-                  <strong className="font-mono text-sm text-on-surface">{formatINR(selectedEntry.grossGmv)}</strong>
+                  <span className="text-[#6B6667]">Gross Sales ({selectedEntry.totalOrders} orders):</span>
+                  <strong className="font-mono text-xs text-[#111111]">{formatINR(selectedEntry.grossGmv)}</strong>
                 </div>
                 <div className="flex justify-between items-center text-[#DA1E28]">
-                  <span>Less Platform Take-Rate ({selectedEntry.commissionRate}%):</span>
-                  <strong className="font-mono text-sm">-{formatINR(selectedEntry.commissionRetained)}</strong>
+                  <span>Platform Fee ({selectedEntry.commissionRate}%):</span>
+                  <strong className="font-mono text-xs">-{formatINR(selectedEntry.commissionRetained)}</strong>
                 </div>
-                <div className="pt-2 border-t border-surface-container-highest flex justify-between items-center text-sm">
-                  <span className="font-bold text-on-surface">Net Vendor Payout Payable:</span>
-                  <strong className="font-mono text-base font-bold text-emerald-700">
+                <div className="pt-2 border-t border-[#E4E0DB] flex justify-between items-center text-xs">
+                  <span className="font-medium text-[#111111]">Net Vendor Payout:</span>
+                  <strong className="font-mono text-sm font-semibold text-[#20885A]">
                     {formatINR(selectedEntry.netPayable)}
                   </strong>
                 </div>
@@ -397,37 +414,37 @@ export default function AdminLedgerPage() {
             </div>
 
             {/* Banking Destination */}
-            <div className="p-3 bg-surface-container-lowest rounded-lg border border-surface-container-highest text-xs space-y-1">
-              <span className="font-semibold text-secondary uppercase text-[10px]">
-                Disbursement Destination
+            <div className="p-3 bg-white rounded-[8px] border border-[#E4E0DB] text-xs space-y-1">
+              <span className="font-medium text-[#6B6667] text-[11px]">
+                Disbursement Account
               </span>
-              <p className="font-semibold text-on-surface">{selectedEntry.payoutAccount || "Bank account on file"}</p>
-              <p className="text-secondary text-[11px]">GSTIN: {selectedEntry.gstin || "27AABCV0000Z1Z0"}</p>
+              <p className="font-medium text-[#111111]">{selectedEntry.payoutAccount || "Bank account on file"}</p>
+              <p className="text-[#6B6667] text-[11px]">GSTIN: {selectedEntry.gstin || "27AABCV0000Z1Z0"}</p>
             </div>
 
             {/* Recent Orders in Cycle */}
             {selectedEntry.recentOrders && selectedEntry.recentOrders.length > 0 && (
               <div className="space-y-2">
-                <span className="font-bold uppercase tracking-wider text-secondary text-[10px]">
+                <span className="font-medium text-[#6B6667] text-[11px]">
                   Recent Order Contributions
                 </span>
-                <div className="border border-surface-container-highest rounded-lg overflow-hidden text-xs">
+                <div className="border border-[#E4E0DB] rounded-[8px] overflow-hidden text-xs">
                   <table className="w-full text-left">
-                    <thead className="bg-surface-container-low text-[10px] text-secondary uppercase">
+                    <thead className="bg-[#F7F7F5] text-[11px] text-[#6B6667]">
                       <tr>
-                        <th className="p-2">Order</th>
-                        <th className="p-2">Item</th>
-                        <th className="p-2 text-right">GMV</th>
-                        <th className="p-2 text-right">Net Payable</th>
+                        <th className="p-2 font-medium">Order</th>
+                        <th className="p-2 font-medium">Item</th>
+                        <th className="p-2 text-right font-medium">GMV</th>
+                        <th className="p-2 text-right font-medium">Net</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-surface-container-highest">
+                    <tbody className="divide-y divide-[#E4E0DB]">
                       {selectedEntry.recentOrders.map((ord) => (
                         <tr key={ord.orderNumber}>
-                          <td className="p-2 font-mono font-semibold text-primary">{ord.orderNumber}</td>
-                          <td className="p-2 truncate max-w-[160px]">{ord.itemSummary}</td>
-                          <td className="p-2 text-right font-mono">{formatINR(ord.orderTotal)}</td>
-                          <td className="p-2 text-right font-mono font-semibold text-emerald-700">
+                          <td className="p-2 font-mono font-medium text-[#FF5A1F]">{ord.orderNumber}</td>
+                          <td className="p-2 truncate max-w-[160px] text-[#111111]">{ord.itemSummary}</td>
+                          <td className="p-2 text-right font-mono text-[#6B6667]">{formatINR(ord.orderTotal)}</td>
+                          <td className="p-2 text-right font-mono font-medium text-[#20885A]">
                             {formatINR(ord.netToVendor)}
                           </td>
                         </tr>
@@ -438,10 +455,10 @@ export default function AdminLedgerPage() {
               </div>
             )}
 
-            <div className="flex justify-end pt-2 border-t border-surface-container-highest">
+            <div className="flex justify-end pt-2 border-t border-[#E4E0DB]">
               <button
                 onClick={() => setSelectedEntry(null)}
-                className="h-9 px-4 bg-surface-container text-on-surface rounded-lg text-xs font-semibold hover:bg-surface-container-high transition-colors"
+                className="h-8 px-3.5 bg-white border border-[#E4E0DB] text-[#111111] rounded-[8px] text-xs font-medium hover:bg-[#F7F7F5] transition-colors"
               >
                 Close Breakdown
               </button>

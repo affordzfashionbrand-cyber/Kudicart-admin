@@ -39,70 +39,66 @@ export function StatusBadge({
         return (
           <span
             className={cn(
-              "inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-label-xs font-label-xs font-bold bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]",
               className
             )}
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#FF5A1F] animate-pulse" />
-            READY FOR PICKUP
+            Ready for Pickup
           </span>
         );
       case "PLACED":
         return (
           <span
             className={cn(
-              "inline-flex items-center gap-1 px-2 py-0.5 rounded text-label-xs font-label-xs font-semibold bg-surface-container text-secondary border border-surface-container-highest",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#F7F7F5] text-[#6B6667] border border-[#E4E0DB]",
               className
             )}
           >
-            PLACED
+            Placed
           </span>
         );
       case "ACCEPTED":
         return (
           <span
             className={cn(
-              "inline-flex items-center gap-1 px-2 py-0.5 rounded text-label-xs font-label-xs font-semibold bg-[#F0FDF4] text-[#15803D] border border-[#BBF7D0]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#F0FDF4] text-[#15803D] border border-[#BBF7D0]",
               className
             )}
           >
-            ACCEPTED
+            Accepted
           </span>
         );
       case "PREPARING":
         return (
           <span
             className={cn(
-              "inline-flex items-center gap-1 px-2 py-0.5 rounded text-label-xs font-label-xs font-semibold bg-[#EFF6FF] text-[#0043CE] border border-[#BFDBFE]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#F7F7F5] text-[#6B6667] border border-[#E4E0DB]",
               className
             )}
           >
-            <span className="material-symbols-outlined text-[13px]">hourglass_top</span>
-            PREPARING
+            Preparing
           </span>
         );
       case "ASSIGNED":
         return (
           <span
             className={cn(
-              "inline-flex items-center gap-1 px-2 py-0.5 rounded text-label-xs font-label-xs font-semibold bg-[#F3E8FF] text-[#6B21A8] border border-[#E9D5FF]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#F7F7F5] text-[#6B6667] border border-[#E4E0DB]",
               className
             )}
           >
-            <span className="material-symbols-outlined text-[13px]">person</span>
-            ASSIGNED
+            Assigned
           </span>
         );
       case "PICKED_UP":
         return (
           <span
             className={cn(
-              "inline-flex items-center gap-1 px-2 py-0.5 rounded text-label-xs font-label-xs font-semibold bg-[#E0F2FE] text-[#0369A1] border border-[#BAE6FD]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#F4F1EA] text-[#475569] border border-[#E4E0DB]",
               className
             )}
           >
-            <span className="material-symbols-outlined text-[13px]">local_shipping</span>
-            PICKED UP
+            Picked Up
           </span>
         );
       case "OUT_FOR_DELIVERY":
@@ -110,42 +106,40 @@ export function StatusBadge({
         return (
           <span
             className={cn(
-              "inline-flex items-center gap-1 px-2 py-0.5 rounded text-label-xs font-label-xs font-semibold bg-[#EFF6FF] text-[#0043CE] border border-[#BFDBFE]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#F4F1EA] text-[#475569] border border-[#E4E0DB]",
               className
             )}
           >
-            <span className="material-symbols-outlined text-[13px]">near_me</span>
-            IN TRANSIT
+            In Transit
           </span>
         );
       case "DELIVERED":
         return (
           <span
             className={cn(
-              "inline-flex items-center gap-1 px-2 py-0.5 rounded text-label-xs font-label-xs font-semibold bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0]",
               className
             )}
           >
-            <span className="material-symbols-outlined text-[13px] material-symbols-fill">check_circle</span>
-            DELIVERED
+            Delivered
           </span>
         );
       case "CANCELLED":
         return (
           <span
             className={cn(
-              "inline-flex items-center gap-1 px-2 py-0.5 rounded text-label-xs font-label-xs font-semibold bg-[#FEF2F2] text-[#DA1E28] border border-[#FECACA]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#FEF2F2] text-[#DA1E28] border border-[#FECACA]",
               className
             )}
           >
-            CANCELLED
+            Cancelled
           </span>
         );
       default:
         return (
           <span
             className={cn(
-              "inline-flex items-center px-2 py-0.5 rounded text-label-xs font-label-xs font-semibold bg-surface-container text-secondary",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#F7F7F5] text-[#6B6667] border border-[#E4E0DB]",
               className
             )}
           >
@@ -388,11 +382,10 @@ export function StatusBadge({
         return (
           <span
             className={cn(
-              "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-label-xs font-label-xs font-semibold bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0]",
               className
             )}
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#20885A]" />
             Active
           </span>
         );
@@ -401,11 +394,10 @@ export function StatusBadge({
         return (
           <span
             className={cn(
-              "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-label-xs font-label-xs font-semibold bg-[#FFFBEB] text-[#C9822E] border border-[#FDE68A]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#FFFBEB] text-[#C9822E] border border-[#FDE68A]",
               className
             )}
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#C9822E]" />
             Pending Review
           </span>
         );
@@ -414,11 +406,10 @@ export function StatusBadge({
         return (
           <span
             className={cn(
-              "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-label-xs font-label-xs font-semibold bg-[#EFF6FF] text-[#0043CE] border border-[#BFDBFE]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#F7F7F5] text-[#475569] border border-[#E4E0DB]",
               className
             )}
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#0043CE]" />
             Docs Submitted
           </span>
         );
@@ -427,11 +418,10 @@ export function StatusBadge({
         return (
           <span
             className={cn(
-              "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-label-xs font-label-xs font-semibold bg-[#FFFBEB] text-[#C9822E] border border-[#FDE68A]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#FFFBEB] text-[#C9822E] border border-[#FDE68A]",
               className
             )}
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#C9822E]" />
             KYC Pending
           </span>
         );
@@ -439,16 +429,24 @@ export function StatusBadge({
         return (
           <span
             className={cn(
-              "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-label-xs font-label-xs font-semibold bg-[#FEF2F2] text-[#DA1E28] border border-[#FECACA]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#FEF2F2] text-[#DA1E28] border border-[#FECACA]",
               className
             )}
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#DA1E28]" />
             Suspended
           </span>
         );
       default:
-        return <span className={className}>{status}</span>;
+        return (
+          <span
+            className={cn(
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#F7F7F5] text-[#6B6667] border border-[#E4E0DB]",
+              className
+            )}
+          >
+            {status}
+          </span>
+        );
     }
   }
 
@@ -550,14 +548,15 @@ export function StatusBadge({
   if (variant === "kyc") {
     switch (normalized) {
       case "APPROVED":
+      case "VERIFIED":
         return (
           <span
             className={cn(
-              "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0]",
               className
             )}
           >
-            Approved
+            Verified
           </span>
         );
       case "PENDING":
@@ -565,11 +564,10 @@ export function StatusBadge({
         return (
           <span
             className={cn(
-              "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FFFBEB] text-[#C9822E] border border-[#FDE68A]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#FFFBEB] text-[#C9822E] border border-[#FDE68A]",
               className
             )}
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-[#C9822E] animate-pulse" />
             Pending Review
           </span>
         );
@@ -577,7 +575,7 @@ export function StatusBadge({
         return (
           <span
             className={cn(
-              "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FEF2F2] text-[#DA1E28] border border-[#FECACA]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#FEF2F2] text-[#DA1E28] border border-[#FECACA]",
               className
             )}
           >

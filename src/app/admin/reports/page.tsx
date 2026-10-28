@@ -2,12 +2,22 @@
 
 import React, { useState, useMemo } from "react";
 import {
+  ShoppingBag,
+  Store,
+  Truck,
+  Layers,
+  Download,
+  RefreshCw,
+  ChevronDown,
+  FilterX,
+  CheckCircle2,
+  AlertCircle,
+  X,
+  Table,
+} from "lucide-react";
+import {
   ReportCategory,
   ReportingPeriod,
-  OrdersReportRow,
-  VendorReportRow,
-  DriverReportRow,
-  CatalogReportRow,
 } from "@/types/reports";
 import {
   REPORT_CONFIGS,
@@ -28,7 +38,12 @@ export default function AdminReportsPage() {
   const [customStart, setCustomStart] = useState<string>("");
   const [customEnd, setCustomEnd] = useState<string>("");
   const [isExporting, setIsExporting] = useState<boolean>(false);
-  const [exportNotice, setExportNotice] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  const showToast = (text: string, type: "success" | "error" = "success") => {
+    setToastMessage({ text, type });
+    setTimeout(() => setToastMessage(null), 4000);
+  };
 
   // Active report configuration
   const activeConfig = useMemo(() => {
@@ -88,13 +103,13 @@ export default function AdminReportsPage() {
   const getPeriodLabel = () => {
     switch (period) {
       case "TODAY":
-        return "Today (IST)";
+        return "Today";
       case "YESTERDAY":
-        return "Yesterday (IST)";
+        return "Yesterday";
       case "LAST_7_DAYS":
-        return "Last 7 Days: 18–24 Oct 2024";
+        return "Last 7 Days";
       case "MONTH_TO_DATE":
-        return "Month to Date: October 2024";
+        return "Month to Date";
       case "CUSTOM":
         return customStart && customEnd
           ? `${customStart} to ${customEnd}`
@@ -102,14 +117,26 @@ export default function AdminReportsPage() {
     }
   };
 
+  const getCategoryIcon = (id: string) => {
+    switch (id) {
+      case "ORDERS":
+        return <ShoppingBag className="w-4 h-4" />;
+      case "VENDORS":
+        return <Store className="w-4 h-4" />;
+      case "DRIVERS":
+        return <Truck className="w-4 h-4" />;
+      default:
+        return <Layers className="w-4 h-4" />;
+    }
+  };
+
   // Demonstration client-side CSV export
   const handleDownloadCsv = () => {
     setIsExporting(true);
-    setExportNotice(null);
 
     try {
       let csvContent = "";
-      let filename = `kudicart_${activeCategory.toLowerCase()}_report.csv`;
+      const filename = `kudicart_${activeCategory.toLowerCase()}_report.csv`;
 
       if (activeCategory === "ORDERS") {
         const headers = [
@@ -219,10 +246,9 @@ export default function AdminReportsPage() {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      setExportNotice("Report exported successfully as demonstrative CSV dataset.");
-      setTimeout(() => setExportNotice(null), 4000);
+      showToast(`Exported ${activeCategory.toLowerCase()} report successfully.`);
     } catch {
-      setExportNotice("Export generation failed. Please try again.");
+      showToast("Export generation failed. Please try again.", "error");
     } finally {
       setIsExporting(false);
     }
@@ -230,42 +256,36 @@ export default function AdminReportsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1440px] w-full mx-auto space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-1">
-        <div>
-          <h1 className="text-2xl font-bold text-[#111111] tracking-tight">
-            Reports
-          </h1>
-          <p className="text-sm text-[#6B6667] mt-1">
-            Generate operational reports, preview sample dataset rows, and export CSV files across marketplace domains.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-[#ECFDF5] text-[#20885A] border border-[#20885A]/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#20885A]" />
-            Report Engine: Active
-          </span>
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold bg-[#FFFBEB] text-[#C9822E] border border-[#C9822E]/20">
-            <span className="material-symbols-outlined text-[14px]">schema</span>
-            Provisional Export Schema
-          </span>
-        </div>
-      </div>
-
-      {exportNotice && (
-        <div className="p-3 bg-[#ECFDF5] border border-[#A7F3D0] rounded-xl flex items-center justify-between text-xs text-[#20885A]">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-base">check_circle</span>
-            <span>{exportNotice}</span>
-          </div>
-          <button
-            onClick={() => setExportNotice(null)}
-            className="text-[#20885A] hover:text-[#111111]"
-          >
-            <span className="material-symbols-outlined text-base">close</span>
-          </button>
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div
+          role="status"
+          className={`fixed top-20 right-8 z-50 p-4 rounded-[8px] shadow-lg border flex items-center gap-3 animate-in fade-in slide-in-from-top-4 ${
+            toastMessage.type === "success"
+              ? "bg-[#ECFDF5] border-[#A7F3D0] text-[#20885A]"
+              : "bg-[#FEF2F2] border-[#ffdad6] text-[#DA1E28]"
+          }`}
+        >
+          {toastMessage.type === "success" ? (
+            <CheckCircle2 className="w-5 h-5 shrink-0" />
+          ) : (
+            <AlertCircle className="w-5 h-5 shrink-0" />
+          )}
+          <span className="text-xs font-medium">{toastMessage.text}</span>
         </div>
       )}
+
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-[26px] font-semibold text-[#111111] tracking-tight">
+            Reports &amp; Data Exports
+          </h1>
+          <p className="text-[13px] text-[#6B6667] mt-1">
+            Generate operational reports, inspect dataset previews, and export CSV files across domains.
+          </p>
+        </div>
+      </div>
 
       {/* Top 4 Report Category Cards */}
       <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -278,60 +298,42 @@ export default function AdminReportsPage() {
                 setActiveCategory(cfg.id);
                 setStatusFilter("ALL");
               }}
-              className={`bg-white rounded-xl p-4 flex flex-col justify-between cursor-pointer transition-all ${
+              className={`bg-white rounded-[10px] p-4 flex flex-col justify-between cursor-pointer transition-all ${
                 isSelected
-                  ? "border-2 border-[#FF5A1F] ring-2 ring-[#FF5A1F]/10 shadow-sm"
-                  : "border border-[#E4E0DB] hover:border-[#6B6667] hover:shadow-xs"
+                  ? "border-2 border-[#FF5A1F] shadow-xs"
+                  : "border border-[#E4E0DB] hover:border-[#6B6667]"
               }`}
             >
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div
-                    className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                    className={`w-8 h-8 rounded-[8px] flex items-center justify-center ${
                       isSelected
                         ? "bg-[#FFF0E8] text-[#FF5A1F]"
                         : "bg-[#F4F1EA] text-[#6B6667]"
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[20px]">
-                      {cfg.icon}
-                    </span>
+                    {getCategoryIcon(cfg.id)}
                   </div>
-                  {isSelected ? (
-                    <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#FF5A1F] bg-[#FFF0E8] px-2 py-0.5 rounded">
-                      Active Selection
-                    </span>
-                  ) : (
-                    <span className="text-[11px] text-[#6B6667] font-medium">
-                      {cfg.domain}
+                  {isSelected && (
+                    <span className="text-[11px] font-medium text-[#FF5A1F] bg-[#FFF0E8] px-2 py-0.5 rounded-[4px]">
+                      Active
                     </span>
                   )}
                 </div>
-                <h2 className="text-base font-bold text-[#111111]">
+                <h2 className="text-sm font-semibold text-[#111111]">
                   {cfg.title}
                 </h2>
-                <p className="text-xs text-[#6B6667] mt-1.5 leading-relaxed">
+                <p className="text-xs text-[#6B6667] mt-1 leading-relaxed">
                   {cfg.description}
                 </p>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-[#E4E0DB] flex items-center justify-between text-[11px] text-[#6B6667]">
-                <span className="font-mono">{cfg.schemaTag}</span>
-                {isSelected ? (
-                  <span className="font-semibold text-[#FF5A1F] flex items-center gap-0.5">
-                    Selected
-                    <span className="material-symbols-outlined text-[14px]">
-                      check_circle
-                    </span>
-                  </span>
-                ) : (
-                  <span className="hover:text-[#111111] flex items-center gap-0.5">
-                    Select
-                    <span className="material-symbols-outlined text-[14px]">
-                      arrow_forward
-                    </span>
-                  </span>
-                )}
+              <div className="mt-3 pt-2.5 border-t border-[#E4E0DB] flex items-center justify-between text-[11px] text-[#6B6667]">
+                <span className="font-mono">{cfg.domain}</span>
+                <span className={isSelected ? "font-medium text-[#FF5A1F]" : ""}>
+                  {isSelected ? "Selected" : "Select"}
+                </span>
               </div>
             </div>
           );
@@ -339,19 +341,19 @@ export default function AdminReportsPage() {
       </section>
 
       {/* Filter & Reporting-Period Toolbar */}
-      <section className="bg-white border border-[#E4E0DB] rounded-xl p-4 shadow-2xs">
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+      <section className="bg-white border border-[#E4E0DB] rounded-[10px] p-3 shadow-xs">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
           {/* Left: Segmented Range & Dropdowns */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
             {/* Reporting Period Segmented Control */}
-            <div className="inline-flex bg-[#F7F7F5] p-1 border border-[#E4E0DB] rounded-lg">
+            <div className="inline-flex bg-[#F7F7F5] p-1 border border-[#E4E0DB] rounded-[8px]">
               {(
                 [
                   { id: "TODAY", label: "Today" },
                   { id: "YESTERDAY", label: "Yesterday" },
                   { id: "LAST_7_DAYS", label: "Last 7 Days" },
                   { id: "MONTH_TO_DATE", label: "Month to Date" },
-                  { id: "CUSTOM", label: "Custom Range" },
+                  { id: "CUSTOM", label: "Custom" },
                 ] as const
               ).map((p) => {
                 const isActive = period === p.id;
@@ -359,9 +361,9 @@ export default function AdminReportsPage() {
                   <button
                     key={p.id}
                     onClick={() => setPeriod(p.id)}
-                    className={`px-3 py-1.5 text-xs rounded-md transition-all ${
+                    className={`px-2.5 py-1 text-xs rounded-[6px] transition-colors ${
                       isActive
-                        ? "bg-[#FF5A1F] text-white font-semibold shadow-xs"
+                        ? "bg-[#FF5A1F] text-white font-medium shadow-xs"
                         : "text-[#6B6667] hover:text-[#111111]"
                     }`}
                   >
@@ -373,39 +375,35 @@ export default function AdminReportsPage() {
 
             {/* Custom Date Pickers when CUSTOM is active */}
             {period === "CUSTOM" && (
-              <div className="flex items-center gap-2 bg-[#F7F7F5] p-1 border border-[#E4E0DB] rounded-lg text-xs">
+              <div className="flex items-center gap-2 bg-[#F7F7F5] p-1 border border-[#E4E0DB] rounded-[8px] text-xs">
                 <input
                   type="date"
                   value={customStart}
                   onChange={(e) => setCustomStart(e.target.value)}
-                  className="bg-white border border-[#E4E0DB] rounded px-2 py-1 text-xs text-[#111111] outline-none focus:border-[#FF5A1F]"
+                  className="bg-white border border-[#E4E0DB] rounded-[6px] px-2 py-0.5 text-xs text-[#111111] outline-none focus:border-[#FF5A1F]"
                 />
                 <span className="text-[#6B6667]">to</span>
                 <input
                   type="date"
                   value={customEnd}
                   onChange={(e) => setCustomEnd(e.target.value)}
-                  className="bg-white border border-[#E4E0DB] rounded px-2 py-1 text-xs text-[#111111] outline-none focus:border-[#FF5A1F]"
+                  className="bg-white border border-[#E4E0DB] rounded-[6px] px-2 py-0.5 text-xs text-[#111111] outline-none focus:border-[#FF5A1F]"
                 />
               </div>
             )}
 
-            <div className="h-6 w-[1px] bg-[#E4E0DB] hidden md:block" />
-
-            {/* Hub Filter (for Vendors, Orders, Catalog) */}
+            {/* Hub Filter */}
             <div className="relative">
               <select
                 value={hubFilter}
                 onChange={(e) => setHubFilter(e.target.value)}
-                className="h-[38px] bg-white border border-[#E4E0DB] rounded-lg pl-3 pr-8 text-xs text-[#111111] focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] outline-none appearance-none cursor-pointer"
+                className="h-9 bg-white border border-[#E4E0DB] rounded-[8px] pl-3 pr-8 text-xs text-[#111111] hover:bg-[#F7F7F5] focus:border-[#FF5A1F] outline-none appearance-none cursor-pointer"
               >
-                <option value="ALL">All Operating Hubs</option>
-                <option value="Bandra West">Bandra West (BW-01)</option>
-                <option value="Colaba Flagship">Colaba Flagship (CB-02)</option>
+                <option value="ALL">All Hubs</option>
+                <option value="Bandra West">Bandra West</option>
+                <option value="Colaba Flagship">Colaba Flagship</option>
               </select>
-              <span className="material-symbols-outlined absolute right-2.5 top-2.5 text-[18px] text-[#6B6667] pointer-events-none">
-                expand_more
-              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
             </div>
 
             {/* Status Filter */}
@@ -413,7 +411,7 @@ export default function AdminReportsPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="h-[38px] bg-white border border-[#E4E0DB] rounded-lg pl-3 pr-8 text-xs text-[#111111] focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] outline-none appearance-none cursor-pointer"
+                className="h-9 bg-white border border-[#E4E0DB] rounded-[8px] pl-3 pr-8 text-xs text-[#111111] hover:bg-[#F7F7F5] focus:border-[#FF5A1F] outline-none appearance-none cursor-pointer"
               >
                 <option value="ALL">All Statuses</option>
                 {activeCategory === "ORDERS" && (
@@ -442,36 +440,31 @@ export default function AdminReportsPage() {
                   </>
                 )}
               </select>
-              <span className="material-symbols-outlined absolute right-2.5 top-2.5 text-[18px] text-[#6B6667] pointer-events-none">
-                expand_more
-              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
             </div>
 
             {/* Clear Filters */}
             <button
               onClick={clearFilters}
-              className="h-[38px] px-3 text-xs text-[#6B6667] hover:text-[#111111] hover:bg-[#F7F7F5] rounded-lg transition-colors flex items-center gap-1"
+              className="h-9 px-2 text-xs text-[#6B6667] hover:text-[#111111] rounded-[8px] transition-colors flex items-center gap-1"
             >
-              <span className="material-symbols-outlined text-[16px]">refresh</span>
-              <span>Clear Filters</span>
+              <FilterX className="w-3.5 h-3.5" />
+              <span>Clear</span>
             </button>
           </div>
 
           {/* Right: Record Pill & Download Action */}
-          <div className="flex items-center gap-3 self-end xl:self-auto shrink-0">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-[#F7F7F5] border border-[#E4E0DB] text-[#6B6667] font-medium">
-              <span className="w-2 h-2 rounded-full bg-[#FF5A1F]" />
+          <div className="flex items-center gap-2.5 self-end xl:self-auto shrink-0">
+            <span className="text-xs text-[#6B6667] font-mono">
               Preview (First 10 Records)
             </span>
 
             <button
               onClick={handleDownloadCsv}
               disabled={isExporting}
-              className="h-[38px] px-4 bg-[#FF5A1F] hover:bg-[#D94B17] active:scale-[0.99] transition-all text-white rounded-lg text-xs font-semibold flex items-center gap-2 shadow-xs disabled:opacity-50"
+              className="h-9 px-3.5 bg-[#FF5A1F] hover:bg-[#D94B17] transition-colors text-white rounded-[8px] text-xs font-medium flex items-center gap-1.5 shadow-xs disabled:opacity-50"
             >
-              <span className="material-symbols-outlined text-[18px]">
-                {isExporting ? "hourglass_top" : "download"}
-              </span>
+              <Download className="w-3.5 h-3.5" />
               <span>{isExporting ? "Exporting..." : "Download CSV"}</span>
             </button>
           </div>
@@ -479,43 +472,38 @@ export default function AdminReportsPage() {
       </section>
 
       {/* Report Preview Workspace & Table */}
-      <section className="bg-white border border-[#E4E0DB] rounded-xl overflow-hidden shadow-2xs">
+      <section className="bg-white border border-[#E4E0DB] rounded-[10px] overflow-hidden shadow-xs">
         {/* Table Area Header */}
-        <div className="px-4 py-3.5 border-b border-[#E4E0DB] bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2.5">
-            <span className="material-symbols-outlined text-[#6B6667] text-[20px]">
-              table_chart
-            </span>
-            <h3 className="text-sm font-bold text-[#111111]">
+        <div className="px-4 py-3 border-b border-[#E4E0DB] bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Table className="w-4 h-4 text-[#6B6667]" />
+            <h3 className="text-xs font-semibold text-[#111111]">
               {activeConfig.title} Preview{" "}
               <span className="text-[#6B6667] font-normal">
                 ({getPeriodLabel()})
               </span>
             </h3>
           </div>
-          <span className="text-[11px] text-[#6B6667] bg-[#F7F7F5] border border-[#E4E0DB] px-2.5 py-1 rounded-md">
-            Provisional Schema — Illustrative records
-          </span>
         </div>
 
         {/* Dynamic Table Content based on active category */}
         <div className="overflow-x-auto">
           {activeCategory === "ORDERS" && (
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[850px]">
               <thead>
-                <tr className="h-10 bg-[#F7F7F5] border-b border-[#E4E0DB] text-[11px] text-[#6B6667] uppercase tracking-wider font-semibold">
-                  <th className="px-4">Order ID</th>
-                  <th className="px-3">Order Date & Time</th>
-                  <th className="px-3">Customer</th>
-                  <th className="px-3">Vendor / Boutique</th>
-                  <th className="px-3 text-right">Items</th>
-                  <th className="px-3 text-right">Gross GMV</th>
-                  <th className="px-3 text-right">Commission</th>
-                  <th className="px-3">Delivery Partner</th>
-                  <th className="px-4 text-center">Status</th>
+                <tr className="h-10 bg-[#F7F7F5] border-b border-[#E4E0DB] text-xs text-[#6B6667] font-medium">
+                  <th className="px-4 py-2 font-medium">Order ID</th>
+                  <th className="px-3 py-2 font-medium">Date &amp; Time</th>
+                  <th className="px-3 py-2 font-medium">Customer</th>
+                  <th className="px-3 py-2 font-medium">Vendor</th>
+                  <th className="px-3 py-2 font-medium text-right">Items</th>
+                  <th className="px-3 py-2 font-medium text-right">Gross GMV</th>
+                  <th className="px-3 py-2 font-medium text-right">Commission</th>
+                  <th className="px-3 py-2 font-medium">Delivery Partner</th>
+                  <th className="px-4 py-2 font-medium text-center">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E4E0DB] text-xs">
+              <tbody className="divide-y divide-[#E4E0DB] text-xs text-[#111111]">
                 {filteredOrders.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="py-8 text-center">
@@ -531,27 +519,27 @@ export default function AdminReportsPage() {
                   filteredOrders.map((row) => (
                     <tr
                       key={row.orderId}
-                      className="h-12 hover:bg-[#F7F7F5] transition-colors"
+                      className="h-11 sm:h-12 hover:bg-[#F7F7F5]/50 transition-colors border-b border-[#E4E0DB]"
                     >
-                      <td className="px-4 font-mono font-semibold text-[#111111]">
+                      <td className="px-4 py-2 font-mono font-medium text-[#111111]">
                         {row.orderId}
                       </td>
-                      <td className="px-3 text-[#6B6667] font-mono text-[11px]">
+                      <td className="px-3 py-2 text-[#6B6667] font-mono text-[11px]">
                         {row.dateTime}
                       </td>
-                      <td className="px-3 font-medium text-[#111111]">
+                      <td className="px-3 py-2 font-medium text-[#111111]">
                         {row.customerName}
                       </td>
-                      <td className="px-3 text-[#111111]">{row.vendorName}</td>
-                      <td className="px-3 text-right font-mono">{row.itemsCount}</td>
-                      <td className="px-3 text-right font-mono font-semibold text-[#111111]">
+                      <td className="px-3 py-2 text-[#111111]">{row.vendorName}</td>
+                      <td className="px-3 py-2 text-right font-mono">{row.itemsCount}</td>
+                      <td className="px-3 py-2 text-right font-mono font-medium text-[#111111]">
                         {formatINR(row.grossGmv)}
                       </td>
-                      <td className="px-3 text-right font-mono text-[#20885A]">
+                      <td className="px-3 py-2 text-right font-mono text-[#20885A]">
                         {formatINR(row.commission)}
                       </td>
-                      <td className="px-3 text-[#6B6667]">{row.deliveryPartner}</td>
-                      <td className="px-4 text-center">
+                      <td className="px-3 py-2 text-[#6B6667]">{row.deliveryPartner}</td>
+                      <td className="px-4 py-2 text-center">
                         <StatusBadge status={row.status} variant="order" />
                       </td>
                     </tr>
@@ -562,21 +550,21 @@ export default function AdminReportsPage() {
           )}
 
           {activeCategory === "VENDORS" && (
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[850px]">
               <thead>
-                <tr className="h-10 bg-[#F7F7F5] border-b border-[#E4E0DB] text-[11px] text-[#6B6667] uppercase tracking-wider font-semibold">
-                  <th className="px-4">Vendor ID</th>
-                  <th className="px-3">Boutique Store</th>
-                  <th className="px-3">Operating Hub</th>
-                  <th className="px-3 text-right">Delivered Orders</th>
-                  <th className="px-3 text-right">Gross Sales</th>
-                  <th className="px-3 text-right">Commission Rate</th>
-                  <th className="px-3 text-right">Commission Retained</th>
-                  <th className="px-3 text-right">Net Payable</th>
-                  <th className="px-4 text-center">Settlement Status</th>
+                <tr className="h-10 bg-[#F7F7F5] border-b border-[#E4E0DB] text-xs text-[#6B6667] font-medium">
+                  <th className="px-4 py-2 font-medium">Vendor ID</th>
+                  <th className="px-3 py-2 font-medium">Boutique</th>
+                  <th className="px-3 py-2 font-medium">Hub</th>
+                  <th className="px-3 py-2 font-medium text-right">Orders</th>
+                  <th className="px-3 py-2 font-medium text-right">Gross Sales</th>
+                  <th className="px-3 py-2 font-medium text-right">Rate</th>
+                  <th className="px-3 py-2 font-medium text-right">Commission</th>
+                  <th className="px-3 py-2 font-medium text-right">Net Payable</th>
+                  <th className="px-4 py-2 font-medium text-center">Settlement</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E4E0DB] text-xs">
+              <tbody className="divide-y divide-[#E4E0DB] text-xs text-[#111111]">
                 {filteredVendors.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="py-8 text-center">
@@ -592,31 +580,31 @@ export default function AdminReportsPage() {
                   filteredVendors.map((row) => (
                     <tr
                       key={row.vendorId}
-                      className="h-12 hover:bg-[#F7F7F5] transition-colors"
+                      className="h-11 sm:h-12 hover:bg-[#F7F7F5]/50 transition-colors border-b border-[#E4E0DB]"
                     >
-                      <td className="px-4 font-mono font-semibold text-[#111111]">
+                      <td className="px-4 py-2 font-mono font-medium text-[#111111]">
                         {row.vendorId}
                       </td>
-                      <td className="px-3 font-semibold text-[#111111]">
+                      <td className="px-3 py-2 font-medium text-[#111111]">
                         {row.boutiqueName}
                       </td>
-                      <td className="px-3 text-[#6B6667]">{row.operatingHub}</td>
-                      <td className="px-3 text-right font-mono">
+                      <td className="px-3 py-2 text-[#6B6667]">{row.operatingHub}</td>
+                      <td className="px-3 py-2 text-right font-mono">
                         {row.deliveredOrders}
                       </td>
-                      <td className="px-3 text-right font-mono text-[#111111]">
+                      <td className="px-3 py-2 text-right font-mono font-medium text-[#111111]">
                         {formatINR(row.grossSales)}
                       </td>
-                      <td className="px-3 text-right font-mono text-[#6B6667]">
+                      <td className="px-3 py-2 text-right font-mono text-[#6B6667]">
                         {row.commissionRate.toFixed(1)}%
                       </td>
-                      <td className="px-3 text-right font-mono text-[#20885A]">
+                      <td className="px-3 py-2 text-right font-mono text-[#20885A]">
                         {formatINR(row.commissionRetained)}
                       </td>
-                      <td className="px-3 text-right font-mono font-bold text-[#111111]">
+                      <td className="px-3 py-2 text-right font-mono font-semibold text-[#111111]">
                         {formatINR(row.netPayable)}
                       </td>
-                      <td className="px-4 text-center">
+                      <td className="px-4 py-2 text-center">
                         <StatusBadge status={row.settlementStatus} variant="ledger" />
                       </td>
                     </tr>
@@ -627,20 +615,20 @@ export default function AdminReportsPage() {
           )}
 
           {activeCategory === "DRIVERS" && (
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[850px]">
               <thead>
-                <tr className="h-10 bg-[#F7F7F5] border-b border-[#E4E0DB] text-[11px] text-[#6B6667] uppercase tracking-wider font-semibold">
-                  <th className="px-4">Partner ID</th>
-                  <th className="px-3">Partner Name</th>
-                  <th className="px-3">Vehicle Class</th>
-                  <th className="px-3 text-right">Active Hours</th>
-                  <th className="px-3 text-right">Completed Runs</th>
-                  <th className="px-3 text-right">Avg Delivery Time</th>
-                  <th className="px-3 text-right">Payout Total</th>
-                  <th className="px-4 text-center">Status</th>
+                <tr className="h-10 bg-[#F7F7F5] border-b border-[#E4E0DB] text-xs text-[#6B6667] font-medium">
+                  <th className="px-4 py-2 font-medium">Partner ID</th>
+                  <th className="px-3 py-2 font-medium">Name</th>
+                  <th className="px-3 py-2 font-medium">Vehicle</th>
+                  <th className="px-3 py-2 font-medium text-right">Hours</th>
+                  <th className="px-3 py-2 font-medium text-right">Runs</th>
+                  <th className="px-3 py-2 font-medium text-right">Avg Time</th>
+                  <th className="px-3 py-2 font-medium text-right">Payout Total</th>
+                  <th className="px-4 py-2 font-medium text-center">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E4E0DB] text-xs">
+              <tbody className="divide-y divide-[#E4E0DB] text-xs text-[#111111]">
                 {filteredDrivers.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-8 text-center">
@@ -656,28 +644,28 @@ export default function AdminReportsPage() {
                   filteredDrivers.map((row) => (
                     <tr
                       key={row.partnerId}
-                      className="h-12 hover:bg-[#F7F7F5] transition-colors"
+                      className="h-11 sm:h-12 hover:bg-[#F7F7F5]/50 transition-colors border-b border-[#E4E0DB]"
                     >
-                      <td className="px-4 font-mono font-semibold text-[#111111]">
+                      <td className="px-4 py-2 font-mono font-medium text-[#111111]">
                         {row.partnerId}
                       </td>
-                      <td className="px-3 font-semibold text-[#111111]">
+                      <td className="px-3 py-2 font-medium text-[#111111]">
                         {row.name}
                       </td>
-                      <td className="px-3 text-[#6B6667]">{row.vehicleType}</td>
-                      <td className="px-3 text-right font-mono">{row.activeHours}h</td>
-                      <td className="px-3 text-right font-mono font-semibold text-[#111111]">
+                      <td className="px-3 py-2 text-[#6B6667]">{row.vehicleType}</td>
+                      <td className="px-3 py-2 text-right font-mono">{row.activeHours}h</td>
+                      <td className="px-3 py-2 text-right font-mono font-medium text-[#111111]">
                         {row.completedRuns}
                       </td>
-                      <td className="px-3 text-right font-mono text-[#6B6667]">
+                      <td className="px-3 py-2 text-right font-mono text-[#6B6667]">
                         {row.avgDeliveryMinutes}m
                       </td>
-                      <td className="px-3 text-right font-mono font-bold text-[#111111]">
+                      <td className="px-3 py-2 text-right font-mono font-semibold text-[#111111]">
                         {formatINR(row.payoutTotal)}
                       </td>
-                      <td className="px-4 text-center">
+                      <td className="px-4 py-2 text-center">
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${
+                          className={`inline-flex items-center px-1.5 py-0.5 rounded-[4px] text-[11px] font-medium ${
                             row.status.includes("Online")
                               ? "bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0]"
                               : "bg-[#F7F7F5] text-[#6B6667] border border-[#E4E0DB]"
@@ -694,20 +682,20 @@ export default function AdminReportsPage() {
           )}
 
           {activeCategory === "CATALOG" && (
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[850px]">
               <thead>
-                <tr className="h-10 bg-[#F7F7F5] border-b border-[#E4E0DB] text-[11px] text-[#6B6667] uppercase tracking-wider font-semibold">
-                  <th className="px-4">SKU Code</th>
-                  <th className="px-3">Product Title & Brand</th>
-                  <th className="px-3">Boutique Vendor</th>
-                  <th className="px-3">Operating Hub Node</th>
-                  <th className="px-3 text-right">Stock Qty</th>
-                  <th className="px-3 text-right">MRP</th>
-                  <th className="px-3 text-right">Selling Price</th>
-                  <th className="px-4 text-center">Catalog Status</th>
+                <tr className="h-10 bg-[#F7F7F5] border-b border-[#E4E0DB] text-xs text-[#6B6667] font-medium">
+                  <th className="px-4 py-2 font-medium">SKU</th>
+                  <th className="px-3 py-2 font-medium">Title &amp; Brand</th>
+                  <th className="px-3 py-2 font-medium">Vendor</th>
+                  <th className="px-3 py-2 font-medium">Hub</th>
+                  <th className="px-3 py-2 font-medium text-right">Stock</th>
+                  <th className="px-3 py-2 font-medium text-right">MRP</th>
+                  <th className="px-3 py-2 font-medium text-right">Price</th>
+                  <th className="px-4 py-2 font-medium text-center">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E4E0DB] text-xs">
+              <tbody className="divide-y divide-[#E4E0DB] text-xs text-[#111111]">
                 {filteredCatalog.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-8 text-center">
@@ -723,40 +711,35 @@ export default function AdminReportsPage() {
                   filteredCatalog.map((row) => (
                     <tr
                       key={row.sku}
-                      className="h-12 hover:bg-[#F7F7F5] transition-colors"
+                      className="h-11 sm:h-12 hover:bg-[#F7F7F5]/50 transition-colors border-b border-[#E4E0DB]"
                     >
-                      <td className="px-4 font-mono font-semibold text-[#111111]">
+                      <td className="px-4 py-2 font-mono font-medium text-[#111111]">
                         {row.sku}
                       </td>
-                      <td className="px-3">
-                        <div className="font-semibold text-[#111111]">
+                      <td className="px-3 py-2">
+                        <div className="font-medium text-[#111111]">
                           {row.title}
                         </div>
                         <div className="text-[11px] text-[#6B6667]">{row.brand}</div>
                       </td>
-                      <td className="px-3 text-[#111111]">{row.vendor}</td>
-                      <td className="px-3 text-[#6B6667]">{row.nodeHub}</td>
-                      <td className="px-3 text-right font-mono">
+                      <td className="px-3 py-2 text-[#111111]">{row.vendor}</td>
+                      <td className="px-3 py-2 text-[#6B6667]">{row.nodeHub}</td>
+                      <td className="px-3 py-2 text-right font-mono">
                         <span
-                          className={`font-semibold ${
+                          className={`font-medium ${
                             row.lowStockAlert ? "text-[#DA1E28]" : "text-[#111111]"
                           }`}
                         >
                           {row.stockQty}
                         </span>
-                        {row.lowStockAlert && (
-                          <span className="block text-[10px] text-[#DA1E28] font-semibold">
-                            LOW STOCK
-                          </span>
-                        )}
                       </td>
-                      <td className="px-3 text-right font-mono line-through text-[#6B6667]">
+                      <td className="px-3 py-2 text-right font-mono line-through text-[#6B6667]">
                         {formatINR(row.mrp)}
                       </td>
-                      <td className="px-3 text-right font-mono font-bold text-[#111111]">
+                      <td className="px-3 py-2 text-right font-mono font-medium text-[#111111]">
                         {formatINR(row.sellingPrice)}
                       </td>
-                      <td className="px-4 text-center">
+                      <td className="px-4 py-2 text-center">
                         <StatusBadge status={row.status} variant="product" />
                       </td>
                     </tr>

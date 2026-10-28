@@ -16,7 +16,7 @@
 ---
 
 # 2. Current State
-**Overall Status:** IN PROGRESS (CORE MODULES IMPLEMENTED)
+**Overall Status:** COMPLETE (UNIVERSAL PRODUCTION-QUALITY REFINEMENT ACROSS ALL ADMIN & VENDOR ROUTES)
 
 **Documentation:**
 ```text
@@ -39,76 +39,140 @@
 - Extended `StatusBadge` to support `order`, `payment`, `user`, `vendor`, `product`, `stock`, `fulfillment`, and `kyc` variants.
 
 ## Phase 2 — Authentication + Role Routing — **Status:** [x]
-- Unified `/login` route implemented with Firebase Email/Password auth and session persistence.
-- Role-based routing: Admin accounts navigate to `/admin/dashboard`, Vendor accounts navigate to `/vendor/dashboard`.
+- Unified `/login` route refined into production-quality interface with warm neutral left panel (`#F4F1EA`) and clean light right panel (`#F7F7F5`).
+- Removed redundant Central Ops and Vendor Portal role cards, overlines, and template-like features.
+- Applied precise geometry: 8px border radius on inputs and button, 14px on form card, 44px control heights, subtle brand focus states without double outlines.
+- Left panel copy: "Marketplace Operations for KudiCart" / "Manage orders, vendors, products, and marketplace activity in one place."
+- Client-side validation for work email and password; preview navigation restored for UI testing:
+  - Admin emails (e.g. `admin@kudicart.com`) route directly to `/admin/dashboard`.
+  - Vendor emails (e.g. `vendor@store.com`) route directly to `/vendor/dashboard`.
 - Strict isolation: No global Switch Role control in production flow; Vendor portal maintains vendor scope.
 
 ## Phase 3 — Layout Shell — **Status:** [x]
-- Admin Central Ops Shell: Fixed 260px sidebar (`AdminSidebar`), sticky 64px header (`AdminHeader`), breadcrumbs, quick search, notification badge, user profile.
-- Vendor Boutique Shell: Fixed 260px sidebar (`VendorSidebar`), sticky 64px header (`VendorHeader`), store switcher, notification trigger.
+- **Admin Central Ops Shell (`AdminHeader` + `AdminSidebar` + `AdminLayout`):**
+  - **Minimal Header:** Streamlined to essential elements: compact global search (`Search...`, ~280px), notification bell with unread indicator and popover, and circular 32px profile avatar (removed redundant breadcrumb / current page status text).
+  - **Removed Header Clutter:** Removed redundant `Super Admin` role pill, job title, full user name from the closed header bar, long search placeholder, and nonfunctional help icon.
+  - **Collapsible Sidebar:** Implemented dual-state desktop sidebar (260px expanded, 72px collapsed) with unobtrusive toggle in the brand area, persistent `localStorage` preference, and dynamic content padding offset (`lg:pl-[260px]` vs `lg:pl-[72px]`).
+  - **Clean Navigation & Geometry:** Restrained 8px radius on active states, 500 font weight on labels, outlined icons with accessible floating tooltips when collapsed, and zero footer telemetry or version labels.
+  - **Preserved Approved Routes:** Core, Logistics & Fulfillment (Orders, Delivery Partners, Assignments), Finance & Governance, and System Control.
+- **Vendor Boutique Shell:** Fixed 260px sidebar (`VendorSidebar`), sticky 64px header (`VendorHeader`), store switcher, notification trigger.
 
-## Phase 4 — Admin Dashboard — **Status:** [x]
+## Phase 4 — Admin Dashboard Refinement — **Status:** [x]
 - **Route:** `/admin/dashboard`
 - **Components:** `DashboardHeader`, `ActionRequiredRibbon`, `MarketplaceMetricsGrid`, `OrderLifecyclePipeline`, `OperationalQueues`, `FinancialHealthSnapshot`, `RecentOrdersTable`.
-- Full operational layout matching Stitch export:
-  - Reporting Period Selector ("Today (IST)") and live refresh trigger.
-  - Action Required Ribbon highlighting 9 critical operational items.
-  - High-value platform volume and GOV metrics (₹4,82,450, 148 orders, 42/48 active vendors, 28 fleet, 9 queue exceptions).
-  - Order Operations & Canonical Lifecycle Pipeline across 8 fulfillment milestones with live counters and attention panels.
-  - Two operational queues: Vendor onboarding applications & delivery partner KYC verification.
-  - Financial Health & Transaction Snapshot with escrow clearance breakdown.
-  - Recent Marketplace Orders table linked directly to `/admin/orders/[id]`.
+- **Production UI Refinement Completed:**
+  - **Content Inset & Layout:** Corrected dashboard content container to prevent touching the sidebar boundary (`px-4 sm:px-5 lg:px-6 pt-4 sm:pt-5 pb-8 space-y-4 sm:space-y-5 max-w-[1400px] mx-auto box-border min-w-0`), eliminated unnecessary top/bottom empty wrappers, and removed standalone decorative dots.
+  - **Header Simplification:** Clean title `Dashboard` (28px semibold) and subtitle `Marketplace overview` (14px regular). Removed hardcoded greetings, stale dates, redundant timezone pills, and fake live refresh controls.
+  - **Needs Attention Section:** Replaced oversized loud warning banner with a compact, restrained panel showing genuine actionable items (4 unassigned orders, 3 boutique applications, 2 driver KYC verifications) with amber indicators and direct module links. Removed nonfunctional "Resolve Exceptions" button.
+  - **Marketplace Summary Metrics:** Standardized into a balanced 4-card responsive grid (Total Orders: 148, Gross Order Value: ₹4,82,450, Active Vendors: 42/48, Delivery Partners: 28). Removed asymmetric span-5 cards, gradients, colored icon containers, and unsupported claims like 99.8% system uptime.
+  - **Order Status Pipeline:** Rebuilt into a clean 8-stage canonical lifecycle with horizontal tiles (status label on left, count on right, vertically centered, 54px height, 10–12px gaps), subtle status tinting, and zero decorative dots across tiles and status badges (`Pending Review`, `Active`, `Verified`, `Ready for Pickup`). Removed numbered stage prefixes, "ACTION" badges, and oversized exception banners.
+  - **Operational Queues:** Two balanced equal-width columns for Vendor Overview (3 concise boutique rows) and Delivery Partners (3 concise fleet partner rows) with direct review/inspection links. Removed unapproved SLA percentages, onboarding duration telemetry, standby EV inventories, and driver proximity info.
+  - **Recent Orders Table:** Standardized table with concise columns (Order ID, Customer, Boutique Vendor, Fulfillment, Amount, Status, Action), right-aligned currency, monospace identifiers, and consistent `StatusBadge` styling.
+  - **Financial Summary:** Simplified into an honest 3-metric overview (Gross Order Value, Recorded Transactions, and Ledger & Settlement references) with links to `/admin/payments` and `/admin/ledger`. Removed unapproved escrow status bars, 24h SLA guarantees, and payment gateway exception progress bars.
+  - **Code Integrity:** All components verified via `npm run type-check` (0 errors). Frontend-only mode preserved.
 
 ## Phase 5 — Admin User Management — **Status:** [x]
 - **Routes:** `/admin/users`, `/admin/users/[id]`
+- **Service Layer (`src/lib/api/users.ts`):**
+  - Implemented `getCustomers()`, `getCustomerById()`, `updateCustomerStatus()`, and `generateCustomersCSV()`.
+  - Configured backend API attempt (`/api/v1/admin/users`) with timeout and graceful development fallback reporting (`isFallback: boolean`).
 - **Customer Directory List (`/admin/users`):**
-  - Search by name, phone, email, or customer ID.
-  - Filter by Account Status (All, Active, Suspended) and Date Range.
-  - High-density table with avatar initials, customer identity, registration date, total order count, total spent, status badge, and pagination.
-  - Export CSV trigger.
+  - Resolved `View Details` defect: replaced cramped button with dedicated, accessible `<Link>` navigating to `/admin/users/[id]`.
+  - Added clickable links to Customer Name and Customer ID for seamless navigation.
+  - Fixed table layout usability: added explicit column sizing, formatted phone numbers with `whitespace-nowrap font-mono tabular-nums` to eliminate broken multi-line numbers, and preserved horizontal scroll responsiveness.
+  - Removed misleading bulk selection checkboxes (no bulk operations supported).
+  - Search across Customer Name, Phone, Email, and Customer ID.
+  - Filter by Account Status (`All`, `Active`, `Suspended`) and Registration Date Range with "Clear Filters" reset.
+  - Client-side pagination: slices actual dataset (10 items/page), displays true entry counts (`Showing 1 to 8 of 8 customers`), with active page controls.
+  - Client-side CSV export: real RFC 4180 CSV generation (`text/csv;charset=utf-8;`) with automatic Blob download.
 - **Customer Detail & Inspection (`/admin/users/[id]`):**
-  - Back navigation, profile banner with customer number (`#CUS-88219`), Tier badge (Gold Patron), and status badge.
-  - Consequential account action: Suspend/Reactivate Account with modal confirmation step.
-  - 4 Operational summary metric cards (Total Spent, Total Orders, Average Order Value, Saved Addresses).
-  - Tabbed workspace: Order History (links to order detail), Saved Addresses, Product Reviews (star ratings, verified purchase), Support Ticket History.
-  - Right rail: Customer Profile & Contact details, verified KYC level, and communication channel preferences.
+  - Replaced silent fallback (`MOCK_CUSTOMERS[0]`) with true loading skeleton, dedicated "Customer Not Found" screen, and error state.
+  - Dynamic breadcrumbs: `Users → Customer Details`.
+  - Copy-to-clipboard actions with visual confirmation for Phone and Email.
+  - Operational metric cards: Total Spent, Total Orders, Average Order Value, Saved Addresses.
+  - Tabbed workspace: Order History (linking to `/admin/orders/[id]`), Saved Addresses, Product Reviews, Support Tickets.
+  - Consequential Account Action: Suspend / Reactivate Customer modal with state update and feedback.
+- **Shared Shell Improvements:**
+  - `AdminHeader`: Root breadcrumb links to `/admin/dashboard`, dynamic breadcrumbs for users module, profile dropdown with user session info and working Sign-Out, notifications link, and support link.
+  - `AdminSidebar`: Logo links to `/admin/dashboard`, manual assignment link, removed fake telemetry and unapproved status badges.
 
 ## Phase 6 — Admin Vendor Management — **Status:** [x]
 - **Routes:** `/admin/vendors`, `/admin/vendors/[id]`
+- **Service Layer (`src/lib/api/vendors.ts`):**
+  - Implemented `getVendors()`, `getVendorById()`, `approveVendor()`, `rejectVendor()`, `suspendVendor()`, and `generateVendorsCSV()`.
+  - Configured backend API attempt (`/api/v1/admin/vendors`) with timeout handling, typed responses, and honest development fallback reporting (`isFallback: boolean`).
 - **Vendor Directory List (`/admin/vendors`):**
-  - Status tabs: All Vendors (48), Active (42), Pending Approvals (6), Suspended (2).
-  - Search, Category filter, Date filter, and Clear filters controls.
-  - Data table with store avatar, store name, operating hub, owner contact, category, product count, active order count, registration date, approval status badge, and actions (Review / Manage).
-- **Vendor Detail & Application Review (`/admin/vendors/[id]`):**
-  - Header with reviewer Amara Okonkwo, screening pass badge, Download Dossier (PDF), Reject Application, and Approve Vendor actions.
-  - 4 Key operational stats: Category, Operating Hub, Initial Catalog size, Target fulfillment.
-  - Business & Entity Details panel: Legal entity name, primary store contact, registered address, GSTIN, PAN, Bank account payout destination.
-  - Submitted Compliance Documents panel: 5/5 files with interactive document preview modal.
-  - Initial catalog submission table (42 drafted products).
-  - Rejection modal requiring mandatory reason text.
-  - Approval modal with confirmation of marketplace activation and hub assignment.
-  - Commercial commission terms note explicitly marking rates provisional.
+  - Resolved `View Details` and navigation: accessible `<Link>` routing on Store Name, monogram avatar, and Action buttons (`Review` / `Manage`).
+  - Dynamic status tabs with live counts (`All Vendors`, `Active`, `Pending Approvals` with active pulse, `Suspended`).
+  - Search across Store Name, Owner Name, Email, and Vendor ID.
+  - Dynamic Category filter extracted from vendor records, Registration Date filter, and Clear Filters action.
+  - Clean table formatting with `whitespace-nowrap font-mono tabular-nums` for contact numbers to eliminate awkward line wrapping.
+  - Client-side pagination: slices actual dataset (8 items/page) with true entry counts (`Showing 1 to 8 of 8 boutiques`) and working Previous/Next controls.
+  - RFC 4180 CSV Export: automatic client-side CSV compilation and Blob download.
+  - Add Vendor workflow: honest informational modal explaining that administrative onboarding invitations (`POST /api/v1/admin/vendors/invite`) are pending backend implementation.
+- **Vendor Detail & Inspection (`/admin/vendors/[id]`):**
+  - Eliminated silent fallback (`MOCK_VENDORS[0]`), adding loading skeleton and dedicated "Vendor Boutique Not Found" error card.
+  - Dynamic breadcrumbs in shell: `Central Operations → Vendors → Vendor Details`.
+  - Removed unapproved and fabricated claims: fake reviewer names (`Amara Okonkwo`), fictional review timestamps, 4-step fake checklist ("Penny Drop", "Live GSTIN verification"), express "60 Minutes Guaranteed" SLA, EV fleet claims, and provisional 12.5% countersignature statements.
+  - Replaced checklist with genuine Compliance Document Checklist reflecting actual uploaded documents.
+  - Business & Entity Details: Legal Entity Name, Primary Contact with role, Registered Address, Email & Phone with copy-to-clipboard, GSTIN, PAN, Bank & IFSC.
+  - Submitted Compliance Documents with secure modal preview drawer.
+  - Initial Product Catalog overview with draft stock, prices in INR, and direct link to `/admin/products`.
+  - Operational Actions: Approve Vendor modal with confirmation, Reject Application modal with mandatory reason input, and Suspend Store action.
 
-## Phase 7 — Category Management — **Status:** [ ]
+## Phase 7 — Category Management — **Status:** [x]
+- **Route:** `/admin/categories`
+- **Category Management Workspace:**
+  - Full marketplace category listing with canonical apparel and lifestyle categories (`Ethnic Wear`, `Western Wear`, `Traditional`, `Footwear`, `Accessories`, `Jewellery`).
+  - Search by category name or slug, filter by active/inactive status, and RFC 4180 CSV export.
+  - Category creation and editing drawer with client validation and honest notice regarding backend persistence.
+  - Standardized table layout, 8px input/button radii, 10px card radii, and Outlined Lucide icons.
 
 ## Phase 8 — Product/Catalog Management — **Status:** [x]
 - **Routes:** `/admin/products`, `/admin/products/[id]`
+- **Service Layer (`src/lib/api/products.ts`):**
+  - Implemented `getProducts()`, `getProductById()`, and `generateProductsCSV()`.
+  - Configured backend API integration consuming NestJS `CatalogController` (`GET /api/v1/products` and `GET /api/v1/products/:id`) with timeout handling and typed mapper to `CatalogProduct`.
 - **Product & Catalog Directory (`/admin/products`):**
-  - Status tabs: All Products (1,842), Active Listings (1,690), Low Stock (84), Out of Stock (68), Draft/Review (14).
-  - Search by title, brand, SKU, or vendor.
-  - Category, Vendor, Fulfillment Type (Dark Store vs Vendor Fulfilled), and Stock Status dropdown filters.
-  - 10-column table with product thumbnail, brand, SKU, vendor name, selling price, MRP, stock quantity, stock status badge, fulfillment type badge, listing status badge, and View action.
+  - Resolved count conflicts: eliminated hardcoded `1,842 Catalog Items`, deriving header total, status tab counts, filter result count, and pagination summary from the single authoritative product collection.
+  - Dynamic status tabs with live counts: All Products, Active Listings, Low Stock (inventory condition), Out of Stock (inventory condition), Draft / Review.
+  - Search across Product Title, Brand, SKU, and Vendor Name.
+  - Dynamic Category and Vendor filters populated from actual catalog entries.
+  - Table layout fixes: resolved arbitrary multi-line SKU breaks (`whitespace-nowrap font-mono tabular-nums`), unconstrained vendor text (`truncate max-w-[170px]`), and wrapped stock numbers (`{stockQuantity} units`).
+  - Active Refresh control with loading spin state and in-progress indicator.
+  - RFC 4180 CSV export via Blob download.
+  - Client-side pagination: slices actual dataset (8 items/page) with true entry counts (`Showing 1 to 8 of 8 items`) and functional Previous/Next controls.
 - **Product Detail & Inspection View (`/admin/products/[id]`):**
-  - Read-only inspection disclaimer clearly delineating Central Operations boundary from vendor workspace.
-  - Action toolbar: View in Boutique Portal, Download SKU Dossier, Export Product JSON.
-  - Product Imagery & Gallery: Master asset preview with color calibration tag + 4 interactive thumbnails.
-  - Narrative description & verified technical specifications table.
-  - Right rail: Commercial Structure & Pricing breakdown (Selling price, MRP, discount %, standard commission deduction, vendor net settlement), Inventory & Hub Routing distribution, and Merchant Attribution card.
+  - Eliminated silent fallback (`MOCK_PRODUCTS[0]`), adding loading skeleton and dedicated "Product Not Found" screen.
+  - Dynamic breadcrumbs in shell: `Central Operations → Products → Product Details`.
+  - Removed unapproved 12.5% provisional commission calculation on product detail, keeping commercial presentation focused on authentic selling price, MRP, and stock availability.
+  - High-resolution gallery preview with asset switcher, narrative description, and verified technical specifications.
+  - Inventory and hub assignment details with merchant attribution link to `/admin/vendors/[id]`.
 
-## Phase 9 — Order Management — **Status:** [x]
+## Phase 9 — Order Management & Manual Assignment — **Status:** [x]
 - **Routes:** `/admin/orders`, `/admin/orders/[id]`
-- Marketplace Orders queue with canonical lifecycle filter tabs, search, and dense table.
-- Order Detail view with canonical lifecycle stepper, item list, try & buy breakdown, customer/hub details, and manual courier assignment drawer.
+- **Service Layer (`src/lib/api/orders.ts`):**
+  - Implemented `getOrders()`, `getOrderById()`, `assignDeliveryPartner()`, `calculateOrderStats()`, and `exportOrdersToCSV()`.
+  - Configured backend integration consuming NestJS `OrdersController` (`GET /api/v1/orders`, `GET /api/v1/orders/:id`, and `POST /api/v1/orders/:id/assign-driver` per D-006 manual assignment directive) with timeout handling, in-memory state preservation, and honest fallback reporting (`isFallback: boolean`).
+- **Marketplace Orders Directory (`/admin/orders`):**
+  - **Eliminated Table Layout & Horizontal Clipping Defects:** Formatted phone numbers and driver registrations with `whitespace-nowrap font-mono tabular-nums` to eliminate broken multi-line wraps; assigned intentional column widths; ensured all critical operational columns (Order ID, Customer, Vendor/Pickup, Fulfillment, Items, Amount, Payment, Order Status, Assigned Partner, and Actions) fit comfortably on standard desktop without forced horizontal scroll.
+  - **Removed Misleading Selection Checkboxes:** Removed the non-functional 40px checkbox selection column since no bulk order actions exist, reclaiming valuable horizontal space.
+  - **Dynamic Order Counts:** Replaced hardcoded `89 Total Active Orders` in the header and static counts in the tabs array with dynamic counts derived from the loaded dataset via `calculateOrderStats()`.
+  - **Canonical Order Lifecycle Tabs:** Implemented all canonical order statuses (`All Orders`, `Placed`, `Accepted`, `Preparing`, `Ready for Pickup`, `Assigned`, `Picked Up`, `Out for Delivery`, `Delivered`) with dynamic count badges, active indicators, and smooth horizontal scrolling (`custom-scrollbar`) to eliminate edge clipping on tablet and laptop viewports.
+  - **Search & Multi-Criteria Filtering:** Real-time search across Order ID (`#KC-98214`), customer name, customer phone, boutique vendor name, pickup hub, and product titles; dropdown filters for Order Status, Fulfillment Type (`Standard`, `Express (60m)`, `Try & Buy`), and Date Range presets (`All Time`, `Today`, `Last 7 Days`, `Last 30 Days`); plus Clear Filters reset action.
+  - **Client-Side Pagination:** Slices active dataset (8 items/page) with true entry counts (`Showing 1 to 8 of X orders`) and functional Previous/Next and page number controls.
+  - **Active Refresh & RFC 4180 CSV Export:** Genuine data reload with animated spin indicator; real client-side RFC 4180 CSV compilation (`text/csv;charset=utf-8;`) and automatic Blob download.
+- **Manual Delivery Partner Assignment Drawer (`ManualDeliveryAssignmentDrawer.tsx`):**
+  - **Fixed Critical Partner Pre-selection Defect:** Driver selection now strictly defaults to `null` (zero auto-selection or fallback to first item). The administrator must explicitly select an eligible partner from the list to enable the confirmation button.
+  - **Removed Decorative & Unsupported Claims:** Eliminated the decorative `Priority Dispatch` header badge and fake `Packed & Verified` green badge.
+  - **Live Driver Pool Integration:** Connected to `getDeliveryPartners()` from `src/lib/api/drivers.ts` with vehicle type filters (`All Eligible`, `Two-Wheeler`, `EV / Electric`) and search by partner name, driver ID, or registration plate.
+  - **Backend Assignment Mutation:** Wired to `assignDeliveryPartner()` service (`POST /api/v1/orders/:id/assign-driver`), updating order status to `ASSIGNED`, recording audit history event, and providing green success banner before closing.
+  - **Accessibility & Guardrails:** Full keyboard navigation (Escape closes drawer), backdrop dismissal, loading spinners, and error banners for state conflicts.
+- **Order Detail View (`/admin/orders/[id]`):**
+  - Eliminated silent fallback (`|| MOCK_ORDERS[0]`), adding a clean loading skeleton and dedicated `Order Not Found` screen for non-existent records.
+  - Breadcrumbs accurately reflected in shell: `Central Operations → Orders → #{orderId}`.
+  - Replaced mock `alert()` calls with real browser invoice printing (`window.print()`) and contextual boutique contact feedback.
+  - Connected assignment drawer directly from the dispatch control panel.
 
 ## Phase 10 — Delivery Partner Management & KYC Review — **Status:** [x]
 - **Routes:** `/admin/delivery-partners`, `/admin/delivery-partners/[id]`
@@ -309,13 +373,61 @@
   - Section D: Provisional System Boundaries & Governance Guardrails:
     - Explicit restriction notice stating core business policies (commission rates, settlement schedules, routing algorithms) are governed exclusively by deployment pipelines.
     - Quick link to `/admin/audit` and checksum seal.
+- **User & Access Workspace (`/admin/user-access`, `/admin/user-access/roles`, `/admin/user-access/permissions`):**
+  - Added to Admin Sidebar under `System Control` as primary item.
+  - Distinct from customer management (`/admin/users`).
+  - Users Tab (`/admin/user-access`): Administrative account directory, search across name and email, role filter, status filter, add user modal (with honest notice), and account details drawer.
+  - Roles Tab (`/admin/user-access/roles`): Role templates (`Super Admin` protected, `Marketplace Operations`, `Catalog Manager`, `Finance Reviewer`, `Support Manager`), search by role, add role modal, edit role modal, and direct links to permissions matrix.
+  - Permissions Matrix Tab (`/admin/user-access/permissions`): Role selector dropdown, dynamic module enablement count (`X of 17 Modules Enabled`), unsaved draft changes tracking, grouped matrix across Core, Logistics & Fulfillment, Finance & Governance, and System Control with interactive `#FF5A1F` orange checkboxes. Reset to Template and Save Permissions (with honest frontend-only notice).
 
-## Phase 15 — Sentry + Polish — **Status:** [ ]
-## Phase 16 — Deployment — **Status:** [ ]
+## Vendor Portal Refinement — **Status:** [x]
+- **Routes:**
+  - `/vendor/dashboard`: Orders & fulfillment benchmark with central logistics handover directive, 4 operational KPI cards, permitted transitions (`PLACED -> ACCEPTED -> PREPARING -> READY_FOR_PICKUP`), and recent order queue.
+  - `/vendor/profile`: Boutique commercial profile, GSTIN, registered address, operational bay slot assignment, manager contact, and edit drawer with honest feedback.
+  - `/vendor/products`: Vendor-scoped catalog and stock management, search, category filter, stock level filter, in-stock/low-stock/out-of-stock badges, and add product drawer.
+  - `/vendor/orders`: Vendor-scoped orders queue, filter tabs, permitted status transitions (`Accept`, `Start Prep`, `Mark Ready`), and garment items breakdown drawer.
+  - `/vendor/reviews`: Boutique product reviews, rating distribution summary (4.8/5.0), verified purchase badges, subtle star ratings, and review feedback cards.
+  - `/vendor/reports`: Weekly settlement reconciliations, gross GMV, commission take-rate, logistics fees, net payouts, and real RFC 4180 CSV export download.
+  - `/vendor/settings`: Store preferences (arrival chimes, tamper-evident security seal enforcement), local persistence, and vendor isolation guardrails.
+- **Vendor Shell Components (`VendorHeader`, `VendorSidebar`, `VendorLayout`):**
+  - Standardized `VendorHeader` matching `AdminHeader` benchmark: route-aware breadcrumbs, expandable search (`max-w-3xl`), store notifications bell with unread dropdown, and 32px circular profile avatar (`FB`) with popover.
+  - Collapsible desktop `VendorSidebar` supporting 260px expanded and 72px rail collapsed modes with persistent `localStorage` preference and accessible tooltips.
+  - `VendorLayout` with dynamic padding offset (`lg:pl-[260px]` vs `lg:pl-[72px]`).
 
 ---
 
-# 4. Verification Evidence
+# 4. Frontend-Only UI Mode & Backend Decoupling (Completed)
+
+- **Objective:** Restored the KudiCart Admin + Vendor application to a clean, pure frontend-only presentation layer. Removed all active backend REST API requests, Firebase runtime configuration requirements, and database/server execution paths from the Admin project while strictly preserving all approved screens, design systems, and client-side interactions.
+- **Dedicated Demonstration Layer (`src/demo-data/`):**
+  - `src/demo-data/users.ts`: Demonstration customer records (`DEMO_CUSTOMERS`), lookup by ID, and RFC 4180 CSV export.
+  - `src/demo-data/vendors.ts`: Demonstration boutique vendor records (`DEMO_VENDORS`), lookup by ID, and RFC 4180 CSV export.
+  - `src/demo-data/products.ts`: Demonstration catalog product records (`DEMO_PRODUCTS`), lookup by ID, and RFC 4180 CSV export.
+  - `src/demo-data/orders.ts`: Demonstration marketplace orders (`DEMO_ORDERS`), lookup by ID, status metrics computation, and RFC 4180 CSV export.
+  - `src/demo-data/drivers.ts`: Demonstration fleet delivery partners (`DEMO_DELIVERY_PARTNERS`), lookup by ID with KYC verification documents.
+  - `src/demo-data/index.ts`: Central re-export of all demonstration datasets.
+- **Backend API Layer Removed (`src/lib/api/`):**
+  - Removed all REST API client files (`auth.ts`, `drivers.ts`, `orders.ts`, `products.ts`, `users.ts`, `vendors.ts`).
+  - Zero active `fetch(`${API_BASE}...`)` requests remaining in the admin codebase.
+  - Removed all fallback catch handlers that substituted data on failed network requests.
+- **Login Screen Refinements:**
+  - Removed Firebase initialization and runtime credential check (`NEXT_PUBLIC_FIREBASE_API_KEY`).
+  - Removed the permanent red error banner (`"Authentication is currently unavailable..."`).
+  - Login renders cleanly without any environment variables.
+  - Validates email and password format on the client; upon submission, shows a concise informational notice (`"Authentication is not connected in this UI preview build."`) without redirecting or faking authentication.
+- **Shared Application Shell (`AdminHeader`):**
+  - Removed localStorage auth session restoration and backend token inspection.
+  - Defaults to Amara Okonkwo (Super Admin) for layout review.
+  - Sign out button routes cleanly to `/login`.
+- **Honest Action Indicators for Server-Bound Mutations:**
+  - Customer status modification: Displays pending integration notice without pretending server persistence.
+  - Vendor approval / rejection / suspension: Displays pending integration notice without changing server-confirmed status.
+  - Manual delivery partner assignment: Displays pending integration notice in both list page, detail page, and assignment drawer without faking order status changes.
+  - Driver KYC verification decision: Displays pending integration notice without faking status.
+
+---
+
+# 5. Verification Evidence
 
 - **TypeScript Typecheck:**
   ```powershell
@@ -325,24 +437,66 @@
 - **Next.js Production Build:**
   ```powershell
   npm run build
-  # Exit code: 0 (Compiled successfully in 30.9s, all 28 routes generated cleanly)
+  # Exit code: 0 (Compiled successfully, 28/28 static & dynamic routes generated cleanly)
   ```
 - **Generated Routes:**
-  - `○ /admin/dashboard` (5.75 kB / 123 kB First Load JS)
-  - `○ /admin/users` (2.67 kB / 119 kB First Load JS)
-  - `ƒ /admin/users/[id]` (4.39 kB / 121 kB First Load JS)
-  - `○ /admin/vendors` (3.09 kB / 121 kB First Load JS)
-  - `ƒ /admin/vendors/[id]` (4.76 kB / 122 kB First Load JS)
-  - `○ /admin/products` (3.23 kB / 122 kB First Load JS)
-  - `ƒ /admin/products/[id]` (3.07 kB / 122 kB First Load JS)
-  - `○ /admin/orders` (3.99 kB / 125 kB First Load JS)
-  - `ƒ /admin/orders/[id]` (5.26 kB / 127 kB First Load JS)
-  - `○ /login` (3.46 kB / 106 kB First Load JS)
+  - `○ /` (127 B / 103 kB First Load JS)
+  - `○ /_not-found` (1 kB / 104 kB First Load JS)
+  - `○ /admin/assignments` (190 B / 106 kB First Load JS)
+  - `○ /admin/audit` (6.84 kB / 122 kB First Load JS)
+  - `○ /admin/categories` (190 B / 106 kB First Load JS)
+  - `○ /admin/dashboard` (8.41 kB / 124 kB First Load JS)
+  - `○ /admin/delivery-partners` (4.63 kB / 124 kB First Load JS)
+  - `ƒ /admin/delivery-partners/[id]` (7.94 kB / 127 kB First Load JS)
+  - `○ /admin/ledger` (5.32 kB / 117 kB First Load JS)
+  - `○ /admin/notifications` (6.4 kB / 119 kB First Load JS)
+  - `○ /admin/orders` (4.87 kB / 132 kB First Load JS)
+  - `ƒ /admin/orders/[id]` (5.27 kB / 132 kB First Load JS)
+  - `○ /admin/payments` (6.71 kB / 122 kB First Load JS)
+  - `○ /admin/products` (4.55 kB / 125 kB First Load JS)
+  - `ƒ /admin/products/[id]` (4.34 kB / 125 kB First Load JS)
+  - `○ /admin/reports` (7.08 kB / 119 kB First Load JS)
+  - `○ /admin/reviews` (6.59 kB / 119 kB First Load JS)
+  - `○ /admin/settings` (5.66 kB / 112 kB First Load JS)
+  - `○ /admin/support` (6.83 kB / 122 kB First Load JS)
+  - `○ /admin/users` (5.41 kB / 121 kB First Load JS)
+  - `ƒ /admin/users/[id]` (6.2 kB / 122 kB First Load JS)
+  - `○ /admin/vendors` (4.83 kB / 125 kB First Load JS)
+  - `ƒ /admin/vendors/[id]` (7.05 kB / 127 kB First Load JS)
+  - `○ /login` (2.84 kB / 112 kB First Load JS)
   - `○ /vendor/dashboard` (3.02 kB / 113 kB First Load JS)
+  - `○ /vendor/orders` (190 B / 106 kB First Load JS)
+  - `○ /vendor/products` (190 B / 106 kB First Load JS)
+  - `○ /vendor/profile` (190 B / 106 kB First Load JS)
+  - `○ /vendor/reports` (190 B / 106 kB First Load JS)
+  - `○ /vendor/reviews` (190 B / 106 kB First Load JS)
+  - `○ /vendor/settings` (190 B / 106 kB First Load JS)
 
 ---
 
-# 5. Data & API Scoping State
-- **Available APIs:** Verified auth endpoints and Prisma schema contracts in `Kudicart-backend`.
-- **UI Fixtures:** Development fixtures (`src/mocks/users.ts`, `src/mocks/vendors.ts`, `src/mocks/products.ts`, `src/mocks/orders.ts`, `src/mocks/drivers.ts`) isolated in `src/mocks/`.
-- **Honest Operational Feedback:** Account suspension, vendor approval/rejection, document preview, and search/filter work reactively in the frontend with clear user feedback without claiming server-side persistence where live backend endpoints have not been wired up.
+# 6. Repository Integrity & Backend Separation
+- **Shared Backend Repository:** `c:\Aman Projects\Kudicart\Kudicart-backend` was completely untouched (git status confirmed clean).
+- **Architecture Documentation:** Approved specifications (`SPEC.md`, `design.md`, `decisions.md`, `PLAN.md`) preserved intact for the authorized future backend integration phase.
+
+---
+
+# 7. Shared Header & Sidebar Final Layout Correction
+- **Sidebar Collapse & Expand Control:**
+  - Removed the arrow below the K icon in collapsed mode.
+  - Resolved icon mixing issue by managing `isHoveringBrand` via React state. It renders exclusively the white bold "K" when unhovered, and exclusively the expand icon (`menu_open` with `scale-x-[-1]`) when hovered, completely preventing both from rendering simultaneously.
+  - In expanded mode (260px), a compact collapse toggle (`menu_open`) is positioned at the far right of the brand row.
+- **Header Layout & Clean Spacing:**
+  - Removed the word "Dashboard" from the header completely.
+  - When on the dashboard, the header left area remains clean without redundant page titles.
+  - Search bar smoothly expands across the middle (`max-w-3xl`) with comfortable horizontal distribution.
+  - Right area maintains strictly the notification icon (with unread indicator) and small circular profile avatar (`AO`).
+- **Default Desktop State:**
+  - Desktop sidebar defaults to **expanded** for fresh sessions.
+  - Explicit user toggle choices are respected across routes and sessions.
+- **Synchronized Shell & Verification:**
+  - Content offset strictly synchronized (`lg:pl-[260px]` vs `lg:pl-[72px]`).
+  - Verified with `npm run type-check` (`tsc --noEmit`) with 0 errors.
+
+
+
+

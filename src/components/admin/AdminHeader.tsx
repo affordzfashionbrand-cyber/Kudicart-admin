@@ -1,139 +1,301 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import { MOCK_NOTIFICATIONS } from "@/mocks/notifications";
+
+const ROUTE_LABELS: Record<string, string> = {
+  dashboard: "Dashboard",
+  users: "Users",
+  vendors: "Vendors",
+  categories: "Categories",
+  products: "Products",
+  orders: "Orders",
+  "delivery-partners": "Delivery Partners",
+  assignments: "Assignments",
+  payments: "Payments",
+  ledger: "Ledger",
+  reviews: "Reviews",
+  support: "Support",
+  "user-access": "User & Access",
+  roles: "Roles",
+  permissions: "Permissions",
+  reports: "Reports",
+  audit: "Audit",
+  notifications: "Notifications",
+  settings: "Settings",
+};
+
+interface BreadcrumbItem {
+  label: string;
+  href: string;
+  isCurrent: boolean;
+}
+
+function getBreadcrumbs(pathname: string): BreadcrumbItem[] {
+  if (!pathname || pathname === "/admin" || pathname === "/admin/dashboard") {
+    return [];
+  }
+
+  const segments = pathname.replace(/^\/admin\/?/, "").split("/").filter(Boolean);
+  if (segments.length === 0 || (segments.length === 1 && segments[0] === "dashboard")) {
+    return [];
+  }
+
+  const items: BreadcrumbItem[] = [];
+  let currentPath = "/admin";
+
+  segments.forEach((segment, index) => {
+    if (segment === "dashboard") return;
+    currentPath += `/${segment}`;
+    const isCurrent = index === segments.length - 1;
+    const label =
+      ROUTE_LABELS[segment] ||
+      (segment.length > 14
+        ? `${segment.slice(0, 12)}…`
+        : segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, " "));
+
+    items.push({
+      label,
+      href: currentPath,
+      isCurrent,
+    });
+  });
+
+  return items;
+}
 
 interface AdminHeaderProps {
   onToggleSidebar?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
-export function AdminHeader({ onToggleSidebar }: AdminHeaderProps) {
+export function AdminHeader({
+  onToggleSidebar,
+}: AdminHeaderProps) {
+  const router = useRouter();
   const pathname = usePathname();
 
-  // Generate breadcrumb trail
-  const getBreadcrumbs = () => {
-    if (pathname?.startsWith("/admin/orders/")) {
-      const orderId = pathname.split("/").pop();
-      return [
-        { label: "Central Operations", href: "/admin/orders" },
-        { label: "Orders", href: "/admin/orders" },
-        { label: `#${orderId}`, href: pathname, isCurrent: true },
-      ];
-    }
-    if (pathname === "/admin/orders") {
-      return [
-        { label: "Central Operations", href: "/admin/orders" },
-        { label: "Orders", href: "/admin/orders" },
-        { label: "Marketplace Queue", href: "/admin/orders", isCurrent: true },
-      ];
-    }
-    const segment = pathname?.replace("/admin/", "") || "Overview";
-    const formattedSegment = segment.charAt(0).toUpperCase() + segment.slice(1);
-    return [
-      { label: "Central Operations", href: "/admin/orders" },
-      { label: formattedSegment, href: pathname || "#", isCurrent: true },
-    ];
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const profileRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  // Authenticated user identity for UI presentation
+  const [userName] = useState("Amara Okonkwo");
+  const [userEmail] = useState("amara@kudicart.com");
+
+  // Derive unread count from isolated mock notifications dataset
+  const unreadCount = MOCK_NOTIFICATIONS.filter((n) => !n.read).length;
+  const recentNotifications = MOCK_NOTIFICATIONS.slice(0, 3);
+
+  const breadcrumbs = getBreadcrumbs(pathname || "");
+
+  // Click outside & Escape key listeners
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsProfileOpen(false);
+        setIsNotificationsOpen(false);
+      }
+    };
+    const handleClickOutside = (e: MouseEvent) => {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setIsProfileOpen(false);
+      }
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setIsNotificationsOpen(false);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const handleSignOut = () => {
+    router.replace("/login");
   };
 
-  const breadcrumbs = getBreadcrumbs();
+  const userInitials = userName
+    .split(" ")
+    .map((w) => w[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between w-full h-16 px-4 lg:px-8 bg-white border-b border-[#E4E0DB]">
-      {/* Left: Mobile Toggle & Breadcrumbs & Search */}
-      <div className="flex items-center gap-3 lg:gap-6 flex-1 max-w-2xl">
-        {/* Mobile menu trigger */}
+    <header className="sticky top-0 z-30 flex items-center justify-between w-full h-16 px-4 lg:px-6 bg-white border-b border-[#E4E0DB] gap-3 sm:gap-6">
+      {/* Left: Mobile menu trigger & Breadcrumbs (when present, never Dashboard) */}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        {/* Mobile navigation trigger (hidden on desktop) */}
         <button
+          type="button"
           onClick={onToggleSidebar}
           aria-label="Open navigation menu"
-          className="p-2 rounded-lg text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA] lg:hidden"
+          className="p-1.5 rounded-[6px] text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA] lg:hidden transition-colors shrink-0"
         >
-          <span className="material-symbols-outlined text-[22px]">menu</span>
+          <span className="material-symbols-outlined text-[20px]">menu</span>
         </button>
 
-        {/* Operational Breadcrumbs */}
-        <nav aria-label="Breadcrumb" className="hidden md:flex items-center gap-1.5 text-xs text-[#6B6667] shrink-0">
-          {breadcrumbs.map((crumb, idx) => (
-            <React.Fragment key={crumb.label + idx}>
-              {idx > 0 && <span className="text-[#E4E0DB]">/</span>}
-              {crumb.isCurrent ? (
-                <span className="text-[#111111] font-semibold">{crumb.label}</span>
-              ) : (
-                <Link
-                  href={crumb.href}
-                  className="hover:text-[#111111] transition-colors"
-                >
-                  {crumb.label}
-                </Link>
-              )}
-            </React.Fragment>
-          ))}
-        </nav>
+        {/* Current Page Title / Route-Aware Breadcrumbs (only if non-empty, never shows Dashboard) */}
+        {breadcrumbs.length > 0 && (
+          <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-xs text-[#6B6667] min-w-0">
+            {breadcrumbs.map((crumb, idx) => (
+              <React.Fragment key={crumb.href + idx}>
+                {idx > 0 && <span className="text-[#D0CBC4] select-none text-[11px]">/</span>}
+                {crumb.isCurrent ? (
+                  <span className="font-semibold text-[#111111] truncate">{crumb.label}</span>
+                ) : (
+                  <Link href={crumb.href} className="hover:text-[#111111] transition-colors truncate">
+                    {crumb.label}
+                  </Link>
+                )}
+              </React.Fragment>
+            ))}
+          </nav>
+        )}
+      </div>
 
-        {/* Global Search Bar with ⌘K */}
-        <div className="relative w-full max-w-xs lg:max-w-sm">
+      {/* Middle: Global Search (Fills available middle space) */}
+      <div className="flex-1 max-w-3xl min-w-0 flex items-center">
+        <div className="relative w-full">
           <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-[#6B6667]">
             <span className="material-symbols-outlined text-[18px]">search</span>
           </span>
           <input
             type="text"
-            placeholder="Search SKU, Order ID, Vendor or Rider..."
-            className="w-full h-9 pl-9 pr-12 text-xs bg-[#F7F7F5] border border-[#E4E0DB] rounded-lg text-[#111111] placeholder:text-[#6B6667] focus:bg-white focus:outline-none focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] transition-all"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search..."
+            className="w-full h-[36px] pl-9 pr-8 text-xs bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] placeholder:text-[#6B6667]/70 focus:bg-white focus:outline-none focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] transition-all font-normal"
           />
-          <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none">
-            <kbd className="px-1.5 py-0.5 text-[10px] font-mono text-[#6B6667] bg-[#F4F1EA] border border-[#E4E0DB] rounded">
-              ⌘K
-            </kbd>
-          </div>
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              className="absolute inset-y-0 right-2.5 flex items-center text-[#6B6667] hover:text-[#111111]"
+              title="Clear search"
+              aria-label="Clear search"
+            >
+              <span className="material-symbols-outlined text-[15px]">close</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Right Controls: Role Badge, Notifications, User Profile */}
-      <div className="flex items-center gap-3">
-        {/* Active Role Badge */}
-        <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#F4F1EA] border border-[#E4E0DB]">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#FF5A1F]" />
-          <span className="text-[11px] font-semibold text-[#111111]">
-            Super Admin (Marketplace Wide)
-          </span>
+      {/* Region C: Right — Notifications & Small Circular Profile Avatar */}
+      <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 justify-end">
+        {/* Compact Notifications Icon */}
+        <div className="relative" ref={notifRef}>
+          <button
+            type="button"
+            onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
+            className="w-8 h-8 rounded-[8px] flex items-center justify-center text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA] transition-colors relative focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF5A1F]"
+            title="Notifications"
+            aria-label="Notifications"
+            aria-expanded={isNotificationsOpen}
+          >
+            <span className="material-symbols-outlined text-[20px]">notifications</span>
+            {unreadCount > 0 && (
+              <span
+                className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#FF5A1F]"
+                aria-hidden="true"
+              />
+            )}
+          </button>
+
+          {isNotificationsOpen && (
+            <div className="absolute right-0 mt-2 w-80 bg-white border border-[#E4E0DB] rounded-[8px] shadow-md z-50 overflow-hidden animate-fadeIn">
+              <div className="px-3.5 py-2.5 border-b border-[#E4E0DB] flex items-center justify-between bg-[#F7F7F5]">
+                <span className="text-xs font-semibold text-[#111111]">Notifications</span>
+                {unreadCount > 0 && (
+                  <span className="text-[10px] font-medium text-[#FF5A1F]">
+                    {unreadCount} Unread
+                  </span>
+                )}
+              </div>
+              <div className="divide-y divide-[#E4E0DB] text-xs">
+                {recentNotifications.map((notif) => (
+                  <Link
+                    key={notif.id}
+                    href={notif.category === "KYC" ? "/admin/vendors" : "/admin/orders"}
+                    onClick={() => setIsNotificationsOpen(false)}
+                    className="p-3 block hover:bg-[#F7F7F5] transition-colors"
+                  >
+                    <p className="font-medium text-[#111111]">{notif.title}</p>
+                    <p className="text-[11px] text-[#6B6667] mt-0.5 line-clamp-1">
+                      {notif.messagePreview}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+              <div className="p-2 border-t border-[#E4E0DB] text-center bg-[#F7F7F5]">
+                <Link
+                  href="/admin/notifications"
+                  onClick={() => setIsNotificationsOpen(false)}
+                  className="text-xs font-medium text-[#FF5A1F] hover:underline"
+                >
+                  View all notifications →
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Help Icon */}
-        <button
-          className="p-2 rounded-lg text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA] transition-colors hidden sm:flex"
-          title="Documentation & Operational Guide"
-          aria-label="Documentation & Operational Guide"
-        >
-          <span className="material-symbols-outlined text-[20px]">help_outline</span>
-        </button>
+        {/* Small Circular Profile Avatar (Only) */}
+        <div className="relative" ref={profileRef}>
+          <button
+            type="button"
+            onClick={() => setIsProfileOpen(!isProfileOpen)}
+            className="w-8 h-8 rounded-full bg-[#FFF0E8] border border-[#FF5A1F]/30 flex items-center justify-center text-[#D94B17] font-medium text-xs hover:ring-2 hover:ring-[#FF5A1F]/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5A1F] transition-all"
+            aria-expanded={isProfileOpen}
+            aria-label="Open profile menu"
+            title="Open profile menu"
+          >
+            {userInitials || "AO"}
+          </button>
 
-        {/* Notification Bell */}
-        <button
-          className="relative p-2 rounded-lg text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA] transition-colors"
-          title="System Notifications"
-          aria-label="System Notifications"
-        >
-          <span className="material-symbols-outlined text-[20px]">notifications</span>
-          <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#FF5A1F] text-[9px] font-bold text-white">
-            3
-          </span>
-        </button>
+          {isProfileOpen && (
+            <div className="absolute right-0 mt-2 w-52 bg-white border border-[#E4E0DB] rounded-[8px] shadow-md z-50 py-1 divide-y divide-[#E4E0DB] animate-fadeIn">
+              <div className="px-3.5 py-2">
+                <p className="text-xs font-semibold text-[#111111]">{userName}</p>
+                <p className="text-[11px] text-[#6B6667]">{userEmail}</p>
+              </div>
 
-        <div className="h-5 w-px bg-[#E4E0DB] hidden sm:block" />
+              <div className="py-1">
+                <Link
+                  href="/admin/settings"
+                  onClick={() => setIsProfileOpen(false)}
+                  className="w-full text-left px-3.5 py-1.5 text-xs text-[#111111] hover:bg-[#F7F7F5] flex items-center gap-2 transition-colors font-normal"
+                >
+                  <span className="material-symbols-outlined text-[16px] text-[#6B6667]">
+                    settings
+                  </span>
+                  <span>Settings</span>
+                </Link>
+              </div>
 
-        {/* Authenticated Profile */}
-        <div className="flex items-center gap-2.5 pl-1">
-          <div className="w-8 h-8 rounded-full bg-[#FFF0E8] border border-[#FF5A1F]/30 flex items-center justify-center text-[#D94B17] font-semibold text-xs shrink-0">
-            AO
-          </div>
-          <div className="hidden xl:block text-left">
-            <div className="text-xs font-semibold text-[#111111] leading-tight">
-              Amara Okonkwo
+              <div className="py-1">
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="w-full text-left px-3.5 py-1.5 text-xs text-[#DA1E28] hover:bg-[#FEF2F2] flex items-center gap-2 transition-colors font-medium"
+                >
+                  <span className="material-symbols-outlined text-[16px] text-[#DA1E28]">
+                    logout
+                  </span>
+                  <span>Sign out</span>
+                </button>
+              </div>
             </div>
-            <div className="text-[10px] text-[#6B6667] leading-tight">
-              Chief Operations Lead
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </header>

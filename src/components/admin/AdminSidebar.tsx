@@ -9,8 +9,6 @@ interface NavItem {
   name: string;
   href: string;
   icon: string;
-  badge?: string;
-  badgeVariant?: "primary" | "warning" | "dot";
 }
 
 interface NavSection {
@@ -32,24 +30,9 @@ const ADMIN_NAVIGATION: NavSection[] = [
   {
     title: "Logistics & Fulfillment",
     items: [
-      {
-        name: "Orders",
-        href: "/admin/orders",
-        icon: "shopping_cart",
-        badge: "14 pending",
-        badgeVariant: "primary",
-      },
-      {
-        name: "Delivery Partners",
-        href: "/admin/delivery-partners",
-        icon: "local_shipping",
-      },
-      {
-        name: "Assignments",
-        href: "/admin/assignments",
-        icon: "assignment",
-        badgeVariant: "dot",
-      },
+      { name: "Orders", href: "/admin/orders", icon: "shopping_cart" },
+      { name: "Delivery Partners", href: "/admin/delivery-partners", icon: "local_shipping" },
+      { name: "Assignments", href: "/admin/assignments", icon: "assignment" },
     ],
   },
   {
@@ -64,6 +47,7 @@ const ADMIN_NAVIGATION: NavSection[] = [
   {
     title: "System Control",
     items: [
+      { name: "User & Access", href: "/admin/user-access", icon: "admin_panel_settings" },
       { name: "Reports", href: "/admin/reports", icon: "analytics" },
       { name: "Audit", href: "/admin/audit", icon: "history" },
       { name: "Notifications", href: "/admin/notifications", icon: "notifications" },
@@ -75,10 +59,18 @@ const ADMIN_NAVIGATION: NavSection[] = [
 interface AdminSidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
+  isCollapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
-export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
+export function AdminSidebar({
+  isOpen,
+  onClose,
+  isCollapsed = false,
+  onToggleCollapse,
+}: AdminSidebarProps) {
   const pathname = usePathname();
+  const [isHoveringBrand, setIsHoveringBrand] = useState(false);
 
   return (
     <>
@@ -93,49 +85,110 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
 
       <aside
         className={cn(
-          "fixed left-0 top-0 h-screen w-[260px] z-40 border-r border-[#E4E0DB] bg-[#F4F1EA] flex flex-col justify-between shrink-0 transition-transform duration-200 lg:translate-x-0",
-          isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          "fixed left-0 top-0 h-screen z-40 border-r border-[#E4E0DB] bg-[#F4F1EA] flex flex-col justify-between shrink-0 transition-all duration-200 select-none",
+          isOpen ? "translate-x-0 w-[260px]" : "-translate-x-full lg:translate-x-0",
+          isCollapsed ? "lg:w-[72px]" : "lg:w-[260px]"
         )}
       >
-        {/* Top Brand & Mode Header */}
-        <div className="px-4 pt-4 pb-3 border-b border-[#E4E0DB] bg-[#F4F1EA]">
-          <div className="flex items-center justify-between">
-            <Link href="/admin/orders" className="flex items-center gap-2 group">
-              {/* Logo Emblem */}
-              <div className="w-8 h-8 rounded-lg bg-[#FF5A1F] text-white flex items-center justify-center font-bold text-base shadow-sm">
-                K
-              </div>
-              <div>
-                <div className="text-base font-bold text-[#111111] leading-tight tracking-tight">
-                  KudiCart Ops
-                </div>
-                <div className="text-[11px] font-semibold text-[#6B6667]">
-                  Central Operations
-                </div>
-              </div>
-            </Link>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#FFF0E8] text-[#D94B17] tracking-wide border border-[#FF5A1F]/20">
-              Super
-            </span>
-          </div>
+        {/* Brand Area: Compact single row with integrated collapse/expand control */}
+        <div
+          className={cn(
+            "h-16 border-b border-[#E4E0DB] bg-[#F4F1EA] flex items-center shrink-0 transition-all",
+            isCollapsed ? "justify-center px-0" : "px-3.5 justify-between"
+          )}
+        >
+          {isCollapsed ? (
+            /* Collapsed Mode: Single centered K button. Swaps K for expand icon only when hovered */
+            <button
+              type="button"
+              onClick={() => {
+                setIsHoveringBrand(false);
+                onToggleCollapse && onToggleCollapse();
+              }}
+              onMouseEnter={() => setIsHoveringBrand(true)}
+              onMouseLeave={() => setIsHoveringBrand(false)}
+              onFocus={() => setIsHoveringBrand(true)}
+              onBlur={() => setIsHoveringBrand(false)}
+              aria-label="Expand sidebar"
+              title="Expand sidebar"
+              className="relative w-8 h-8 rounded-[8px] bg-[#FF5A1F] hover:bg-[#D94B17] text-white flex items-center justify-center shadow-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5A1F]"
+            >
+              {isHoveringBrand ? (
+                /* On Hover: menu_open in opposite direction */
+                <span
+                  className="material-symbols-outlined text-[18px] scale-x-[-1]"
+                  aria-hidden="true"
+                >
+                  menu_open
+                </span>
+              ) : (
+                /* Default: White bold "K" only */
+                <span className="font-bold text-sm select-none leading-none">
+                  K
+                </span>
+              )}
 
-          {/* Quick Action Button */}
-          <Link
-            href="/admin/orders"
-            className="mt-3 w-full py-2 px-3 rounded-lg bg-[#FF5A1F] hover:bg-[#D94B17] text-white active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 text-xs font-semibold shadow-sm"
-          >
-            <span className="material-symbols-outlined text-[16px]">local_shipping</span>
-            <span>Dispatch Queue</span>
-          </Link>
+              {/* Accessible hover tooltip */}
+              {isHoveringBrand && (
+                <div
+                  role="tooltip"
+                  className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2.5 px-2.5 py-1 bg-[#111111] text-white text-[11px] font-normal rounded-[6px] whitespace-nowrap shadow-md z-50 hidden lg:block"
+                >
+                  Expand sidebar
+                </div>
+              )}
+            </button>
+          ) : (
+            /* Expanded Mode: Brand on left, collapse button on far right */
+            <>
+              <Link
+                href="/admin/dashboard"
+                className="flex items-center gap-2.5 min-w-0 rounded-[6px] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF5A1F]"
+                title="KudiCart Ops — Central Operations"
+              >
+                <div className="w-8 h-8 rounded-[8px] bg-[#FF5A1F] text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
+                  K
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[13px] font-medium text-[#111111] leading-tight tracking-tight truncate">
+                    KudiCart Ops
+                  </div>
+                  <div className="text-[11px] font-normal text-[#6B6667] leading-tight truncate">
+                    Central Operations
+                  </div>
+                </div>
+              </Link>
+
+              {/* Desktop Collapse Toggle */}
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                aria-label="Collapse sidebar"
+                title="Collapse sidebar"
+                className="hidden lg:flex w-7 h-7 items-center justify-center rounded-[6px] text-[#6B6667] hover:text-[#111111] hover:bg-[#EBE7DF] transition-colors shrink-0 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF5A1F]"
+              >
+                <span className="material-symbols-outlined text-[18px]">
+                  menu_open
+                </span>
+              </button>
+            </>
+          )}
         </div>
 
         {/* Navigation Scroll Region */}
-        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-4 custom-scrollbar">
+        <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-4 custom-scrollbar">
           {ADMIN_NAVIGATION.map((section) => (
             <div key={section.title}>
-              <div className="px-2 pb-1 text-[10px] font-bold text-[#6B6667] uppercase tracking-wider">
+              {/* Section Header */}
+              <div
+                className={cn(
+                  "px-2 pb-1 text-[10px] font-medium text-[#6B6667] uppercase tracking-wider",
+                  isCollapsed && "lg:hidden"
+                )}
+              >
                 {section.title}
               </div>
+
               <div className="space-y-0.5">
                 {section.items.map((item) => {
                   const isActive =
@@ -143,49 +196,48 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
                     (item.href !== "/admin/dashboard" && pathname?.startsWith(item.href));
 
                   return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => onClose && onClose()}
-                      className={cn(
-                        "flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-all active:scale-[0.98]",
-                        isActive
-                          ? "bg-[#FF5A1F] text-white font-semibold shadow-sm"
-                          : "text-[#6B6667] hover:text-[#111111] hover:bg-[#EBE7DF]"
-                      )}
-                    >
-                      <div className="flex items-center gap-2.5">
+                    <div key={item.href} className="relative group">
+                      <Link
+                        href={item.href}
+                        onClick={() => onClose && onClose()}
+                        className={cn(
+                          "flex items-center rounded-[8px] text-xs font-medium transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF5A1F]",
+                          isCollapsed
+                            ? "lg:w-10 lg:h-10 lg:justify-center lg:mx-auto px-3 py-2 gap-2.5"
+                            : "px-3 py-2 gap-2.5",
+                          isActive
+                            ? "bg-[#FF5A1F] text-white font-medium shadow-xs"
+                            : "text-[#6B6667] hover:text-[#111111] hover:bg-[#EBE7DF]"
+                        )}
+                        aria-label={item.name}
+                      >
                         <span
                           className={cn(
-                            "material-symbols-outlined text-[18px]",
-                            isActive && "text-white"
+                            "material-symbols-outlined text-[18px] shrink-0",
+                            isActive ? "text-white" : "text-[#6B6667] group-hover:text-[#111111]"
                           )}
                           style={
                             isActive ? { fontVariationSettings: "'FILL' 1" } : undefined
                           }
+                          aria-hidden="true"
                         >
                           {item.icon}
                         </span>
-                        <span>{item.name}</span>
-                      </div>
-
-                      {item.badge && (
-                        <span
-                          className={cn(
-                            "text-[10px] px-1.5 py-0.5 rounded-full font-bold",
-                            isActive
-                              ? "bg-white text-[#FF5A1F]"
-                              : "bg-[#FFF0E8] text-[#D94B17]"
-                          )}
-                        >
-                          {item.badge}
+                        <span className={cn("truncate", isCollapsed && "lg:hidden")}>
+                          {item.name}
                         </span>
-                      )}
+                      </Link>
 
-                      {item.badgeVariant === "dot" && !isActive && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#FF5A1F]" />
+                      {/* Accessible Tooltip when Collapsed on Desktop */}
+                      {isCollapsed && (
+                        <div
+                          role="tooltip"
+                          className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1 bg-[#111111] text-white text-[11px] font-normal rounded-[6px] whitespace-nowrap shadow-md opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity z-50 hidden lg:block"
+                        >
+                          {item.name}
+                        </div>
                       )}
-                    </Link>
+                    </div>
                   );
                 })}
               </div>
@@ -193,27 +245,8 @@ export function AdminSidebar({ isOpen, onClose }: AdminSidebarProps) {
           ))}
         </nav>
 
-        {/* Sidebar Footer with Engine Health */}
-        <div className="p-3 border-t border-[#E4E0DB] bg-[#F4F1EA] space-y-2">
-          <div className="flex items-center justify-between text-xs text-[#111111] font-semibold">
-            <div className="flex items-center gap-1.5">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#20885A] opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#20885A]" />
-              </span>
-              <span className="text-[11px]">Central Engine: Normal</span>
-            </div>
-            <span className="font-mono text-[11px] text-[#6B6667]">99.98%</span>
-          </div>
-
-          <div className="flex items-center justify-between text-[11px] text-[#6B6667] pt-0.5">
-            <span className="flex items-center gap-1">
-              <span className="material-symbols-outlined text-[13px]">monitor_heart</span>
-              System Health
-            </span>
-            <span className="font-mono text-[10px] text-[#6B6667]">v2.4.0</span>
-          </div>
-        </div>
+        {/* Clean spacing at the bottom of the sidebar */}
+        <div className="py-2" />
       </aside>
     </>
   );

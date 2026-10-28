@@ -1,6 +1,21 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
+import {
+  ShoppingBag,
+  TrendingUp,
+  CheckCircle2,
+  Clock,
+  ArrowRight,
+  Search,
+  Printer,
+  Plus,
+  X,
+  Package,
+  Info,
+  CheckCheck,
+} from "lucide-react";
 import { formatINR } from "@/lib/utils";
 
 interface VendorOrderRow {
@@ -11,7 +26,7 @@ interface VendorOrderRow {
   quantity: number;
   variant: string;
   totalAmount: number;
-  status: "PREPARING" | "READY_FOR_PICKUP" | "HANDED_OVER";
+  status: "PLACED" | "ACCEPTED" | "PREPARING" | "READY_FOR_PICKUP" | "HANDED_OVER";
 }
 
 const INITIAL_VENDOR_ORDERS: VendorOrderRow[] = [
@@ -55,11 +70,22 @@ const INITIAL_VENDOR_ORDERS: VendorOrderRow[] = [
     totalAmount: 18500,
     status: "HANDED_OVER",
   },
+  {
+    id: "v-05",
+    orderNumber: "KC-98194",
+    placedTime: "Yesterday 16:05",
+    productName: "Organza Dupatta Set",
+    quantity: 1,
+    variant: "Free Size • Pastel Coral",
+    totalAmount: 4800,
+    status: "HANDED_OVER",
+  },
 ];
 
 export default function VendorDashboardPage() {
   const [orders, setOrders] = useState<VendorOrderRow[]>(INITIAL_VENDOR_ORDERS);
   const [activeFilter, setActiveFilter] = useState<string>("ALL");
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const filteredOrders = orders.filter((o) => {
     if (activeFilter === "PREPARING") return o.status === "PREPARING";
@@ -72,263 +98,286 @@ export default function VendorDashboardPage() {
     setOrders((prev) =>
       prev.map((o) => (o.id === id ? { ...o, status: "READY_FOR_PICKUP" } : o))
     );
+    setToastMessage("Order marked as READY_FOR_PICKUP. Dispatch queue notified.");
+    setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const handleActionNotice = (message: string) => {
+    setToastMessage(`Not connected in this build: ${message}`);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 space-y-5 max-w-[1440px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1440px] mx-auto">
       {/* Workflow Constraint Notice Banner */}
-      <div className="p-4 bg-white border border-[#E4E0DB] rounded-xl flex flex-col sm:flex-row items-start justify-between gap-4 shadow-xs">
+      <div className="p-4 bg-white border border-[#E4E0DB] rounded-[10px] flex flex-col sm:flex-row items-start justify-between gap-4 shadow-2xs">
         <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-lg bg-[#EFF6FF] text-[#0043CE] flex items-center justify-center shrink-0">
-            <span className="material-symbols-outlined text-[20px]">info</span>
+          <div className="w-8 h-8 rounded-[8px] bg-[#EFF6FF] text-[#0043CE] flex items-center justify-center shrink-0 mt-0.5">
+            <Info className="w-4 h-4 text-[#0043CE]" />
           </div>
           <div>
-            <h4 className="text-xs font-bold text-[#111111]">
-              Workflow Directive: Central Logistics Handoff
+            <h4 className="text-xs font-semibold text-[#111111]">
+              Central Logistics Handover Policy
             </h4>
-            <p className="text-xs text-[#6B6667] mt-0.5">
-              Operational Notice: As an authorized boutique, mark orders as{" "}
-              <code className="font-mono text-[#D94B17] bg-[#FFF0E8] px-1.5 py-0.5 rounded font-semibold text-[11px]">
+            <p className="text-xs text-[#6B6667] mt-0.5 leading-relaxed">
+              As an authorized boutique vendor, mark prepared orders as{" "}
+              <code className="font-mono text-[#D94B17] bg-[#FFF0E8] px-1.5 py-0.5 rounded font-medium text-[11px]">
                 READY_FOR_PICKUP
               </code>{" "}
-              once packed. KudiCart Central Ops handles dispatch and rider assignment.
+              once packed. KudiCart Central Operations manages rider assignment and dispatch.
             </p>
           </div>
         </div>
-        <button
-          onClick={() => alert("Boutique Packaging Guidelines: Ensure tamper-evident security satchel is sealed prior to Central Ops dispatch handover.")}
-          className="text-[#6B6667] hover:text-[#111111] text-[11px] font-semibold uppercase tracking-wider shrink-0 underline"
+        <Link
+          href="/vendor/profile"
+          className="text-[#D94B17] hover:underline text-xs font-medium shrink-0 self-end sm:self-auto"
         >
-          Dispatch Guidelines
-        </button>
+          Dispatch Bay Guidelines →
+        </Link>
       </div>
 
-      {/* Page Header + Operational Action */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-1">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#111111] tracking-tight">
+          <h1 className="text-[26px] font-semibold text-[#111111] tracking-tight">
             Maison Lagos — Orders &amp; Fulfillment
           </h1>
           <p className="text-xs text-[#6B6667] mt-1">
-            Fulfill orders up to READY_FOR_PICKUP for central fleet handover.
+            Fulfill store orders up to Ready for Pickup for central fleet handover.
           </p>
         </div>
         <div className="flex items-center gap-2.5">
           <button
-            onClick={() => alert("Batch invoices downloaded.")}
-            className="h-9 px-3.5 bg-white border border-[#E4E0DB] hover:bg-[#F7F7F5] text-[#111111] text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 shadow-xs"
+            onClick={() => handleActionNotice("Batch invoice export requires backend print service.")}
+            className="h-9 px-3.5 bg-white border border-[#E4E0DB] hover:bg-[#F7F7F5] text-[#111111] text-xs font-medium rounded-[8px] transition-colors flex items-center gap-1.5 shadow-2xs"
           >
-            <span className="material-symbols-outlined text-[#6B6667] text-[18px]">print</span>
+            <Printer className="w-3.5 h-3.5 text-[#6B6667]" />
             <span>Batch Invoices</span>
           </button>
           <button
-            onClick={() => alert("New product modal opened.")}
-            className="h-9 px-4 bg-[#FF5A1F] hover:bg-[#D94B17] text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 shadow-xs active:scale-[0.99]"
+            onClick={() => handleActionNotice("Product creation requires catalog persistence.")}
+            className="h-9 px-4 bg-[#FF5A1F] hover:bg-[#D94B17] text-white text-xs font-medium rounded-[8px] transition-all flex items-center gap-1.5 shadow-2xs"
           >
-            <span className="material-symbols-outlined text-[18px]">add</span>
-            <span>Add New Product</span>
+            <Plus className="w-3.5 h-3.5 text-white" />
+            <span>Add Product</span>
           </button>
         </div>
       </div>
+
+      {toastMessage && (
+        <div className="p-3 bg-[#ECFDF5] border border-[#A7F3D0] rounded-[8px] flex items-center justify-between text-xs text-[#20885A]">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-[#20885A]" />
+            <span>{toastMessage}</span>
+          </div>
+          <button
+            onClick={() => setToastMessage(null)}
+            className="text-[#20885A] hover:text-[#111111]"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* 4 Vendor KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Today's Orders */}
-        <div className="bg-white p-4 rounded-xl border border-[#E4E0DB] shadow-xs">
+        <div className="bg-white p-4 rounded-[10px] border border-[#E4E0DB] shadow-2xs">
           <div className="flex items-center justify-between text-[#6B6667]">
-            <span className="text-[11px] uppercase tracking-wider font-bold">
+            <span className="text-[11px] uppercase tracking-wider font-medium">
               Today&apos;s Orders
             </span>
-            <span className="material-symbols-outlined text-[20px]">shopping_bag</span>
+            <ShoppingBag className="w-4 h-4 text-[#6B6667]" />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold font-mono text-[#111111]">24</span>
-            <span className="text-xs font-bold text-[#20885A] flex items-center">
-              <span className="material-symbols-outlined text-[14px]">trending_up</span> +12%
+            <span className="text-2xl font-semibold font-mono text-[#111111]">24</span>
+            <span className="text-xs font-medium text-[#20885A] flex items-center">
+              <TrendingUp className="w-3.5 h-3.5 mr-0.5" /> +12%
             </span>
           </div>
-          <p className="text-[11px] text-[#6B6667] mt-1">All catalog items combined</p>
+          <p className="text-[11px] text-[#6B6667] mt-1">Boutique items combined</p>
         </div>
 
-        {/* Card 2: Pending Packaging */}
-        <div className="bg-white p-4 rounded-xl border border-[#E4E0DB] shadow-xs">
-          <div className="flex items-center justify-between text-[#C9822E]">
-            <span className="text-[11px] uppercase tracking-wider font-bold">
-              Pending Packaging
-            </span>
-            <span className="material-symbols-outlined text-[20px]">package_2</span>
-          </div>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold font-mono text-[#C9822E]">6</span>
-            <span className="text-xs text-[#6B6667]">Needs attention</span>
-          </div>
-          <p className="text-[11px] text-[#6B6667] mt-1">SLA Target: &lt; 45 mins packing</p>
-        </div>
-
-        {/* Card 3: Ready for Pickup */}
-        <div className="bg-white p-4 rounded-xl border border-[#E4E0DB] shadow-xs">
-          <div className="flex items-center justify-between text-[#0043CE]">
-            <span className="text-[11px] uppercase tracking-wider font-bold">
+        {/* Card 2: Ready for Pickup */}
+        <div className="bg-white p-4 rounded-[10px] border border-[#E4E0DB] shadow-2xs">
+          <div className="flex items-center justify-between text-[#6B6667]">
+            <span className="text-[11px] uppercase tracking-wider font-medium">
               Ready for Pickup
             </span>
-            <span className="material-symbols-outlined text-[20px]">inventory</span>
+            <Package className="w-4 h-4 text-[#FF5A1F]" />
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold font-mono text-[#0043CE]">3</span>
-            <span className="text-xs text-[#6B6667]">In holding bay</span>
+            <span className="text-2xl font-semibold font-mono text-[#D94B17]">2</span>
+            <span className="text-[11px] text-[#6B6667]">Awaiting rider handover</span>
           </div>
-          <p className="text-[11px] text-[#6B6667] mt-1">Awaiting Central Fleet dispatch</p>
+          <p className="text-[11px] text-[#6B6667] mt-1">Staged in Bay Slot 4</p>
         </div>
 
-        {/* Card 4: Current Period Settlement */}
-        <div className="bg-white p-4 rounded-xl border border-[#E4E0DB] shadow-xs">
-          <div className="flex items-center justify-between text-[#20885A]">
-            <span className="text-[11px] uppercase tracking-wider font-bold">
-              Period Settlement
+        {/* Card 3: Today's Gross Sales */}
+        <div className="bg-white p-4 rounded-[10px] border border-[#E4E0DB] shadow-2xs">
+          <div className="flex items-center justify-between text-[#6B6667]">
+            <span className="text-[11px] uppercase tracking-wider font-medium">
+              Today&apos;s GMV
             </span>
-            <span className="material-symbols-outlined text-[20px]">account_balance_wallet</span>
+            <span className="font-mono text-xs text-[#6B6667]">INR</span>
           </div>
           <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-2xl font-bold font-mono text-[#111111]">
-              {formatINR(1240500)}
+            <span className="text-2xl font-semibold font-mono text-[#111111]">
+              ₹38,950
             </span>
           </div>
-          <p className="text-[11px] text-[#6B6667] mt-1">Disbursement Friday 18:00</p>
+          <p className="text-[11px] text-[#6B6667] mt-1">Net receivable calculated at settlement</p>
+        </div>
+
+        {/* Card 4: Packaging SLA */}
+        <div className="bg-white p-4 rounded-[10px] border border-[#E4E0DB] shadow-2xs">
+          <div className="flex items-center justify-between text-[#6B6667]">
+            <span className="text-[11px] uppercase tracking-wider font-medium">
+              Fulfillment Rate
+            </span>
+            <Clock className="w-4 h-4 text-[#20885A]" />
+          </div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-2xl font-semibold font-mono text-[#20885A]">99.2%</span>
+          </div>
+          <p className="text-[11px] text-[#6B6667] mt-1">Average pack time: 14 mins</p>
         </div>
       </div>
 
-      {/* Boutique Orders Table Card */}
-      <div className="bg-white rounded-xl border border-[#E4E0DB] shadow-xs overflow-hidden">
-        {/* Filter Bar */}
-        <div className="p-3.5 border-b border-[#E4E0DB] flex flex-wrap items-center justify-between gap-3 bg-white">
-          <div className="flex items-center gap-1.5 overflow-x-auto">
-            <button
-              onClick={() => setActiveFilter("ALL")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                activeFilter === "ALL"
-                  ? "bg-[#EAE7DF] text-[#111111]"
-                  : "text-[#6B6667] hover:bg-[#F7F7F5]"
-              }`}
-            >
-              All Active ({orders.length})
-            </button>
-            <button
-              onClick={() => setActiveFilter("PREPARING")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                activeFilter === "PREPARING"
-                  ? "bg-[#EAE7DF] text-[#111111]"
-                  : "text-[#6B6667] hover:bg-[#F7F7F5]"
-              }`}
-            >
-              Pending Packaging (1)
-            </button>
-            <button
-              onClick={() => setActiveFilter("READY_FOR_PICKUP")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                activeFilter === "READY_FOR_PICKUP"
-                  ? "bg-[#EAE7DF] text-[#111111]"
-                  : "text-[#6B6667] hover:bg-[#F7F7F5]"
-              }`}
-            >
-              Ready for Pickup (2)
-            </button>
-            <button
-              onClick={() => setActiveFilter("HANDED_OVER")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
-                activeFilter === "HANDED_OVER"
-                  ? "bg-[#EAE7DF] text-[#111111]"
-                  : "text-[#6B6667] hover:bg-[#F7F7F5]"
-              }`}
-            >
-              Handed Over Today (1)
-            </button>
+      {/* Orders Management Table Card */}
+      <div className="bg-white rounded-[10px] border border-[#E4E0DB] shadow-2xs overflow-hidden">
+        {/* Table Header Controls */}
+        <div className="p-4 border-b border-[#E4E0DB] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-[14px] font-semibold text-[#111111]">
+              Recent Boutique Orders
+            </h2>
+            <span className="px-2 py-0.5 rounded-[4px] bg-[#F4F1EA] text-[11px] font-mono text-[#6B6667]">
+              {filteredOrders.length} shown
+            </span>
           </div>
 
-          <div className="flex items-center gap-2 text-xs text-[#6B6667]">
-            <span>Store Scope: Restricted</span>
-            <span className="material-symbols-outlined text-[16px]">lock</span>
+          {/* Filter Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto">
+            {["ALL", "PREPARING", "READY_FOR_PICKUP", "HANDED_OVER"].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveFilter(tab)}
+                className={`px-3 py-1.5 rounded-[6px] text-xs font-medium transition-colors whitespace-nowrap ${
+                  activeFilter === tab
+                    ? "bg-[#111111] text-white"
+                    : "text-[#6B6667] hover:text-[#111111] hover:bg-[#F7F7F5]"
+                }`}
+              >
+                {tab === "ALL" && "All Orders"}
+                {tab === "PREPARING" && "Preparing (1)"}
+                {tab === "READY_FOR_PICKUP" && "Ready for Pickup (2)"}
+                {tab === "HANDED_OVER" && "Handed Over (2)"}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Structured Data Table */}
+        {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="h-10 bg-[#F4F1EA] text-[#6B6667] text-[11px] font-bold uppercase tracking-wider border-b border-[#E4E0DB]">
-                <th className="py-2 px-4 font-semibold">Order ID</th>
-                <th className="py-2 px-4 font-semibold">Placed Time</th>
-                <th className="py-2 px-4 font-semibold">Item Details</th>
-                <th className="py-2 px-4 font-semibold text-right">Total</th>
-                <th className="py-2 px-4 font-semibold text-center">Fulfillment Status</th>
-                <th className="py-2 px-4 font-semibold text-right">Vendor Action</th>
+              <tr className="h-10 bg-[#F7F7F5] border-b border-[#E4E0DB] text-xs font-medium text-[#6B6667]">
+                <th className="px-4">Order ID &amp; Time</th>
+                <th className="px-4">Garment / Item Details</th>
+                <th className="px-4 text-center">Qty</th>
+                <th className="px-4 text-right">Amount</th>
+                <th className="px-4 text-center">Fulfillment Status</th>
+                <th className="px-4 text-right">Boutique Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E4E0DB] text-xs">
-              {filteredOrders.map((row) => (
-                <tr key={row.id} className="h-12 hover:bg-[#F7F7F5]/70 transition-colors">
-                  <td className="py-2.5 px-4 font-mono font-semibold text-[#111111]">
-                    #{row.orderNumber}
-                  </td>
-                  <td className="py-2.5 px-4 text-[#6B6667] font-mono text-[11px]">
-                    {row.placedTime}
-                  </td>
-                  <td className="py-2.5 px-4">
-                    <span className="font-semibold text-[#111111]">{row.productName}</span>
-                    <span className="text-[#6B6667] font-mono text-[11px] ml-1">
-                      × {row.quantity}
-                    </span>
-                    <span className="block text-[11px] text-[#6B6667]">{row.variant}</span>
-                  </td>
-                  <td className="py-2.5 px-4 text-right font-mono font-bold text-[#111111]">
-                    {formatINR(row.totalAmount)}
-                  </td>
-                  <td className="py-2.5 px-4 text-center">
-                    {row.status === "PREPARING" && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] bg-[#EFF6FF] text-[#0043CE] font-semibold border border-[#BFDBFE]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#0043CE]" />
-                        PREPARING
-                      </span>
-                    )}
-                    {row.status === "READY_FOR_PICKUP" && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] bg-[#FFFBEB] text-[#B45309] font-semibold border border-[#FDE68A]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#D97706] animate-pulse" />
-                        READY_FOR_PICKUP
-                      </span>
-                    )}
-                    {row.status === "HANDED_OVER" && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] bg-[#ECFDF5] text-[#20885A] font-semibold border border-[#A7F3D0]">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#20885A]" />
-                        HANDED_OVER
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2.5 px-4 text-right">
-                    {row.status === "PREPARING" ? (
-                      <button
-                        type="button"
-                        onClick={() => handleMarkReady(row.id)}
-                        className="h-8 px-3 bg-[#FF5A1F] hover:bg-[#D94B17] text-white text-xs font-semibold rounded-lg transition-colors inline-flex items-center gap-1 shadow-xs"
-                      >
-                        <span className="material-symbols-outlined text-[14px]">done_all</span>
-                        <span>Mark Ready for Pickup</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => alert(`Packing slip for #${row.orderNumber} printed.`)}
-                        className="h-8 px-3 bg-white border border-[#E4E0DB] hover:bg-[#F7F7F5] text-[#111111] text-xs font-medium rounded-lg transition-colors inline-flex items-center gap-1 shadow-xs"
-                      >
-                        <span className="material-symbols-outlined text-[#6B6667] text-[14px]">
-                          print
+            <tbody className="divide-y divide-[#E4E0DB] text-xs text-[#111111]">
+              {filteredOrders.map((order) => {
+                const isPreparing = order.status === "PREPARING";
+                const isReady = order.status === "READY_FOR_PICKUP";
+
+                return (
+                  <tr
+                    key={order.id}
+                    className="h-11 sm:h-12 hover:bg-[#F7F7F5]/50 transition-colors"
+                  >
+                    <td className="px-4 whitespace-nowrap">
+                      <div className="font-mono font-medium text-[#FF5A1F]">
+                        {order.orderNumber}
+                      </div>
+                      <div className="text-[11px] text-[#6B6667] mt-0.5">
+                        {order.placedTime}
+                      </div>
+                    </td>
+                    <td className="px-4">
+                      <div className="font-medium text-[#111111]">
+                        {order.productName}
+                      </div>
+                      <div className="text-[11px] text-[#6B6667] mt-0.5">
+                        {order.variant}
+                      </div>
+                    </td>
+                    <td className="px-4 text-center font-mono font-medium">
+                      {order.quantity}
+                    </td>
+                    <td className="px-4 text-right font-medium tabular-nums whitespace-nowrap">
+                      {formatINR(order.totalAmount)}
+                    </td>
+                    <td className="px-4 text-center whitespace-nowrap">
+                      {order.status === "PREPARING" && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-[11px] font-medium bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]">
+                          Preparing
                         </span>
-                        <span>Print Packing Slip</span>
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                      )}
+                      {order.status === "READY_FOR_PICKUP" && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-[11px] font-medium bg-[#FFF0E8] text-[#D94B17] border border-[#FF5A1F]/30">
+                          Ready for Pickup
+                        </span>
+                      )}
+                      {order.status === "HANDED_OVER" && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-[11px] font-medium bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0]">
+                          Handed Over
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 text-right whitespace-nowrap">
+                      {isPreparing && (
+                        <button
+                          onClick={() => handleMarkReady(order.id)}
+                          className="h-7 px-2.5 rounded-[6px] bg-[#FF5A1F] hover:bg-[#D94B17] text-white text-xs font-medium shadow-2xs transition-colors inline-flex items-center gap-1"
+                        >
+                          <CheckCheck className="w-3.5 h-3.5" />
+                          <span>Mark Ready</span>
+                        </button>
+                      )}
+                      {isReady && (
+                        <span className="text-[11px] text-[#6B6667] font-medium">
+                          Awaiting Central Rider
+                        </span>
+                      )}
+                      {order.status === "HANDED_OVER" && (
+                        <span className="text-[11px] text-[#20885A] font-medium">
+                          In Central Transit
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+        </div>
+
+        {/* Table Footer */}
+        <div className="p-3 border-t border-[#E4E0DB] flex items-center justify-between text-xs text-[#6B6667] bg-[#F7F7F5]">
+          <span>Displaying latest orders for Maison Lagos Atelier</span>
+          <Link
+            href="/vendor/orders"
+            className="text-[#D94B17] hover:underline font-medium inline-flex items-center gap-1"
+          >
+            <span>View Full Order History</span>
+            <ArrowRight className="w-3 h-3" />
+          </Link>
         </div>
       </div>
     </div>
