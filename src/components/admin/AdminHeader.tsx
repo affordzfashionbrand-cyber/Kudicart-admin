@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { MOCK_NOTIFICATIONS } from "@/mocks/notifications";
+import { api, getStoredProfile, getAuthToken } from "@/lib/api";
 
 const ROUTE_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
@@ -86,12 +87,40 @@ export function AdminHeader({
   const notifRef = useRef<HTMLDivElement>(null);
 
   // Authenticated user identity for UI presentation
-  const [userName] = useState("Amara Okonkwo");
-  const [userEmail] = useState("amara@kudicart.com");
+  const [userName, setUserName] = useState("Amara Okonkwo");
+  const [userEmail, setUserEmail] = useState("amara@kudicart.com");
+  const [liveNotifications, setLiveNotifications] = useState(MOCK_NOTIFICATIONS);
 
-  // Derive unread count from isolated mock notifications dataset
-  const unreadCount = MOCK_NOTIFICATIONS.filter((n) => !n.read).length;
-  const recentNotifications = MOCK_NOTIFICATIONS.slice(0, 3);
+  useEffect(() => {
+    // 1. Initial check from stored profile
+    const stored = getStoredProfile();
+    if (stored?.name) setUserName(stored.name);
+    if (stored?.email) setUserEmail(stored.email);
+
+    // 2. Fetch fresh profile and notification counts from backend
+    if (getAuthToken()) {
+      api.auth.getProfile()
+        .then((profile) => {
+          if (profile?.name) setUserName(profile.name);
+          if (profile?.email) setUserEmail(profile.email);
+        })
+        .catch(() => {
+          // Keep stored/fallback info
+        });
+
+      api.notifications.list({ limit: 5 })
+        .then((res) => {
+          if (res?.data && res.data.length > 0) {
+            setLiveNotifications(res.data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  // Derive unread count from live notifications dataset
+  const unreadCount = liveNotifications.filter((n) => !n.read).length;
+  const recentNotifications = liveNotifications.slice(0, 3);
 
   const breadcrumbs = getBreadcrumbs(pathname || "");
 
@@ -119,7 +148,12 @@ export function AdminHeader({
     };
   }, []);
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      await api.auth.logout();
+    } catch {
+      // Ignored
+    }
     router.replace("/login");
   };
 

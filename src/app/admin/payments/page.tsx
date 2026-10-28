@@ -23,6 +23,7 @@ import { MOCK_PAYMENTS, MOCK_PAYMENT_METRICS } from "@/mocks/payments";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatINR } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 export default function AdminPaymentsPage() {
   const [payments, setPayments] = useState<PaymentRecord[]>(MOCK_PAYMENTS);
@@ -39,6 +40,17 @@ export default function AdminPaymentsPage() {
     setToastMessage({ text, type });
     setTimeout(() => setToastMessage(null), 4000);
   };
+
+  React.useEffect(() => {
+    api.payments.list({ limit: 50 })
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setPayments(res.data);
+          setSelectedPayment(res.data[0]);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Filter logic
   const filteredPayments = useMemo(() => {

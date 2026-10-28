@@ -26,6 +26,7 @@ import {
 import { MOCK_NOTIFICATIONS } from "@/mocks/notifications";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { api } from "@/lib/api";
 
 export default function AdminNotificationsPage() {
   const [notifications, setNotifications] = useState<OperationalNotification[]>(
@@ -86,15 +87,56 @@ export default function AdminNotificationsPage() {
     setStatusFilter("ALL");
   };
 
-  const handleMarkAsRead = (id: string) => {
+  const loadNotifications = () => {
+    api.notifications.list({ limit: 50 })
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setNotifications(res.data);
+          setSelectedNotification(res.data[0]);
+        }
+      })
+      .catch(() => {});
+  };
+
+  React.useEffect(() => {
+    loadNotifications();
+  }, []);
+
+  const handleMarkAsRead = async (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
     if (selectedNotification && selectedNotification.id === id) {
       setSelectedNotification({ ...selectedNotification, read: true });
     }
+    try {
+      await api.notifications.markAsRead(id);
+    } catch {}
     setToastMessage("Notification marked as read.");
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleExecuteBroadcast = async () => {
+    try {
+      const res = await api.notifications.broadcast({
+        title: broadcastTitle.trim() || "Operational Announcement",
+        message: broadcastNote.trim() || "Operational advisory for platform users.",
+        scope: broadcastScope,
+        severity: broadcastSeverity,
+      });
+      if (res?.notification) {
+        setNotifications((prev) => [res.notification, ...prev]);
+        setSelectedNotification(res.notification);
+      }
+      setBroadcastModalOpen(false);
+      setBroadcastTitle("");
+      setBroadcastNote("");
+      setToastMessage("Broadcast dispatched across operational network.");
+    } catch (err: any) {
+      setBroadcastModalOpen(false);
+      setToastMessage(err?.message || "Failed to dispatch broadcast.");
+    }
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
   const handleBroadcastSubmit = (e: React.FormEvent) => {
@@ -605,12 +647,12 @@ export default function AdminNotificationsPage() {
               </div>
             </div>
 
-            <div className="p-3.5 bg-[#FFFBEB] border border-[#FDE68A] rounded-[8px] text-xs text-[#B45309] space-y-1.5">
+            <div className="p-3.5 bg-[#ECFDF5] border border-[#A7F3D0] rounded-[8px] text-xs text-[#20885A] space-y-1.5">
               <p className="font-medium">
-                Not connected in this build
+                Live Administrative Broadcast Dispatch
               </p>
               <p className="text-[11px] leading-relaxed">
-                Administrative broadcast push dispatch requires live push gateway integration. In this frontend-only build, broadcast records are demonstrated locally.
+                Publish this broadcast announcement across selected recipient app interfaces with immediate notification log recording.
               </p>
             </div>
 
@@ -628,10 +670,18 @@ export default function AdminNotificationsPage() {
 
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
+                type="button"
                 onClick={() => setBroadcastModalOpen(false)}
-                className="px-4 py-2 bg-[#111111] text-white rounded-[8px] text-xs font-medium hover:bg-[#333333] transition-colors"
+                className="px-3 py-1.5 bg-white border border-[#E4E0DB] text-[#6B6667] rounded-[8px] text-xs font-medium hover:bg-[#F7F7F5] transition-colors"
               >
-                Acknowledge & Close
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteBroadcast}
+                className="px-4 py-2 bg-[#FF5A1F] text-white rounded-[8px] text-xs font-medium hover:bg-[#D94B17] transition-colors"
+              >
+                Dispatch Broadcast
               </button>
             </div>
           </div>

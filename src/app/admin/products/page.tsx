@@ -10,6 +10,7 @@ import {
   ProductListingStatus,
 } from "@/types/products";
 import { getDemoProducts, generateProductsCSV } from "@/demo-data/products";
+import { api } from "@/lib/api";
 
 const PAGE_SIZE = 8;
 
@@ -38,17 +39,25 @@ export default function AdminProductsPage() {
       setLoading(true);
     }
 
-    const data = getDemoProducts();
-    setProducts(data);
-    setLoading(false);
-
-    if (showRefreshState) {
-      setTimeout(() => {
-        setIsRefreshing(false);
-        setToastMessage("Catalog view refreshed.");
-        setTimeout(() => setToastMessage(null), 3000);
-      }, 300);
-    }
+    api.products.list({ limit: 100 })
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setProducts(res.data);
+        } else {
+          setProducts(getDemoProducts());
+        }
+      })
+      .catch(() => {
+        setProducts(getDemoProducts());
+      })
+      .finally(() => {
+        setLoading(false);
+        if (showRefreshState) {
+          setIsRefreshing(false);
+          setToastMessage("Catalog view refreshed.");
+          setTimeout(() => setToastMessage(null), 3000);
+        }
+      });
   };
 
   useEffect(() => {

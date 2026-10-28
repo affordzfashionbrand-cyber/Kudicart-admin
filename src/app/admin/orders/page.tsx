@@ -29,6 +29,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ManualDeliveryAssignmentDrawer } from "@/components/admin/ManualDeliveryAssignmentDrawer";
 import { formatINR } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 type TabFilter = "ALL" | OrderStatus;
 
@@ -75,7 +76,7 @@ export default function AdminMarketplaceOrdersPage() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Load demonstration orders
+  // Load orders from backend with graceful demo fallback
   const loadOrders = useCallback((isRefresh = false) => {
     if (isRefresh) {
       setIsRefreshing(true);
@@ -83,16 +84,24 @@ export default function AdminMarketplaceOrdersPage() {
       setIsLoading(true);
     }
 
-    const data = getDemoOrders();
-    setOrders(data);
-    setIsLoading(false);
-
-    if (isRefresh) {
-      setTimeout(() => {
-        setIsRefreshing(false);
-        showToast("Orders list refreshed.");
-      }, 300);
-    }
+    api.orders.list({ limit: 100 })
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setOrders(res.data);
+        } else {
+          setOrders(getDemoOrders());
+        }
+      })
+      .catch(() => {
+        setOrders(getDemoOrders());
+      })
+      .finally(() => {
+        setIsLoading(false);
+        if (isRefresh) {
+          setIsRefreshing(false);
+          showToast("Orders list refreshed.");
+        }
+      });
   }, []);
 
   useEffect(() => {
@@ -209,12 +218,16 @@ export default function AdminMarketplaceOrdersPage() {
     setIsDrawerOpen(true);
   };
 
-  // Handle assignment completion in UI-only mode
+  // Handle assignment completion
   const handleConfirmAssignment = async (orderId: string, driver: DeliveryPartner) => {
-    showToast(
-      "Not connected in this build: Delivery partner assignment requires backend service.",
-      "error"
-    );
+    try {
+      await api.orders.assignDriver(orderId, driver.id);
+      showToast(`Order assigned to ${driver.fullName} successfully.`, "success");
+      loadOrders();
+    } catch (err: any) {
+      showToast(err?.message || "Failed to assign delivery partner.", "error");
+      throw err;
+    }
   };
 
   // Clear all filters

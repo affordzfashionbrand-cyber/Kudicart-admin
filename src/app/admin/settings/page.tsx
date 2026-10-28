@@ -32,6 +32,7 @@ import {
   DEFAULT_WORKSPACE_PREFERENCES,
   MOCK_ACTIVE_SESSION,
 } from "@/mocks/settings";
+import { api } from "@/lib/api";
 
 export default function AdminSettingsPage() {
   const [profile] = useState<AdminAccountProfile>(MOCK_ADMIN_PROFILE);
@@ -43,7 +44,7 @@ export default function AdminSettingsPage() {
   const [tokenModalOpen, setTokenModalOpen] = useState<boolean>(false);
   const [logoutModalOpen, setLogoutModalOpen] = useState<boolean>(false);
 
-  // Load preferences from localStorage if available
+  // Load preferences from backend API or localStorage fallback
   useEffect(() => {
     try {
       const stored = localStorage.getItem("kudicart_workspace_prefs");
@@ -53,17 +54,29 @@ export default function AdminSettingsPage() {
     } catch {
       // Ignore local storage error
     }
+
+    api.settings.getPreferences()
+      .then((prefs) => {
+        if (prefs) setPreferences(prefs);
+      })
+      .catch(() => {});
   }, []);
 
-  const savePreferences = (newPrefs: WorkspacePreferences) => {
+  const savePreferences = async (newPrefs: WorkspacePreferences) => {
     setPreferences(newPrefs);
     try {
       localStorage.setItem("kudicart_workspace_prefs", JSON.stringify(newPrefs));
-      setFeedback("Workspace preferences updated.");
-      setTimeout(() => setFeedback(null), 3000);
     } catch {
       // Ignore local storage error
     }
+
+    try {
+      await api.settings.savePreferences(newPrefs);
+      setFeedback("Workspace preferences synchronized with server.");
+    } catch {
+      setFeedback("Workspace preferences updated locally.");
+    }
+    setTimeout(() => setFeedback(null), 3000);
   };
 
   const handleResetCache = () => {
@@ -77,7 +90,12 @@ export default function AdminSettingsPage() {
     }
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      await api.auth.logout();
+    } catch {
+      // Ignore
+    }
     try {
       localStorage.clear();
       sessionStorage.clear();

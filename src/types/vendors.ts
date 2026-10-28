@@ -1,4 +1,4 @@
-export type VendorApprovalStatus = "PENDING_REVIEW" | "ACTIVE" | "SUSPENDED" | "DOCS_SUBMITTED" | "KYC_PENDING";
+export type VendorApprovalStatus = "PENDING_REVIEW" | "ACTIVE" | "SUSPENDED" | "DOCS_SUBMITTED" | "KYC_PENDING" | "REJECTED";
 
 export interface VendorDocument {
   id: string;

@@ -29,6 +29,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ManualDeliveryAssignmentDrawer } from "@/components/admin/ManualDeliveryAssignmentDrawer";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatINR } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 export default function AdminOrderDetailPage() {
   const params = useParams();
@@ -48,20 +49,31 @@ export default function AdminOrderDetailPage() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Load order by ID from demonstration dataset
+  // Load order by ID from backend or demonstration dataset
   useEffect(() => {
     if (!orderId) return;
 
     setIsLoading(true);
     setLoadError(null);
 
-    const found = getDemoOrderById(orderId);
-    if (found) {
-      setOrder(found);
-    } else {
-      setLoadError(`Could not locate marketplace record for identifier "${orderId}".`);
-    }
-    setIsLoading(false);
+    api.orders.getById(orderId)
+      .then((res) => {
+        if (res && res.id) {
+          setOrder(res);
+        } else {
+          const found = getDemoOrderById(orderId);
+          if (found) setOrder(found);
+          else setLoadError(`Could not locate marketplace record for identifier "${orderId}".`);
+        }
+      })
+      .catch(() => {
+        const found = getDemoOrderById(orderId);
+        if (found) setOrder(found);
+        else setLoadError(`Could not locate marketplace record for identifier "${orderId}".`);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, [orderId]);
 
   if (isLoading) {
@@ -105,10 +117,18 @@ export default function AdminOrderDetailPage() {
   const totalUnits = order.items.reduce((acc, it) => acc + it.quantity, 0);
 
   const handleConfirmAssignment = async (assignedOrderId: string, driver: DeliveryPartner) => {
-    showToast(
-      "Not connected in this build: Delivery partner assignment requires backend service.",
-      "error"
-    );
+    try {
+      const res = await api.orders.assignDriver(assignedOrderId, driver.id);
+      if (res?.order) {
+        setOrder(res.order);
+      } else {
+        setOrder((prev) => prev ? { ...prev, status: "ASSIGNED", assignedDriver: driver } : null);
+      }
+      showToast(`Order assigned to ${driver.fullName} successfully.`, "success");
+    } catch (err: any) {
+      showToast(err?.message || "Failed to assign delivery partner.", "error");
+      throw err;
+    }
   };
 
   const handlePrintInvoice = () => {

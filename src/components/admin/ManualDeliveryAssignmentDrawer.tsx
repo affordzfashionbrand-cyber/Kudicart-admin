@@ -5,6 +5,7 @@ import { Order } from "@/types/orders";
 import { DeliveryPartner } from "@/types/drivers";
 import { getDemoDeliveryPartners } from "@/demo-data/drivers";
 import { formatINR } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 interface ManualDeliveryAssignmentDrawerProps {
   order: Order | null;
@@ -50,6 +51,15 @@ export function ManualDeliveryAssignmentDrawer({
 
       const demoDrivers = getDemoDeliveryPartners();
       setDrivers(demoDrivers);
+
+      // Fetch live available standby drivers from backend
+      api.deliveryPartners.list({ limit: 50 })
+        .then((res) => {
+          if (res?.data && res.data.length > 0) {
+            setDrivers(res.data);
+          }
+        })
+        .catch(() => {});
     }
   }, [isOpen]);
 
@@ -143,9 +153,26 @@ export function ManualDeliveryAssignmentDrawer({
     }
 
     setErrorMessage(null);
-    setNoticeMessage(
-      `Backend integration pending: Manual delivery partner assignment for Order #${order.orderNumber} to ${selectedDriver.fullName} requires server connectivity and is not available in UI-only mode.`
-    );
+    setNoticeMessage(null);
+    setIsSubmitting(true);
+
+    try {
+      if (onConfirmAssignment) {
+        await onConfirmAssignment(order.id, selectedDriver);
+      } else {
+        await api.orders.assignDriver(order.id, selectedDriver.id);
+      }
+      setSuccessMessage(
+        `Order #${order.orderNumber} successfully assigned to ${selectedDriver.fullName}.`
+      );
+      setTimeout(() => {
+        setIsSubmitting(false);
+        onClose();
+      }, 1000);
+    } catch (err: any) {
+      setIsSubmitting(false);
+      setErrorMessage(err?.message || "Failed to confirm manual delivery assignment.");
+    }
   };
 
   return (

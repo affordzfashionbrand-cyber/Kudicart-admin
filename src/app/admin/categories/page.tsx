@@ -1,13 +1,28 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { CategoryItem } from "@/types/categories";
 import { getDemoCategories, generateCategoriesCSV } from "@/demo-data/categories";
+import { api } from "@/lib/api";
 
 export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState<CategoryItem[]>(getDemoCategories());
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+
+  const loadCategories = useCallback(() => {
+    api.categories.list()
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setCategories(res.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadCategories();
+  }, [loadCategories]);
 
   // Modal / Drawer state
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -85,11 +100,23 @@ export default function AdminCategoriesPage() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleSaveCategory = (e: React.FormEvent) => {
+  const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
     setIsDrawerOpen(false);
-    showToast("Not connected in this build. Category persistence requires backend connectivity.");
+
+    try {
+      if (editingCategory) {
+        await api.categories.update(editingCategory.id, formData);
+        showToast(`Category "${formData.name}" updated successfully.`);
+      } else {
+        await api.categories.create(formData);
+        showToast(`Category "${formData.name}" created successfully.`);
+      }
+      loadCategories();
+    } catch (err: any) {
+      showToast(err?.message || "Failed to persist category.");
+    }
   };
 
   const handleExportCSV = () => {

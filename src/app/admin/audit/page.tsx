@@ -21,6 +21,7 @@ import { AuditEvent } from "@/types/audit";
 import { MOCK_AUDIT_EVENTS } from "@/mocks/audit";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { api } from "@/lib/api";
 
 export default function AdminAuditPage() {
   const [events, setEvents] = useState<AuditEvent[]>(MOCK_AUDIT_EVENTS);
@@ -40,6 +41,17 @@ export default function AdminAuditPage() {
     setToastMessage({ text, type });
     setTimeout(() => setToastMessage(null), 4000);
   };
+
+  React.useEffect(() => {
+    api.audit.list({ limit: 50 })
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setEvents(res.data);
+          setSelectedEvent(res.data[0]);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const pageSize = 8;
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { Order, OrderStatus } from "@/types/orders";
 import { DeliveryPartner } from "@/types/drivers";
@@ -8,11 +8,12 @@ import { getDemoOrders } from "@/demo-data/orders";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ManualDeliveryAssignmentDrawer } from "@/components/admin/ManualDeliveryAssignmentDrawer";
 import { formatINR } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 type AssignmentTab = "READY" | "ASSIGNED" | "ALL";
 
 export default function AdminAssignmentsPage() {
-  const [orders] = useState<Order[]>(getDemoOrders());
+  const [orders, setOrders] = useState<Order[]>(getDemoOrders());
   const [activeTab, setActiveTab] = useState<AssignmentTab>("READY");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -23,6 +24,20 @@ export default function AdminAssignmentsPage() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4000);
   };
+
+  const loadAssignments = useCallback(() => {
+    api.assignments.list()
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setOrders(res.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    loadAssignments();
+  }, [loadAssignments]);
 
   // Filter orders
   const filteredOrders = useMemo(() => {
@@ -54,9 +69,14 @@ export default function AdminAssignmentsPage() {
   };
 
   const handleConfirmAssignment = async (orderId: string, driver: DeliveryPartner) => {
-    showToast(
-      `Backend integration pending: Manual delivery partner assignment requires server connectivity and is not available in UI-only mode.`
-    );
+    try {
+      await api.assignments.assign(orderId, driver.id);
+      showToast(`Assigned Order #${orderId} to ${driver.fullName} successfully.`);
+      loadAssignments();
+    } catch (err: any) {
+      showToast(err?.message || "Failed to assign driver.");
+      throw err;
+    }
   };
 
   return (

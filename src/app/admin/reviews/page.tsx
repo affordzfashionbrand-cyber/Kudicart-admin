@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Star,
   Download,
@@ -19,6 +19,7 @@ import { AdminReviewItem } from "@/types/reviews";
 import { MOCK_REVIEWS, MOCK_REVIEWS_METRICS } from "@/mocks/reviews";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { api } from "@/lib/api";
 
 export default function AdminReviewsPage() {
   const [reviews, setReviews] = useState<AdminReviewItem[]>(MOCK_REVIEWS);
@@ -37,6 +38,17 @@ export default function AdminReviewsPage() {
     setToastMessage({ text, type });
     setTimeout(() => setToastMessage(null), 4000);
   };
+
+  useEffect(() => {
+    api.reviews.list({ limit: 50 })
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setReviews(res.data);
+          setSelectedReview(res.data[0]);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const filteredReviews = useMemo(() => {
     return reviews.filter((r) => {
@@ -89,19 +101,36 @@ export default function AdminReviewsPage() {
     showToast(`Exported ${filteredReviews.length} reviews to CSV.`);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
+    if (!deleteModalReview) return;
+    const targetId = deleteModalReview.id;
     setDeleteModalReview(null);
-    showToast(
-      "Not connected in this build: Review removal requires backend moderation service.",
-      "error"
-    );
+
+    try {
+      await api.reviews.delete(targetId);
+      setReviews((prev) => prev.filter((r) => r.id !== targetId));
+      if (selectedReview?.id === targetId) {
+        setSelectedReview(null);
+      }
+      showToast(`Review #${targetId} removed successfully.`, "success");
+    } catch (err: any) {
+      showToast(err?.message || "Failed to remove review.", "error");
+    }
   };
 
-  const handleApproveFlagged = (revId: string) => {
-    showToast(
-      "Not connected in this build: Review approval requires backend moderation service.",
-      "error"
-    );
+  const handleApproveFlagged = async (revId: string) => {
+    try {
+      await api.reviews.moderate(revId, "PUBLISHED");
+      setReviews((prev) =>
+        prev.map((r) => (r.id === revId ? { ...r, status: "PUBLISHED" } : r))
+      );
+      if (selectedReview?.id === revId) {
+        setSelectedReview((prev) => (prev ? { ...prev, status: "PUBLISHED" } : null));
+      }
+      showToast(`Review #${revId} approved and published.`, "success");
+    } catch (err: any) {
+      showToast(err?.message || "Failed to approve review.", "error");
+    }
   };
 
   return (

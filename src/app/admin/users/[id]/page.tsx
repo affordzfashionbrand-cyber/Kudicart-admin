@@ -7,6 +7,7 @@ import { CustomerUser } from "@/types/users";
 import { getDemoCustomerById } from "@/demo-data/users";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 type DetailTab = "ORDERS" | "ADDRESSES" | "REVIEWS" | "TICKETS";
 
@@ -30,14 +31,24 @@ export default function AdminCustomerDetailPage() {
     setIsLoading(true);
     setError(null);
 
-    const found = getDemoCustomerById(customerId);
-    if (found) {
-      setCustomer(found);
-    } else {
-      setCustomer(null);
-      setError(`Customer record "${customerId}" was not found.`);
-    }
-    setIsLoading(false);
+    api.users.getById(customerId)
+      .then((res) => {
+        if (res && res.id) {
+          setCustomer(res);
+        } else {
+          const found = getDemoCustomerById(customerId);
+          if (found) setCustomer(found);
+          else setError(`Customer record "${customerId}" was not found.`);
+        }
+      })
+      .catch(() => {
+        const found = getDemoCustomerById(customerId);
+        if (found) setCustomer(found);
+        else setError(`Customer record "${customerId}" was not found.`);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   };
 
   useEffect(() => {
@@ -50,10 +61,18 @@ export default function AdminCustomerDetailPage() {
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  const handleToggleStatus = () => {
+  const handleToggleStatus = async () => {
     if (!customer) return;
-    setIsSuspendModalOpen(false);
-    setToastMessage("Not connected in this build. Customer status modification requires backend connectivity.");
+    const newStatus = customer.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
+    try {
+      await api.users.updateStatus(customerId, { status: newStatus });
+      setCustomer((prev) => prev ? { ...prev, status: newStatus } : null);
+      setIsSuspendModalOpen(false);
+      setToastMessage(`Customer status successfully changed to ${newStatus}.`);
+    } catch (err: any) {
+      setIsSuspendModalOpen(false);
+      setToastMessage(err?.message || "Failed to update customer status.");
+    }
     setTimeout(() => setToastMessage(null), 4000);
   };
 

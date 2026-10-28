@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Download,
@@ -23,6 +23,7 @@ import { MOCK_TICKETS } from "@/mocks/support";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatINR } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 export default function AdminSupportPage() {
   const [tickets, setTickets] = useState<SupportTicketItem[]>(MOCK_TICKETS);
@@ -38,6 +39,17 @@ export default function AdminSupportPage() {
     setToastMessage({ text, type });
     setTimeout(() => setToastMessage(null), 4000);
   };
+
+  useEffect(() => {
+    api.support.list({ limit: 50 })
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setTickets(res.data);
+          setSelectedTicket(res.data[0]);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Tab counts
   const allCount = tickets.length;
@@ -106,11 +118,18 @@ export default function AdminSupportPage() {
     showToast(`Exported ${filteredTickets.length} support tickets.`);
   };
 
-  const handleTransition = (newStatus: TicketStatus) => {
-    showToast(
-      "Not connected in this build: Ticket status transitions require backend service.",
-      "error"
-    );
+  const handleTransition = async (newStatus: TicketStatus) => {
+    if (!selectedTicket) return;
+    try {
+      await api.support.updateTicket(selectedTicket.id, { status: newStatus });
+      setTickets((prev) =>
+        prev.map((t) => (t.id === selectedTicket.id ? { ...t, status: newStatus } : t))
+      );
+      setSelectedTicket((prev) => (prev ? { ...prev, status: newStatus } : null));
+      showToast(`Ticket #${selectedTicket.id} updated to ${newStatus}.`, "success");
+    } catch (err: any) {
+      showToast(err?.message || "Failed to update ticket status.", "error");
+    }
   };
 
   return (

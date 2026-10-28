@@ -23,6 +23,7 @@ import { getDemoDeliveryPartners } from "@/demo-data/drivers";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { api } from "@/lib/api";
 
 export default function AdminDeliveryPartnersPage() {
   const [partners, setPartners] = useState<DeliveryPartner[]>([]);
@@ -41,9 +42,20 @@ export default function AdminDeliveryPartnersPage() {
 
   const loadData = () => {
     setLoading(true);
-    const data = getDemoDeliveryPartners();
-    setPartners(data);
-    setLoading(false);
+    api.deliveryPartners.list({ limit: 100 })
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setPartners(res.data);
+        } else {
+          setPartners(getDemoDeliveryPartners());
+        }
+      })
+      .catch(() => {
+        setPartners(getDemoDeliveryPartners());
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   };
 
   useEffect(() => {

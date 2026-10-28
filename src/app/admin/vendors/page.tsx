@@ -5,6 +5,7 @@ import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { VendorBoutique } from "@/types/vendors";
 import { getDemoVendors, generateVendorsCSV } from "@/demo-data/vendors";
+import { api } from "@/lib/api";
 
 const PAGE_SIZE = 8;
 
@@ -25,9 +26,20 @@ export default function AdminVendorsPage() {
 
   useEffect(() => {
     setLoading(true);
-    const data = getDemoVendors();
-    setVendors(data);
-    setLoading(false);
+    api.vendors.list({ limit: 100 })
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setVendors(res.data);
+        } else {
+          setVendors(getDemoVendors());
+        }
+      })
+      .catch(() => {
+        setVendors(getDemoVendors());
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   // Dynamic status counts

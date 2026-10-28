@@ -6,6 +6,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { CustomerUser } from "@/types/users";
 import { getDemoCustomers, generateCustomersCSV } from "@/demo-data/users";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 export default function AdminUsersPage() {
   const [customers, setCustomers] = useState<CustomerUser[]>([]);
@@ -21,13 +22,25 @@ export default function AdminUsersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
 
-  // Load demonstration customers
+  // Load customers from backend with demo fallback
   const loadCustomers = () => {
     setIsLoading(true);
     setError(null);
-    const data = getDemoCustomers();
-    setCustomers(data);
-    setIsLoading(false);
+
+    api.users.list({ limit: 100 })
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setCustomers(res.data);
+        } else {
+          setCustomers(getDemoCustomers());
+        }
+      })
+      .catch(() => {
+        setCustomers(getDemoCustomers());
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   };
 
   useEffect(() => {

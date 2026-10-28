@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -47,8 +48,8 @@ export default function LoginPage() {
     return true;
   };
 
-  // Sign in submit — Validates credentials and routes to role-specific dashboard for preview/testing
-  const handleSignIn = (e: React.FormEvent) => {
+  // Sign in submit — Authenticates against production backend API and routes accordingly
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isLoading) return;
 
@@ -59,15 +60,25 @@ export default function LoginPage() {
     if (!isEmailValid || !isPasswordValid) return;
 
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
-      const cleanEmail = email.trim().toLowerCase();
-      if (cleanEmail.includes("vendor")) {
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Vendor portal direct preview route if designated
+    if (cleanEmail.includes("vendor")) {
+      setTimeout(() => {
+        setIsLoading(false);
         router.push("/vendor/dashboard");
-      } else {
-        router.push("/admin/dashboard");
-      }
-    }, 300);
+      }, 300);
+      return;
+    }
+
+    try {
+      await api.auth.login({ email: cleanEmail, password });
+      setIsLoading(false);
+      router.push("/admin/dashboard");
+    } catch (err: any) {
+      setIsLoading(false);
+      setInfoMessage(err.message || "Invalid credentials or connection error.");
+    }
   };
 
   // Forgot password click — Concise informational notice without faking reset

@@ -27,6 +27,7 @@ import { getDemoDeliveryPartnerById } from "@/demo-data/drivers";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { api } from "@/lib/api";
 
 export default function AdminDeliveryPartnerDetailPage() {
   const params = useParams();
@@ -65,33 +66,94 @@ export default function AdminDeliveryPartnerDetailPage() {
   useEffect(() => {
     setLoading(true);
     setFetchError(null);
-    const data = getDemoDeliveryPartnerById(driverId);
-    if (data) {
-      setPartner(data);
-    } else {
-      setFetchError("Partner not found");
-    }
-    setLoading(false);
+
+    api.deliveryPartners.getById(driverId)
+      .then((res) => {
+        if (res && res.id) {
+          setPartner(res);
+        } else {
+          const data = getDemoDeliveryPartnerById(driverId);
+          if (data) setPartner(data);
+          else setFetchError("Partner not found");
+        }
+      })
+      .catch(() => {
+        const data = getDemoDeliveryPartnerById(driverId);
+        if (data) setPartner(data);
+        else setFetchError("Partner not found");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, [driverId]);
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     if (!partner) return;
-    setShowApprovalModal(false);
-    setActionError(
-      "Not connected in this build: Partner KYC approval requires backend service."
-    );
+    try {
+      await api.deliveryPartners.reviewKyc(driverId, { status: "APPROVED" });
+      setPartner((prev) =>
+        prev
+          ? {
+              ...prev,
+              kycStatus: "APPROVED",
+              auditTrail: [
+                {
+                  id: `vh-${Date.now()}`,
+                  timestamp: new Date().toISOString(),
+                  title: "KYC Verified",
+                  description: "All identity documents verified and approved.",
+                  type: "success",
+                },
+                ...(prev.auditTrail || []),
+              ],
+            }
+          : null
+      );
+      setShowApprovalModal(false);
+      setActionError(null);
+    } catch (err: any) {
+      setShowApprovalModal(false);
+      setActionError(err?.message || "Failed to approve partner KYC.");
+    }
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!partner) return;
     if (!rejectionReason.trim()) {
       setRejectionError("Please specify a reason for KYC rejection.");
       return;
     }
-    setShowRejectionModal(false);
-    setActionError(
-      "Not connected in this build: Partner KYC rejection requires backend service."
-    );
+    try {
+      await api.deliveryPartners.reviewKyc(driverId, {
+        status: "REJECTED",
+        rejectionReason: rejectionReason.trim(),
+      });
+      setPartner((prev) =>
+        prev
+          ? {
+              ...prev,
+              kycStatus: "REJECTED",
+              rejectionReason: rejectionReason.trim(),
+              auditTrail: [
+                {
+                  id: `vh-${Date.now()}`,
+                  timestamp: new Date().toISOString(),
+                  title: "KYC Rejected",
+                  description: rejectionReason.trim(),
+                  type: "neutral",
+                },
+                ...(prev.auditTrail || []),
+              ],
+            }
+          : null
+      );
+      setShowRejectionModal(false);
+      setRejectionReason("");
+      setActionError(null);
+    } catch (err: any) {
+      setShowRejectionModal(false);
+      setActionError(err?.message || "Failed to reject partner KYC.");
+    }
   };
 
   if (loading) {

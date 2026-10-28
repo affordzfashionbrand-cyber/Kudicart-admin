@@ -3,8 +3,12 @@ import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { MOCK_ORDERS } from "@/mocks/orders";
 
-export function RecentOrdersTable() {
-  const recentOrders = MOCK_ORDERS.slice(0, 6);
+interface RecentOrdersTableProps {
+  orders?: any[];
+}
+
+export function RecentOrdersTable({ orders }: RecentOrdersTableProps = {}) {
+  const recentOrders = orders && orders.length > 0 ? orders : MOCK_ORDERS.slice(0, 6);
 
   return (
     <section className="bg-white border border-[#E4E0DB] rounded-[10px] overflow-hidden shadow-xs">

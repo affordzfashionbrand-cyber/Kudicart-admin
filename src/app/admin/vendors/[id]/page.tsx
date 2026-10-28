@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { VendorBoutique, VendorDocument } from "@/types/vendors";
 import { getDemoVendorById } from "@/demo-data/vendors";
+import { api } from "@/lib/api";
 
 export default function AdminVendorDetailPage() {
   const params = useParams();
@@ -30,13 +31,24 @@ export default function AdminVendorDetailPage() {
     setLoading(true);
     setError(null);
 
-    const found = getDemoVendorById(vendorId);
-    if (found) {
-      setVendor(found);
-    } else {
-      setError(`Vendor boutique record "${vendorId}" was not found.`);
-    }
-    setLoading(false);
+    api.vendors.getById(vendorId)
+      .then((res) => {
+        if (res && res.id) {
+          setVendor(res);
+        } else {
+          const found = getDemoVendorById(vendorId);
+          if (found) setVendor(found);
+          else setError(`Vendor boutique record "${vendorId}" was not found.`);
+        }
+      })
+      .catch(() => {
+        const found = getDemoVendorById(vendorId);
+        if (found) setVendor(found);
+        else setError(`Vendor boutique record "${vendorId}" was not found.`);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, [vendorId]);
 
   const copyToClipboard = (text: string, field: string) => {
@@ -46,24 +58,46 @@ export default function AdminVendorDetailPage() {
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     if (!vendor) return;
-    setIsApproveModalOpen(false);
-    setToastMessage("Not connected in this build. Vendor approval requires backend connectivity.");
+    try {
+      await api.vendors.approve(vendorId);
+      setVendor((prev) => prev ? { ...prev, status: "ACTIVE" } : null);
+      setIsApproveModalOpen(false);
+      setToastMessage(`Vendor ${vendor.storeName} approved successfully.`);
+    } catch (err: any) {
+      setIsApproveModalOpen(false);
+      setToastMessage(err?.message || "Failed to approve vendor.");
+    }
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!vendor) return;
-    setIsRejectModalOpen(false);
-    setToastMessage("Not connected in this build. Vendor rejection requires backend connectivity.");
+    try {
+      await api.vendors.reject(vendorId, rejectReason);
+      setVendor((prev) => prev ? { ...prev, status: "REJECTED" } : null);
+      setIsRejectModalOpen(false);
+      setToastMessage(`Vendor ${vendor.storeName} rejected.`);
+    } catch (err: any) {
+      setIsRejectModalOpen(false);
+      setToastMessage(err?.message || "Failed to reject vendor.");
+    }
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const handleSuspend = () => {
+  const handleSuspend = async () => {
     if (!vendor) return;
-    setIsSuspendModalOpen(false);
-    setToastMessage("Not connected in this build. Vendor suspension requires backend connectivity.");
+    try {
+      const res = await api.vendors.toggleSuspend(vendorId);
+      const newStatus = res?.vendor?.status || (vendor.status === "SUSPENDED" ? "ACTIVE" : "SUSPENDED");
+      setVendor((prev) => prev ? { ...prev, status: newStatus } : null);
+      setIsSuspendModalOpen(false);
+      setToastMessage(`Vendor ${vendor.storeName} status changed to ${newStatus}.`);
+    } catch (err: any) {
+      setIsSuspendModalOpen(false);
+      setToastMessage(err?.message || "Failed to toggle vendor suspension.");
+    }
     setTimeout(() => setToastMessage(null), 4000);
   };
 

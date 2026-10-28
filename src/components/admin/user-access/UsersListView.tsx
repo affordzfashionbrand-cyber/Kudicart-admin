@@ -20,6 +20,7 @@ import {
 import { AdminUserAccount, AdminRoleType } from "@/types/user-access";
 import { DEMO_ADMIN_USERS, DEMO_ADMIN_ROLES } from "@/demo-data/user-access";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { api } from "@/lib/api";
 
 export function UsersListView() {
   const [users, setUsers] = useState<AdminUserAccount[]>(DEMO_ADMIN_USERS);
@@ -37,6 +38,16 @@ export function UsersListView() {
   const [newEmail, setNewEmail] = useState("");
   const [newRole, setNewRole] = useState<AdminRoleType>("Marketplace Operations");
   const [newDepartment, setNewDepartment] = useState("Fulfillment & Dispatch");
+
+  React.useEffect(() => {
+    api.userAccess.listUsers()
+      .then((res) => {
+        if (res?.data && res.data.length > 0) {
+          setUsers(res.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
@@ -65,27 +76,49 @@ export function UsersListView() {
     setStatusFilter("ALL");
   };
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsAddOpen(false);
-    setNewName("");
-    setNewEmail("");
-    setToastMessage("Not connected in this build: Administrative account invitations require backend IAM services.");
+    if (!newName.trim() || !newEmail.trim()) return;
+
+    try {
+      const res = await api.userAccess.inviteUser({
+        name: newName.trim(),
+        email: newEmail.trim(),
+        role: newRole,
+        department: newDepartment,
+      });
+      if (res?.user) {
+        setUsers((prev) => [res.user, ...prev]);
+      }
+      setIsAddOpen(false);
+      setNewName("");
+      setNewEmail("");
+      setToastMessage(`Administrative account invitation dispatched to ${newEmail.trim()}.`);
+    } catch (err: any) {
+      setToastMessage(err?.message || "Failed to invite user.");
+    }
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const handleRoleUpdate = (e: React.FormEvent) => {
+  const handleRoleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editRoleUser) {
+    if (!editRoleUser) return;
+
+    const targetUser = editRoleUser;
+    setEditRoleUser(null);
+
+    try {
+      await api.userAccess.updateRole(targetUser.id, selectedNewRole);
       setUsers((prev) =>
         prev.map((u) =>
-          u.id === editRoleUser.id ? { ...u, role: selectedNewRole } : u
+          u.id === targetUser.id ? { ...u, role: selectedNewRole } : u
         )
       );
-      setToastMessage(`Not connected in this build: Role assignment requires backend authorization.`);
-      setTimeout(() => setToastMessage(null), 3500);
+      setToastMessage(`Role for ${targetUser.name} updated to ${selectedNewRole}.`);
+    } catch (err: any) {
+      setToastMessage(err?.message || "Failed to update role.");
     }
-    setEditRoleUser(null);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
   return (
