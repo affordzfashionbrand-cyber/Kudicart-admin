@@ -477,7 +477,7 @@ export default function AdminProductsPage() {
                     {/* Selling Price */}
                     <td className="px-4 py-0 text-right whitespace-nowrap">
                       <span className="font-semibold text-[#111111] tabular-nums block">
-                        ₹{product.sellingPrice.toLocaleString("en-IN")}
+                        ₹{(product.sellingPrice ?? 0).toLocaleString("en-IN")}
                       </span>
                     </td>
 

@@ -53,7 +53,7 @@ export function FinancialHealthSnapshot({
               </div>
             </div>
             <div className="text-xl sm:text-2xl font-semibold text-[#111111] mt-2 leading-tight">
-              ₹{grossVolume.toLocaleString("en-IN")}
+              ₹{(grossVolume ?? 0).toLocaleString("en-IN")}
             </div>
           </div>
           <span className="text-[11px] text-[#6B6667] block mt-1.5">

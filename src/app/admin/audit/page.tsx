@@ -557,7 +557,7 @@ export default function AdminAuditPage() {
                 <div className="p-3 rounded-[8px] bg-[#1E1B1C] text-[#F1F1EF] font-mono text-[11px] leading-relaxed overflow-x-auto space-y-1">
                   {Object.entries(selectedEvent.changePayload).map(([k, v]) => (
                     <div key={k}>
-                      <span className="text-[#FFB59E]">"{k}"</span>:{" "}
+                      <span className="text-[#FFB59E]">{`"${k}"`}</span>:{" "}
                       <span className="text-[#FDE68A]">
                         {typeof v === "string" ? `"${v}"` : String(v)}
                       </span>

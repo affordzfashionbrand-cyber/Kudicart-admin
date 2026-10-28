@@ -55,13 +55,13 @@ export function RecentOrdersTable({ orders }: RecentOrdersTableProps = {}) {
                   {order.customerName}
                 </td>
                 <td className="px-4 py-0 text-[#6B6667] truncate max-w-[170px]">
-                  {order.vendorName}
+                  {order.vendorName || order.boutiqueName || "Boutique Partner"}
                 </td>
                 <td className="px-4 py-0 text-xs text-[#6B6667] whitespace-nowrap">
-                  {order.fulfillmentType}
+                  {order.fulfillmentType || (order.isTryAndBuy ? "Try & Buy" : "Standard Delivery")}
                 </td>
                 <td className="px-4 py-0 font-semibold text-[#111111] text-right tabular-nums whitespace-nowrap">
-                  ₹{order.grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  ₹{(order.grandTotal ?? order.amount ?? order.totalAmount ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                 </td>
                 <td className="px-4 py-0 text-center whitespace-nowrap">
                   <StatusBadge status={order.status} variant="order" />

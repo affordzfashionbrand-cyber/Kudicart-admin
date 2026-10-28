@@ -29,7 +29,7 @@ export function MarketplaceMetricsGrid({
     {
       id: "gov",
       label: "Gross Order Value",
-      value: `₹${gov.toLocaleString("en-IN")}`,
+      value: `₹${(gov ?? 0).toLocaleString("en-IN")}`,
       description: "Platform transaction volume",
       icon: "payments",
       href: "/admin/ledger",

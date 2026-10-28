@@ -53,6 +53,7 @@ export default function AdminCustomerDetailPage() {
 
   useEffect(() => {
     loadCustomer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerId]);
 
   const handleCopy = (text: string, label: string) => {
@@ -186,7 +187,7 @@ export default function AdminCustomerDetailPage() {
                 Total Spent
               </span>
               <div className="mt-1 text-2xl font-semibold text-[#111111] tabular-nums">
-                ₹{customer.totalSpent.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                ₹{(customer.totalSpent ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
               </div>
               <span className="text-xs text-[#6B6667] mt-0.5 block">Lifetime order volume</span>
             </div>
@@ -302,7 +303,7 @@ export default function AdminCustomerDetailPage() {
                           </td>
                           <td className="px-4 py-0 font-medium text-[#111111]">{order.vendorName}</td>
                           <td className="px-4 py-0 font-semibold text-right text-[#111111] tabular-nums whitespace-nowrap">
-                            ₹{order.totalAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                            ₹{(order.totalAmount ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                           </td>
                           <td className="px-4 py-0 text-center whitespace-nowrap">
                             <StatusBadge status={order.status} variant="order" />

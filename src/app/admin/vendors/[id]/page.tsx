@@ -453,7 +453,7 @@ export default function AdminVendorDetailPage() {
                         <td className="px-4 py-0 font-mono text-xs text-[#6B6667]">{p.sku}</td>
                         <td className="px-4 py-0 text-xs text-[#6B6667]">{p.category}</td>
                         <td className="px-4 py-0 text-right font-mono font-semibold tabular-nums text-[#111111]">
-                          ₹{p.price.toLocaleString("en-IN")}
+                          ₹{(p.price ?? 0).toLocaleString("en-IN")}
                         </td>
                         <td className="px-4 py-0 text-right font-medium tabular-nums text-[#111111]">
                           {p.draftStock}

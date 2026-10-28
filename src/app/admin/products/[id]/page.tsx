@@ -238,12 +238,12 @@ export default function AdminProductDetailPage() {
 
             <div className="flex items-baseline gap-2.5">
               <div className="text-2xl font-semibold text-[#111111] tabular-nums">
-                ₹{product.sellingPrice.toLocaleString("en-IN")}
+                ₹{(product.sellingPrice ?? 0).toLocaleString("en-IN")}
               </div>
               {product.originalPrice && product.originalPrice > product.sellingPrice && (
                 <>
                   <div className="text-[#6B6667] text-xs line-through tabular-nums">
-                    ₹{product.originalPrice.toLocaleString("en-IN")}
+                    ₹{(product.originalPrice ?? 0).toLocaleString("en-IN")}
                   </div>
                   <span className="px-1.5 py-0.2 rounded text-[11px] font-medium bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0]">
                     {discountPercent}% OFF
@@ -256,14 +256,14 @@ export default function AdminProductDetailPage() {
               <div className="flex items-center justify-between text-[#6B6667]">
                 <span>Selling Price</span>
                 <span className="font-medium text-[#111111] tabular-nums">
-                  ₹{product.sellingPrice.toLocaleString("en-IN")}
+                  ₹{(product.sellingPrice ?? 0).toLocaleString("en-IN")}
                 </span>
               </div>
               {product.originalPrice && (
                 <div className="flex items-center justify-between text-[#6B6667]">
                   <span>Maximum Retail Price (MRP)</span>
                   <span className="tabular-nums">
-                    ₹{product.originalPrice.toLocaleString("en-IN")}
+                    ₹{(product.originalPrice ?? 0).toLocaleString("en-IN")}
                   </span>
                 </div>
               )}

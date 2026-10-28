@@ -293,7 +293,7 @@ export default function AdminUsersPage() {
                         {customer.totalOrders}
                       </td>
                       <td className="px-4 py-0 font-semibold text-[#111111] text-right tabular-nums whitespace-nowrap">
-                        ₹{customer.totalSpent.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                        ₹{(customer.totalSpent ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-0 text-center whitespace-nowrap">
                         <StatusBadge status={customer.status} variant="user" />
