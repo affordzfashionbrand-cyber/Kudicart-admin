@@ -199,6 +199,13 @@ export default function AdminProductsPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Link
+            href="/admin/products/new"
+            className="h-9 px-3.5 bg-[#FF5A1F] hover:bg-[#D94B17] text-white rounded-[8px] text-xs font-medium flex items-center gap-1.5 transition-colors shadow-xs"
+          >
+            <span className="material-symbols-outlined text-[18px]">add</span>
+            <span>Add Dark Store Product</span>
+          </Link>
           <button
             type="button"
             onClick={() => loadData(true)}

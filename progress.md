@@ -148,6 +148,12 @@
   - Removed unapproved 12.5% provisional commission calculation on product detail, keeping commercial presentation focused on authentic selling price, MRP, and stock availability.
   - High-resolution gallery preview with asset switcher, narrative description, and verified technical specifications.
   - Inventory and hub assignment details with merchant attribution link to `/admin/vendors/[id]`.
+- **Admin Add Dark Store Product Workflow (`/admin/products/new`):**
+  - Added primary "Add Dark Store Product" CTA to header action bar in `/admin/products`.
+  - Built dedicated `/admin/products/new` page adhering strictly to the Stitch design system (`#FF5A1F`, `#F7F7F5`, `#F4F1EA`, 8px/10px radii, Material Symbols).
+  - Form sections: Product Identity (title, brand default to "Affordz Official Store", description), Pricing & Margin with computed discount badge and validation (selling price, original price / MRP $\ge$ selling price), Category Hierarchy (dynamic backend fetch), Micro-Fulfillment Pod Assignment (dynamic active hub fetch), Sizing & Attributes (multi-select chips, fabric, origin), and Supabase Storage Imagery (live file upload via `api.media.upload`, CDN preview, alt text, additional angles).
+  - Enforced business invariants: Dark Store fulfillment locked (`DARK_STORE`), Try & Buy automatically eligible, and platform ownership bound to `vend-affordz-official` without arbitrary vendor picker.
+  - Verification: `npm run type-check` (code 0) and `npm run build` (32/32 routes static/dynamic, code 0).
 
 ## Phase 9 — Order Management & Manual Assignment — **Status:** [x]
 - **Routes:** `/admin/orders`, `/admin/orders/[id]`

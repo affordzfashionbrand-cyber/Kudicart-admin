@@ -3,6 +3,8 @@
  * Centralized, typed HTTP client interfacing Kudicart-backend (/api/v1/admin/*)
  */
 
+import type { CreateDarkStoreProductInput, DarkStoreHub } from "../types/products";
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
@@ -58,8 +60,9 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getAuthToken();
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers as Record<string, string>),
   };
 
@@ -260,6 +263,16 @@ export const api = {
     },
   },
 
+  hubs: {
+    list: async () => {
+      return request<{
+        success: boolean;
+        data: DarkStoreHub[];
+        total: number;
+      }>("/admin/hubs");
+    },
+  },
+
   products: {
     list: async (params: Record<string, any> = {}) => {
       const qs = new URLSearchParams(params).toString();
@@ -269,6 +282,16 @@ export const api = {
     },
     getById: async (id: string) => {
       return request<any>(`/admin/products/${id}`);
+    },
+    create: async (payload: CreateDarkStoreProductInput) => {
+      return request<{
+        success: boolean;
+        message: string;
+        product: any;
+      }>("/admin/products", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
     },
     updateStatus: async (id: string, status: string) => {
       return request<any>(`/admin/products/${id}/status`, {
@@ -280,6 +303,24 @@ export const api = {
       return request<any>(`/admin/products/${id}/stock`, {
         method: "PATCH",
         body: JSON.stringify({ stock }),
+      });
+    },
+  },
+
+  media: {
+    upload: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return request<{
+        success: boolean;
+        message: string;
+        url: string;
+        filePath: string;
+        size: number;
+        mimetype: string;
+      }>("/admin/media/upload", {
+        method: "POST",
+        body: formData,
       });
     },
   },
@@ -536,4 +577,3 @@ export const api = {
     },
   },
 };
-

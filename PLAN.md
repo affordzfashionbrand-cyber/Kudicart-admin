@@ -138,11 +138,18 @@ Vercel Deployment Validation
 
 # 10. Phase 8 — Product/Catalog Management
 **Status:** [ ]
-- [ ] Admin: All products view.
-- [ ] Vendor: Own products view.
-- [ ] Product CRUD (create, edit, delete).
-- [ ] Product image upload (via backend → Cloudinary).
+- [ ] Admin: All products view (`/admin/products`).
+- [ ] Admin: Add Dark Store Product action & dedicated page (`/admin/products/new`).
+- [ ] Admin: Dark Store hub assignment validation.
+- [ ] Vendor: Own products view (`/vendor/products`).
+- [ ] Product image upload (via backend → Supabase Storage per DCR-002).
 - [ ] Pricing and stock management.
+
+### Concrete Implementation File Bindings
+- Presentation Page: `src/app/admin/products/page.tsx`
+- Product Creation Route: `src/app/admin/products/new/page.tsx`
+- API Client Integration: `src/lib/api.ts` (`api.products.create`, `api.categories.list`, `api.hubs.list`, `api.media.upload`)
+- Product Types & DTOs: `src/types/products.ts`
 
 ---
 

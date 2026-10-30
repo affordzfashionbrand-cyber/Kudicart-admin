@@ -36,3 +36,34 @@ export interface CatalogProduct {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface CreateDarkStoreProductInput {
+  title: string;
+  brand?: string;
+  description: string;
+  categoryId: string;
+  darkStoreHubId: string;
+  price: number;
+  originalPrice: number;
+  stockQuantity: number;
+  readyToShip?: boolean;
+  sizes: string[];
+  fabric?: string;
+  origin?: string;
+  image: string;
+  altText: string;
+  galleryImages?: string[];
+  fulfillmentType?: "DARK_STORE";
+}
+
+export interface DarkStoreHub {
+  id: string;
+  name: string;
+  code?: string;
+  locality?: string;
+  address?: string;
+  city?: string;
+  pincode?: string;
+  isActive?: boolean;
+  slaMinutes?: number;
+}

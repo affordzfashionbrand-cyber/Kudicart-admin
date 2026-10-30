@@ -68,6 +68,18 @@ The web app must NOT implement:
 **Status:** `LOCKED`
 Reporting is limited to approved admin dashboard cards, basic aggregations, and CSV export. No BI platform, Power BI, Tableau, or predictive analytics.
 
+## D-WEB-14 — Affordz Official Store & Dark Store Workflow
+**Status:** `LOCKED`
+The Admin Product Management interface provides an "Add Dark Store Product" workflow exclusively for the Affordz Official Store:
+- Fulfillment type defaults to `DARK_STORE` and cannot be toggled to `VENDOR`.
+- The form contains no vendor selector; backend binds the reserved official store vendor identity.
+- Requires dark store hub selection (`darkStoreHubId`).
+- Vendor products remain strictly within the vendor portal flow.
+
+## D-WEB-15 — Product Media Handling via Supabase Storage (Amended per DCR-002)
+**Status:** `LOCKED`
+Product imagery is uploaded directly to Supabase Storage or through authenticated backend endpoints. The web client stores returned CDN URLs in the product payload. No service-role keys are exposed to the client.
+
 ---
 
 # 3. Account Ownership
