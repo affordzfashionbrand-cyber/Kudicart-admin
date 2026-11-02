@@ -56,8 +56,18 @@ export default function AdminSettingsPage() {
     }
 
     api.settings.getPreferences()
-      .then((prefs) => {
-        if (prefs) setPreferences(prefs);
+      .then((prefs: any) => {
+        if (prefs) {
+          const unwrapped = prefs.data || prefs;
+          setPreferences((prev) => ({
+            ...prev,
+            ...unwrapped,
+            currencyStandard:
+              unwrapped.currencyStandard ||
+              prev.currencyStandard ||
+              DEFAULT_WORKSPACE_PREFERENCES.currencyStandard,
+          }));
+        }
       })
       .catch(() => {});
   }, []);
@@ -315,7 +325,7 @@ export default function AdminSettingsPage() {
                 </label>
                 <div className="relative">
                   <select
-                    value={preferences.defaultPageSize}
+                    value={preferences.defaultPageSize ?? 10}
                     onChange={(e) =>
                       savePreferences({
                         ...preferences,
@@ -343,7 +353,7 @@ export default function AdminSettingsPage() {
                 <div className="relative">
                   <input
                     type="text"
-                    value={preferences.currencyStandard}
+                    value={preferences.currencyStandard || DEFAULT_WORKSPACE_PREFERENCES.currencyStandard}
                     readOnly
                     className="w-full h-[38px] px-3 pr-8 rounded-[8px] bg-[#F7F7F5] border border-[#E4E0DB] text-xs text-[#111111] cursor-not-allowed select-all focus:outline-none"
                   />
@@ -361,7 +371,7 @@ export default function AdminSettingsPage() {
                 </label>
                 <div className="relative">
                   <select
-                    value={preferences.timestampFormat}
+                    value={preferences.timestampFormat || "IST"}
                     onChange={(e) =>
                       savePreferences({
                         ...preferences,

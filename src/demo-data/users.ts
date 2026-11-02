@@ -44,8 +44,8 @@ export function generateCustomersCSV(customers: CustomerUser[]): string {
     "Email Address",
     "Phone Number",
     "Registration Date",
-    "Patron Tier",
-    "KYC Status",
+
+
     "Account Status",
     "Total Orders",
     "Total Spent (INR)",
@@ -64,8 +64,8 @@ export function generateCustomersCSV(customers: CustomerUser[]): string {
     escapeCSV(c.email),
     escapeCSV(c.phone),
     escapeCSV(c.registrationDate),
-    escapeCSV(c.tier),
-    escapeCSV(c.kycLevel),
+
+
     escapeCSV(c.status),
     escapeCSV(c.totalOrders),
     escapeCSV(c.totalSpent.toFixed(2)),

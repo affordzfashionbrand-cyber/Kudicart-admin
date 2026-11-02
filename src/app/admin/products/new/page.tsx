@@ -4,9 +4,20 @@ import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
-import type { CreateDarkStoreProductInput, DarkStoreHub } from "@/types/products";
+import type { CreateDarkStoreProductInput, DarkStoreHub, ProductColor } from "@/types/products";
 
 const AVAILABLE_SIZES = ["XS", "S", "M", "L", "XL", "XXL", "Free Size"];
+
+const PRESET_COLORS: ProductColor[] = [
+  { name: "Raw Honey Silk", hex: "#D4AF37" },
+  { name: "Royal Berry Red", hex: "#881337" },
+  { name: "Emerald Forest", hex: "#064E3B" },
+  { name: "Midnight Obsidian", hex: "#111111" },
+  { name: "Ivory Pearl", hex: "#F5F2EB" },
+  { name: "Kashmir Saffron", hex: "#D97706" },
+  { name: "Indigo Night", hex: "#1E1B4B" },
+  { name: "Blush Rose", hex: "#BE185D" },
+];
 
 interface CategoryOption {
   id: string;
@@ -35,6 +46,27 @@ export default function AddDarkStoreProductPage() {
   const [altText, setAltText] = useState("");
   const [galleryImages, setGalleryImages] = useState<string[]>([]);
 
+  // Colours / Atelier Shade state
+  const [colors, setColors] = useState<ProductColor[]>([
+    { name: "Raw Honey Silk", hex: "#D4AF37" },
+    { name: "Royal Berry Red", hex: "#881337" },
+    { name: "Emerald Forest", hex: "#064E3B" },
+  ]);
+  const [customColorName, setCustomColorName] = useState("");
+  const [customColorHex, setCustomColorHex] = useState("#881337");
+
+  // Garment Specifications & Matrix state
+  const [silhouette, setSilhouette] = useState("Straight Couture Regular Fit");
+  const [neckline, setNeckline] = useState("Mandarin Collar with V-Placket");
+  const [sleeveLength, setSleeveLength] = useState("Three-Quarter Churidar Sleeves");
+  const [lining, setLining] = useState("Pure Mulmul Cotton (Breathable)");
+  const [transparency, setTransparency] = useState("Opaque (Fully Pre-Lined)");
+  const [ornamentation, setOrnamentation] = useState("Hand Zari Work & Zardozi Placket");
+  const [occasion, setOccasion] = useState("Festive, Sangeet & Intimate Weddings");
+  const [careProtocol, setCareProtocol] = useState("Dry Clean Recommended");
+  const [certification, setCertification] = useState("Silk Mark Certified");
+  const [fabricDensity, setFabricDensity] = useState("90 GSM Featherweight");
+
   // Metadata loaders
   const [categories, setCategories] = useState<CategoryOption[]>([]);
   const [hubs, setHubs] = useState<DarkStoreHub[]>([]);
@@ -44,6 +76,11 @@ export default function AddDarkStoreProductPage() {
   const [uploadingPrimary, setUploadingPrimary] = useState(false);
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Per-colorway upload states
+  const [uploadingColorPrimary, setUploadingColorPrimary] = useState<Record<number, boolean>>({});
+  const [uploadingColorGallery, setUploadingColorGallery] = useState<Record<number, boolean>>({});
+  const [colorUploadError, setColorUploadError] = useState<Record<number, string | null>>({});
 
   // Form submission state
   const [submitting, setSubmitting] = useState(false);
@@ -104,6 +141,120 @@ export default function AddDarkStoreProductPage() {
   const toggleSize = (size: string) => {
     setSelectedSizes((prev) =>
       prev.includes(size) ? prev.filter((s) => s !== size) : [...prev, size]
+    );
+  };
+
+  // Colorway handlers
+  const handleTogglePresetColor = (preset: ProductColor) => {
+    setColors((prev) => {
+      const exists = prev.some((c) => c.name.toLowerCase() === preset.name.toLowerCase());
+      if (exists) {
+        if (prev.length <= 1) return prev; // Keep at least one colorway
+        return prev.filter((c) => c.name.toLowerCase() !== preset.name.toLowerCase());
+      }
+      return [...prev, preset];
+    });
+  };
+
+  const handleAddCustomColor = () => {
+    if (!customColorName.trim()) return;
+    const trimmed = customColorName.trim();
+    if (!colors.some((c) => c.name.toLowerCase() === trimmed.toLowerCase())) {
+      setColors((prev) => [...prev, { name: trimmed, hex: customColorHex.trim() || "#111111" }]);
+    }
+    setCustomColorName("");
+  };
+
+  const handleRemoveColor = (nameToRemove: string) => {
+    if (colors.length <= 1) return; // Keep at least one
+    setColors((prev) => prev.filter((c) => c.name !== nameToRemove));
+  };
+
+  const handleUpdateColorField = (index: number, field: keyof ProductColor, value: any) => {
+    setColors((prev) =>
+      prev.map((c, i) => (i === index ? { ...c, [field]: value } : c))
+    );
+  };
+
+  // Colorway primary image upload handler
+  const handleColorPrimaryUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setColorUploadError((prev) => ({ ...prev, [index]: "Please select a valid image (JPEG, PNG, WebP)." }));
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setColorUploadError((prev) => ({ ...prev, [index]: "Image file size must be less than 5MB." }));
+      return;
+    }
+
+    setUploadingColorPrimary((prev) => ({ ...prev, [index]: true }));
+    setColorUploadError((prev) => ({ ...prev, [index]: null }));
+
+    try {
+      const res = await api.media.upload(file);
+      if (res?.url) {
+        handleUpdateColorField(index, "image", res.url);
+      }
+    } catch (err: any) {
+      setColorUploadError((prev) => ({ ...prev, [index]: err?.message || "Failed to upload shade image." }));
+    } finally {
+      setUploadingColorPrimary((prev) => ({ ...prev, [index]: false }));
+    }
+  };
+
+  // Colorway gallery images upload handler
+  const handleColorGalleryUpload = async (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploadingColorGallery((prev) => ({ ...prev, [index]: true }));
+    setColorUploadError((prev) => ({ ...prev, [index]: null }));
+
+    try {
+      const uploadPromises = Array.from(files).map((file) => {
+        if (!file.type.startsWith("image/")) {
+          throw new Error(`File ${file.name} is not a valid image.`);
+        }
+        if (file.size > 5 * 1024 * 1024) {
+          throw new Error(`File ${file.name} exceeds 5MB size limit.`);
+        }
+        return api.media.upload(file);
+      });
+
+      const results = await Promise.all(uploadPromises);
+      const newUrls = results.map((r) => r.url).filter(Boolean);
+      setColors((prev) =>
+        prev.map((c, i) => {
+          if (i === index) {
+            const currentGallery = Array.isArray(c.galleryImages) ? c.galleryImages : [];
+            return { ...c, galleryImages: [...currentGallery, ...newUrls] };
+          }
+          return c;
+        })
+      );
+    } catch (err: any) {
+      setColorUploadError((prev) => ({ ...prev, [index]: err?.message || "Failed to upload shade gallery." }));
+    } finally {
+      setUploadingColorGallery((prev) => ({ ...prev, [index]: false }));
+    }
+  };
+
+  // Remove single gallery image from a colorway
+  const handleRemoveColorGalleryImage = (colorIndex: number, imageIndex: number) => {
+    setColors((prev) =>
+      prev.map((c, i) => {
+        if (i === colorIndex) {
+          const currentGallery = Array.isArray(c.galleryImages) ? c.galleryImages : [];
+          return {
+            ...c,
+            galleryImages: currentGallery.filter((_, gIdx) => gIdx !== imageIndex),
+          };
+        }
+        return c;
+      })
     );
   };
 
@@ -212,6 +363,10 @@ export default function AddDarkStoreProductPage() {
       errors.sizes = "At least one available size must be selected.";
     }
 
+    if (colors.length === 0) {
+      errors.colors = "At least one shade / colorway must be selected.";
+    }
+
     if (!image.trim()) {
       errors.image = "Primary product image is required.";
     }
@@ -236,6 +391,19 @@ export default function AddDarkStoreProductPage() {
 
     setSubmitting(true);
 
+    const specifications: Record<string, string> = {
+      "Fabric Composition": fabric.trim() || "100% Pure Handloom Chanderi",
+      "Weave Technique": "Banarasi Zari Kadwa Weft",
+      "Silhouette & Fit": silhouette.trim() || "Straight Couture Regular Fit",
+      "Neckline": neckline.trim() || "Mandarin Collar with V-Placket",
+      "Sleeve Length": sleeveLength.trim() || "Three-Quarter Churidar Sleeves",
+      "Lining Material": lining.trim() || "Pure Mulmul Cotton (Breathable)",
+      "Transparency": transparency.trim() || "Opaque (Fully Pre-Lined)",
+      "Ornamentation": ornamentation.trim() || "Hand Zari Work & Zardozi Placket",
+      "Occasion": occasion.trim() || "Festive, Sangeet & Intimate Weddings",
+      "Care Protocol": careProtocol.trim() || "Dry Clean Recommended",
+    };
+
     const payload: CreateDarkStoreProductInput = {
       title: title.trim(),
       brand: brand.trim() || "Affordz Official Store",
@@ -253,6 +421,9 @@ export default function AddDarkStoreProductPage() {
       altText: altText.trim(),
       galleryImages: galleryImages.length > 0 ? galleryImages : [image.trim()],
       fulfillmentType: "DARK_STORE",
+      colors,
+      specifications,
+      certification: certification.trim() || "Silk Mark Certified",
     };
 
     try {
@@ -589,6 +760,523 @@ export default function AddDarkStoreProductPage() {
                       className="w-full h-9 px-3 text-xs bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] transition-all"
                     />
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3B: Colours & Atelier Shade Variants */}
+            <div className="bg-white rounded-[10px] p-5 sm:p-6 border border-[#E4E0DB] shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-[#E4E0DB]">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[20px] text-[#FF5A1F]">
+                    palette
+                  </span>
+                  <h2 className="text-sm font-semibold text-[#111111]">
+                    Colours &amp; Atelier Shades <span className="text-[#DA1E28]">*</span>
+                  </h2>
+                </div>
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-[4px] bg-[#F7F7F5] border border-[#E4E0DB] text-[#6B6667]">
+                  {colors.length} {colors.length === 1 ? "Colorway" : "Colorways"} Configured
+                </span>
+              </div>
+
+              <div className="space-y-4">
+                {/* Quick Luxury Presets */}
+                <div>
+                  <label className="block text-[11px] font-medium text-[#6B6667] mb-2 uppercase tracking-wider">
+                    Quick Preset Luxury Hues (Click to toggle)
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {PRESET_COLORS.map((preset) => {
+                      const isSelected = colors.some(
+                        (c) => c.name.toLowerCase() === preset.name.toLowerCase()
+                      );
+                      return (
+                        <button
+                          key={preset.name}
+                          type="button"
+                          onClick={() => handleTogglePresetColor(preset)}
+                          className={`h-8 px-2.5 rounded-[8px] text-xs font-medium flex items-center gap-2 transition-all ${
+                            isSelected
+                              ? "bg-[#111111] text-white border border-[#111111] shadow-2xs"
+                              : "bg-[#F7F7F5] text-[#111111] border border-[#E4E0DB] hover:bg-[#F4F1EA]"
+                          }`}
+                        >
+                          <span
+                            className="w-3.5 h-3.5 rounded-full border border-white/50 shrink-0"
+                            style={{ backgroundColor: preset.hex }}
+                          />
+                          <span>{preset.name}</span>
+                          {isSelected && (
+                            <span className="material-symbols-outlined text-[14px] text-[#A7F3D0]">
+                              check
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Custom Colorway Input */}
+                <div className="p-3.5 bg-[#FAF8F5] rounded-[8px] border border-[#E4E0DB] space-y-2.5">
+                  <label className="block text-xs font-medium text-[#111111]">
+                    Add Custom Shade or Colorway
+                  </label>
+                  <div className="flex flex-col sm:flex-row items-center gap-2">
+                    <div className="flex-1 w-full relative">
+                      <input
+                        type="text"
+                        value={customColorName}
+                        onChange={(e) => setCustomColorName(e.target.value)}
+                        placeholder="e.g. Kashmiri Saffron / Peacock Teal"
+                        className="w-full h-9 px-3 text-xs bg-white border border-[#E4E0DB] rounded-[6px] text-[#111111] focus:outline-none focus:border-[#FF5A1F]"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <div className="flex items-center gap-1.5 h-9 px-2 bg-white border border-[#E4E0DB] rounded-[6px]">
+                        <input
+                          type="color"
+                          value={customColorHex}
+                          onChange={(e) => setCustomColorHex(e.target.value)}
+                          className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent p-0"
+                        />
+                        <input
+                          type="text"
+                          value={customColorHex}
+                          onChange={(e) => setCustomColorHex(e.target.value)}
+                          placeholder="#000000"
+                          className="w-18 text-xs font-mono uppercase bg-transparent text-[#111111] focus:outline-none"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleAddCustomColor}
+                        className="h-9 px-3.5 bg-[#FF5A1F] hover:bg-[#D94B17] text-white text-xs font-medium rounded-[6px] transition-colors shrink-0 flex items-center gap-1"
+                      >
+                        <span className="material-symbols-outlined text-[16px]">add</span>
+                        <span>Add Shade</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Multi-SKU Notice */}
+                <div className="p-3.5 bg-[#FFF7ED] rounded-[8px] border border-[#FFEDD5] flex items-start gap-2.5">
+                  <span className="material-symbols-outlined text-[20px] text-[#EA580C] shrink-0 mt-0.5">
+                    auto_awesome
+                  </span>
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-[#9A3412]">
+                      Multi-SKU Colorway Merchandising Architecture
+                    </p>
+                    <p className="text-[11px] text-[#C2410C] leading-relaxed">
+                      Each color shade below generates an independent, dedicated product listing in the catalog with its own inventory, image assets, and unique product ID. Shoppers on the customer mobile app can seamlessly tap between color swatches to view that specific colorway.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Active Colorways List */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-medium text-[#111111]">
+                      Configured Colorway Products ({colors.length})
+                    </label>
+                    <span className="text-[11px] text-[#6B6667]">
+                      {colors.length} distinct {colors.length === 1 ? 'product' : 'products'} will be published
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {colors.map((c, idx) => (
+                      <div
+                        key={c.name}
+                        className="p-3.5 rounded-[10px] bg-white border border-[#E4E0DB] shadow-xs space-y-3"
+                      >
+                        {/* Colorway Header */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <span
+                              className="w-5 h-5 rounded-full border border-black/20 shrink-0 shadow-inner"
+                              style={{ backgroundColor: c.hex }}
+                            />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-[#111111]">{c.name}</span>
+                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-[4px] bg-[#F7F7F5] border border-[#E4E0DB] text-[#6B6667]">
+                                  {c.hex}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-[#6B6667] mt-0.5">
+                                SKU: {title ? `${title.slice(0, 18)} - ${c.name}` : `Catalog Item - ${c.name}`}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] bg-[#ECFDF5] text-[#065F46] text-[10px] font-medium border border-[#A7F3D0]">
+                              <span className="material-symbols-outlined text-[12px]">check</span>
+                              Separate Product
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveColor(c.name)}
+                              disabled={colors.length <= 1}
+                              className="w-7 h-7 flex items-center justify-center rounded-[6px] text-[#6B6667] hover:text-[#DA1E28] hover:bg-[#FEE2E2] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                              title="Remove colorway"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">delete</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Dedicated Photos & Assets for this Shade */}
+                        <div className="space-y-3 pt-3 border-t border-[#F0ECE4]">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-[#111111] uppercase tracking-wider flex items-center gap-1.5">
+                              <span className="material-symbols-outlined text-[16px] text-[#FF5A1F]">photo_library</span>
+                              Dedicated Photos for {c.name}
+                            </span>
+                            <span className="text-[10px] text-[#6B6667]">
+                              {(c.galleryImages?.length || 0) + (c.image ? 1 : 0)} photo{((c.galleryImages?.length || 0) + (c.image ? 1 : 0)) === 1 ? '' : 's'} configured
+                            </span>
+                          </div>
+
+                          {colorUploadError[idx] && (
+                            <div className="bg-[#FEF2F2] border border-[#FECACA] text-[#991B1B] p-2 rounded-[6px] text-[11px] flex items-center gap-1.5">
+                              <span className="material-symbols-outlined text-[14px] text-[#DA1E28]">error</span>
+                              <span>{colorUploadError[idx]}</span>
+                            </div>
+                          )}
+
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {/* Primary Photo for this Shade */}
+                            <div className="p-3 bg-[#FAF8F5] rounded-[8px] border border-[#E4E0DB] space-y-2">
+                              <div className="flex items-center justify-between">
+                                <label className="block text-[11px] font-semibold text-[#111111]">
+                                  Main Lookbook Photo
+                                </label>
+                                <span className="text-[10px] text-[#6B6667]">Hero Shot</span>
+                              </div>
+
+                              <div className="flex items-start gap-3">
+                                {c.image ? (
+                                  <div className="relative w-20 h-24 rounded-[6px] overflow-hidden border border-[#E4E0DB] bg-white shrink-0 group shadow-2xs">
+                                    <img
+                                      src={c.image}
+                                      alt={`${c.name} preview`}
+                                      className="w-full h-full object-cover"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateColorField(idx, "image", "")}
+                                      className="absolute top-1 right-1 w-5 h-5 rounded-full bg-[#111111]/80 text-white flex items-center justify-center hover:bg-[#DA1E28] transition-colors"
+                                      title="Remove photo"
+                                    >
+                                      <span className="material-symbols-outlined text-[12px]">close</span>
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <label className="w-20 h-24 rounded-[6px] border-2 border-dashed border-[#E4E0DB] hover:border-[#FF5A1F] bg-white hover:bg-[#FFF0E8]/40 transition-all flex flex-col items-center justify-center cursor-pointer shrink-0 text-[#6B6667] group">
+                                    {uploadingColorPrimary[idx] ? (
+                                      <div className="text-center p-1">
+                                        <span className="material-symbols-outlined text-[20px] text-[#FF5A1F] animate-spin block">
+                                          progress_activity
+                                        </span>
+                                        <span className="text-[9px] mt-0.5 block text-[#FF5A1F]">Uploading...</span>
+                                      </div>
+                                    ) : (
+                                      <div className="text-center p-1">
+                                        <span className="material-symbols-outlined text-[22px] text-[#6B6667] group-hover:text-[#FF5A1F] block transition-colors">
+                                          add_photo_alternate
+                                        </span>
+                                        <span className="text-[9px] font-medium mt-0.5 block">Upload</span>
+                                      </div>
+                                    )}
+                                    <input
+                                      type="file"
+                                      accept="image/jpeg,image/png,image/webp"
+                                      onChange={(e) => handleColorPrimaryUpload(idx, e)}
+                                      disabled={uploadingColorPrimary[idx]}
+                                      className="hidden"
+                                    />
+                                  </label>
+                                )}
+
+                                <div className="flex-1 space-y-1.5">
+                                  <label className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-[6px] bg-white border border-[#E4E0DB] hover:bg-[#F4F1EA] text-[#111111] text-[11px] font-medium cursor-pointer transition-colors shadow-2xs">
+                                    <span className="material-symbols-outlined text-[14px] text-[#FF5A1F]">upload</span>
+                                    <span>{c.image ? "Change Photo" : "Upload File"}</span>
+                                    <input
+                                      type="file"
+                                      accept="image/jpeg,image/png,image/webp"
+                                      onChange={(e) => handleColorPrimaryUpload(idx, e)}
+                                      disabled={uploadingColorPrimary[idx]}
+                                      className="hidden"
+                                    />
+                                  </label>
+                                  <input
+                                    type="url"
+                                    value={c.image || ""}
+                                    onChange={(e) => handleUpdateColorField(idx, "image", e.target.value)}
+                                    placeholder={image || "Or paste photo URL..."}
+                                    className="w-full h-7 px-2 text-[11px] bg-white border border-[#E4E0DB] rounded-[6px] text-[#111111] focus:outline-none focus:border-[#FF5A1F]"
+                                  />
+                                  <p className="text-[10px] text-[#8A8580]">
+                                    Falls back to primary product photo if empty.
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Additional Angle Photos for this Shade */}
+                            <div className="p-3 bg-[#FAF8F5] rounded-[8px] border border-[#E4E0DB] space-y-2">
+                              <div className="flex items-center justify-between">
+                                <label className="block text-[11px] font-semibold text-[#111111]">
+                                  Additional Angles &amp; Details
+                                </label>
+                                <span className="text-[10px] text-[#6B6667]">Lookbook Carousel</span>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-2 min-h-[96px]">
+                                {(c.galleryImages || []).map((imgUrl, gIdx) => (
+                                  <div
+                                    key={gIdx}
+                                    className="relative w-16 h-20 rounded-[6px] overflow-hidden border border-[#E4E0DB] bg-white shrink-0 group shadow-2xs"
+                                  >
+                                    <img
+                                      src={imgUrl}
+                                      alt={`${c.name} angle ${gIdx + 1}`}
+                                      className="w-full h-full object-cover"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveColorGalleryImage(idx, gIdx)}
+                                      className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full bg-[#111111]/80 text-white flex items-center justify-center hover:bg-[#DA1E28] transition-colors"
+                                      title="Remove angle"
+                                    >
+                                      <span className="material-symbols-outlined text-[10px]">close</span>
+                                    </button>
+                                  </div>
+                                ))}
+
+                                <label className="h-20 px-3 rounded-[6px] border border-dashed border-[#E4E0DB] hover:border-[#FF5A1F] bg-white hover:bg-[#FFF0E8]/40 transition-all flex flex-col items-center justify-center cursor-pointer shrink-0 text-[#6B6667] group">
+                                  {uploadingColorGallery[idx] ? (
+                                    <div className="text-center">
+                                      <span className="material-symbols-outlined text-[18px] text-[#FF5A1F] animate-spin block">
+                                        progress_activity
+                                      </span>
+                                      <span className="text-[9px] mt-0.5 block text-[#FF5A1F]">Uploading...</span>
+                                    </div>
+                                  ) : (
+                                    <div className="text-center">
+                                      <span className="material-symbols-outlined text-[20px] text-[#6B6667] group-hover:text-[#FF5A1F] block transition-colors">
+                                        add_to_photos
+                                      </span>
+                                      <span className="text-[9px] font-medium mt-0.5 block">+ Add Angles</span>
+                                    </div>
+                                  )}
+                                  <input
+                                    type="file"
+                                    multiple
+                                    accept="image/jpeg,image/png,image/webp"
+                                    onChange={(e) => handleColorGalleryUpload(idx, e)}
+                                    disabled={uploadingColorGallery[idx]}
+                                    className="hidden"
+                                  />
+                                </label>
+                              </div>
+                              <p className="text-[10px] text-[#8A8580]">
+                                Upload weave details, fall &amp; pleats, or model angles specific to {c.name}.
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Inventory / Stock for this Shade */}
+                          <div className="pt-1 flex items-center gap-3">
+                            <label className="text-[11px] font-medium text-[#6B6667] shrink-0">
+                              Stock Units for {c.name}:
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={c.stockQuantity ?? ""}
+                              onChange={(e) =>
+                                handleUpdateColorField(
+                                  idx,
+                                  "stockQuantity",
+                                  e.target.value ? parseInt(e.target.value, 10) : undefined
+                                )
+                              }
+                              placeholder={stockQuantity || "10"}
+                              className="w-36 h-7 px-2.5 text-xs bg-[#FAF8F5] border border-[#E4E0DB] rounded-[6px] text-[#111111] focus:outline-none focus:border-[#FF5A1F]"
+                            />
+                            <span className="text-[10px] text-[#8A8580]">
+                              (Defaults to {stockQuantity || "10"} units if left blank)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {validationErrors.colors && (
+                    <p className="text-[11px] text-[#DA1E28] mt-1.5">{validationErrors.colors}</p>
+                  )}
+                  <p className="text-[11px] text-[#6B6667] mt-1.5">
+                    Shoppers on the customer app can tap these shade swatches to switch to that exact colorway product.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3C: Detailed Garment Specifications & Matrix */}
+            <div className="bg-white rounded-[10px] p-5 sm:p-6 border border-[#E4E0DB] shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-[#E4E0DB]">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[20px] text-[#FF5A1F]">
+                    layers
+                  </span>
+                  <h2 className="text-sm font-semibold text-[#111111]">
+                    Garment Specifications Matrix &amp; Trust
+                  </h2>
+                </div>
+                <span className="text-[11px] text-[#6B6667]">Populates customer app 10-point specs</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-medium text-[#111111] mb-1">
+                    Silhouette &amp; Fit
+                  </label>
+                  <input
+                    type="text"
+                    value={silhouette}
+                    onChange={(e) => setSilhouette(e.target.value)}
+                    placeholder="e.g. Straight Couture Regular Fit"
+                    className="w-full h-9 px-3 text-xs bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#111111] mb-1">
+                    Neckline
+                  </label>
+                  <input
+                    type="text"
+                    value={neckline}
+                    onChange={(e) => setNeckline(e.target.value)}
+                    placeholder="e.g. Mandarin Collar with V-Placket"
+                    className="w-full h-9 px-3 text-xs bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#111111] mb-1">
+                    Sleeve Length
+                  </label>
+                  <input
+                    type="text"
+                    value={sleeveLength}
+                    onChange={(e) => setSleeveLength(e.target.value)}
+                    placeholder="e.g. Three-Quarter Churidar Sleeves"
+                    className="w-full h-9 px-3 text-xs bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#111111] mb-1">
+                    Lining Material
+                  </label>
+                  <input
+                    type="text"
+                    value={lining}
+                    onChange={(e) => setLining(e.target.value)}
+                    placeholder="e.g. Pure Mulmul Cotton (Breathable)"
+                    className="w-full h-9 px-3 text-xs bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#111111] mb-1">
+                    Transparency
+                  </label>
+                  <input
+                    type="text"
+                    value={transparency}
+                    onChange={(e) => setTransparency(e.target.value)}
+                    placeholder="e.g. Opaque (Fully Pre-Lined)"
+                    className="w-full h-9 px-3 text-xs bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#111111] mb-1">
+                    Ornamentation / Embroidery
+                  </label>
+                  <input
+                    type="text"
+                    value={ornamentation}
+                    onChange={(e) => setOrnamentation(e.target.value)}
+                    placeholder="e.g. Hand Zari Work & Zardozi Placket"
+                    className="w-full h-9 px-3 text-xs bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#111111] mb-1">
+                    Occasion
+                  </label>
+                  <input
+                    type="text"
+                    value={occasion}
+                    onChange={(e) => setOccasion(e.target.value)}
+                    placeholder="e.g. Festive, Sangeet & Intimate Weddings"
+                    className="w-full h-9 px-3 text-xs bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#111111] mb-1">
+                    Care Protocol
+                  </label>
+                  <input
+                    type="text"
+                    value={careProtocol}
+                    onChange={(e) => setCareProtocol(e.target.value)}
+                    placeholder="e.g. Dry Clean Recommended"
+                    className="w-full h-9 px-3 text-xs bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F]"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#111111] mb-1">
+                    Authenticity Certification
+                  </label>
+                  <select
+                    value={certification}
+                    onChange={(e) => setCertification(e.target.value)}
+                    className="w-full h-9 px-3 text-xs font-medium bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F] cursor-pointer"
+                  >
+                    <option value="Silk Mark Certified">Silk Mark Certified</option>
+                    <option value="Handloom Mark Certified">Handloom Mark Certified</option>
+                    <option value="Craftmark India Certified">Craftmark India Certified</option>
+                    <option value="Pure Khadi Certified">Pure Khadi Certified</option>
+                    <option value="Artisan Heritage Stamp">Artisan Heritage Stamp</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-[#111111] mb-1">
+                    Fabric Density &amp; Weight
+                  </label>
+                  <input
+                    type="text"
+                    value={fabricDensity}
+                    onChange={(e) => setFabricDensity(e.target.value)}
+                    placeholder="e.g. 90 GSM Featherweight"
+                    className="w-full h-9 px-3 text-xs bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F]"
+                  />
                 </div>
               </div>
             </div>

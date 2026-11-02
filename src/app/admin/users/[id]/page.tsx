@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { CustomerUser } from "@/types/users";
-import { getDemoCustomerById } from "@/demo-data/users";
+// demo-data import removed
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
@@ -36,13 +36,13 @@ export default function AdminCustomerDetailPage() {
         if (res && res.id) {
           setCustomer(res);
         } else {
-          const found = getDemoCustomerById(customerId);
+          const found = null;
           if (found) setCustomer(found);
           else setError(`Customer record "${customerId}" was not found.`);
         }
       })
       .catch(() => {
-        const found = getDemoCustomerById(customerId);
+        const found = null;
         if (found) setCustomer(found);
         else setError(`Customer record "${customerId}" was not found.`);
       })
@@ -84,7 +84,8 @@ export default function AdminCustomerDetailPage() {
   };
 
   if (isLoading) {
-    return (
+
+  return (
       <div className="w-full max-w-[1400px] mx-auto box-border min-w-0 px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 pb-8 space-y-4">
         <div className="h-6 w-32 bg-[#E4E0DB]/60 rounded animate-pulse" />
         <div className="h-28 bg-white border border-[#E4E0DB] rounded-[10px] p-6 animate-pulse" />
@@ -97,7 +98,8 @@ export default function AdminCustomerDetailPage() {
   }
 
   if (!customer) {
-    return (
+
+  return (
       <div className="w-full max-w-[1400px] mx-auto box-border min-w-0 px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 pb-8">
         <div className="bg-white border border-[#E4E0DB] rounded-[10px] p-12 text-center max-w-lg mx-auto shadow-xs space-y-3">
           <h1 className="text-base font-semibold text-[#111111]">Customer Not Found</h1>
@@ -116,6 +118,11 @@ export default function AdminCustomerDetailPage() {
       </div>
     );
   }
+
+  const addresses = customer.addresses || [];
+  const orders = customer.orders || [];
+  const reviews = customer.reviews || [];
+  const tickets = customer.tickets || [];
 
   return (
     <div className="w-full max-w-[1400px] mx-auto box-border min-w-0 px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 pb-8 space-y-4">
@@ -197,7 +204,7 @@ export default function AdminCustomerDetailPage() {
                 Saved Addresses
               </span>
               <div className="mt-1 text-2xl font-semibold text-[#111111] tabular-nums">
-                {customer.addresses.length}
+                {addresses.length}
               </div>
               <span className="text-xs text-[#6B6667] mt-0.5 block">Delivery destinations</span>
             </div>
@@ -216,7 +223,7 @@ export default function AdminCustomerDetailPage() {
                     : "text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA]"
                 )}
               >
-                <span>Orders ({customer.orders.length})</span>
+                <span>Orders ({orders.length})</span>
               </button>
 
               <button
@@ -229,7 +236,7 @@ export default function AdminCustomerDetailPage() {
                     : "text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA]"
                 )}
               >
-                <span>Addresses ({customer.addresses.length})</span>
+                <span>Addresses ({addresses.length})</span>
               </button>
 
               <button
@@ -242,7 +249,7 @@ export default function AdminCustomerDetailPage() {
                     : "text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA]"
                 )}
               >
-                <span>Reviews ({customer.reviews.length})</span>
+                <span>Reviews ({reviews.length})</span>
               </button>
 
               <button
@@ -255,7 +262,7 @@ export default function AdminCustomerDetailPage() {
                     : "text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA]"
                 )}
               >
-                <span>Support ({customer.tickets.length})</span>
+                <span>Support ({tickets.length})</span>
               </button>
             </div>
           </div>
@@ -266,11 +273,11 @@ export default function AdminCustomerDetailPage() {
               <div className="px-4 py-3 border-b border-[#E4E0DB] bg-[#F7F7F5] flex items-center justify-between">
                 <span className="text-xs font-medium text-[#111111]">Order History</span>
                 <span className="text-xs text-[#6B6667]">
-                  {customer.orders.length} total orders
+                  {orders.length} total orders
                 </span>
               </div>
 
-              {customer.orders.length === 0 ? (
+              {orders.length === 0 ? (
                 <div className="p-8 text-center text-[#6B6667]">
                   <p className="text-xs font-medium">No order history recorded for this customer.</p>
                 </div>
@@ -288,7 +295,7 @@ export default function AdminCustomerDetailPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#E4E0DB] text-[13px] text-[#111111]">
-                      {customer.orders.map((order) => (
+                      {orders.map((order) => (
                         <tr key={order.id} className="h-11 hover:bg-[#F7F7F5]/50 transition-colors">
                           <td className="px-4 py-0 font-mono text-xs font-medium text-[#111111] whitespace-nowrap">
                             <Link
@@ -329,22 +336,22 @@ export default function AdminCustomerDetailPage() {
           {/* TAB 2: SAVED ADDRESSES */}
           {activeTab === "ADDRESSES" && (
             <div className="space-y-3">
-              {customer.addresses.length === 0 ? (
+              {addresses.length === 0 ? (
                 <div className="p-8 bg-white rounded-[10px] border border-[#E4E0DB] text-center text-[#6B6667]">
                   <p className="text-xs font-medium">No saved addresses on file.</p>
                 </div>
               ) : (
-                customer.addresses.map((address) => (
+                addresses.map((address) => (
                   <div
                     key={address.id}
                     className="bg-white border border-[#E4E0DB] rounded-[10px] p-4 shadow-xs space-y-1"
                   >
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-xs text-[#111111]">
-                        {address.recipientName}
+                        {address.recipientName || address.label}
                       </span>
                       <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#F4F1EA] text-[#6B6667]">
-                        {address.type}
+                        {address.label}
                       </span>
                       {address.isDefault && (
                         <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0]">
@@ -353,11 +360,14 @@ export default function AdminCustomerDetailPage() {
                       )}
                     </div>
                     <p className="text-xs text-[#111111]">
-                      {address.street}
+                      {address.line1}
+                      {address.line2 ? `, ${address.line2}` : ""}
                       {address.locality ? `, ${address.locality}` : ""}, {address.city},{" "}
                       {address.state} - {address.pincode}
                     </p>
-                    <p className="text-xs font-mono text-[#6B6667]">Phone: {address.phone}</p>
+                    {address.recipientPhone ? (
+                      <p className="text-xs font-mono text-[#6B6667]">Phone: {address.recipientPhone}</p>
+                    ) : null}
                   </div>
                 ))
               )}
@@ -367,12 +377,12 @@ export default function AdminCustomerDetailPage() {
           {/* TAB 3: REVIEWS */}
           {activeTab === "REVIEWS" && (
             <div className="space-y-3">
-              {customer.reviews.length === 0 ? (
+              {reviews.length === 0 ? (
                 <div className="p-8 bg-white rounded-[10px] border border-[#E4E0DB] text-center text-[#6B6667]">
                   <p className="text-xs font-medium">No reviews submitted by this customer.</p>
                 </div>
               ) : (
-                customer.reviews.map((rev) => (
+                reviews.map((rev) => (
                   <div
                     key={rev.id}
                     className="bg-white border border-[#E4E0DB] rounded-[10px] p-4 shadow-xs space-y-2"
@@ -409,12 +419,12 @@ export default function AdminCustomerDetailPage() {
           {/* TAB 4: SUPPORT TICKETS */}
           {activeTab === "TICKETS" && (
             <div className="space-y-3">
-              {customer.tickets.length === 0 ? (
+              {tickets.length === 0 ? (
                 <div className="p-8 bg-white rounded-[10px] border border-[#E4E0DB] text-center text-[#6B6667]">
                   <p className="text-xs font-medium">No support tickets associated with this account.</p>
                 </div>
               ) : (
-                customer.tickets.map((t) => (
+                tickets.map((t) => (
                   <div
                     key={t.id}
                     className="bg-white border border-[#E4E0DB] rounded-[10px] p-4 shadow-xs flex items-center justify-between gap-3"

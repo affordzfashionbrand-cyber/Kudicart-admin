@@ -2,15 +2,22 @@ export type CustomerAccountStatus = "ACTIVE" | "SUSPENDED";
 
 export interface CustomerAddress {
   id: string;
-  type: "HOME" | "WORK" | "OTHER";
-  isDefault: boolean;
-  recipientName: string;
-  phone: string;
-  street: string;
+  userId?: string;
+  label?: string;
+  type?: string;
+  recipientName?: string | null;
+  recipientPhone?: string | null;
+  phone?: string;
+  line1?: string;
+  line2?: string | null;
+  street?: string;
   locality?: string;
   city: string;
-  state: string;
+  state?: string | null;
   pincode: string;
+  isDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CustomerOrderSummary {
@@ -53,15 +60,16 @@ export interface CustomerUser {
   name: string;
   email: string;
   phone: string;
+  avatar?: string | null;
   registrationDate: string;
-  tier: "Gold Patron" | "Silver Member" | "Standard Patron";
-  kycLevel: "KYC Verified Level 2" | "KYC Verified Level 1" | "Pending KYC";
   status: CustomerAccountStatus;
   totalOrders: number;
   totalSpent: number;
   avgOrderValue: number;
   addresses: CustomerAddress[];
-  orders: CustomerOrderSummary[];
-  reviews: CustomerReview[];
-  tickets: CustomerSupportTicket[];
+  tier?: string;
+  kycLevel?: string;
+  orders?: CustomerOrderSummary[];
+  reviews?: CustomerReview[];
+  tickets?: CustomerSupportTicket[];
 }

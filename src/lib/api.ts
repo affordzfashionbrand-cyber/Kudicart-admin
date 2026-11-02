@@ -13,23 +13,32 @@ const PROFILE_KEY = "kudicart_admin_profile";
 
 export function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
+  return localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
 }
 
-export function setAuthToken(token: string): void {
+export function setAuthToken(token: string, rememberMe: boolean = true): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(TOKEN_KEY, token);
+  if (rememberMe) {
+    localStorage.setItem(TOKEN_KEY, token);
+    sessionStorage.removeItem(TOKEN_KEY);
+  } else {
+    sessionStorage.setItem(TOKEN_KEY, token);
+    localStorage.removeItem(TOKEN_KEY);
+  }
 }
 
 export function clearAuthToken(): void {
   if (typeof window === "undefined") return;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(PROFILE_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(PROFILE_KEY);
 }
 
 export function getStoredProfile(): any | null {
   if (typeof window === "undefined") return null;
-  const raw = localStorage.getItem(PROFILE_KEY);
+  const raw =
+    localStorage.getItem(PROFILE_KEY) || sessionStorage.getItem(PROFILE_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw);
@@ -38,9 +47,15 @@ export function getStoredProfile(): any | null {
   }
 }
 
-export function setStoredProfile(profile: any): void {
+export function setStoredProfile(profile: any, rememberMe: boolean = true): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  if (rememberMe) {
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+    sessionStorage.removeItem(PROFILE_KEY);
+  } else {
+    sessionStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+    localStorage.removeItem(PROFILE_KEY);
+  }
 }
 
 export class ApiError extends Error {
@@ -113,18 +128,23 @@ async function request<T>(
 
 export const api = {
   auth: {
-    login: async (credentials: { email: string; password: string }) => {
+    login: async (credentials: {
+      email: string;
+      password: string;
+      rememberMe?: boolean;
+    }) => {
+      const { email, password, rememberMe = true } = credentials;
       const res = await request<{
         success: boolean;
         token: string;
         user: { id: string; email: string; name: string; role: string; avatarUrl?: string };
       }>("/admin/auth/login", {
         method: "POST",
-        body: JSON.stringify(credentials),
+        body: JSON.stringify({ email, password }),
       });
       if (res.token) {
-        setAuthToken(res.token);
-        setStoredProfile(res.user);
+        setAuthToken(res.token, rememberMe);
+        setStoredProfile(res.user, rememberMe);
       }
       return res;
     },

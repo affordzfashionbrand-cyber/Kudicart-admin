@@ -1,9 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
+
+const REMEMBER_ME_KEY = "kudicart_admin_remember_me";
+const REMEMBERED_EMAIL_KEY = "kudicart_admin_remembered_email";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,12 +15,29 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   // Status & feedback
   const [isLoading, setIsLoading] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
+
+  // Restore remembered credentials on initial mount
+  useEffect(() => {
+    try {
+      const isRemembered = localStorage.getItem(REMEMBER_ME_KEY) === "true";
+      const savedEmail = localStorage.getItem(REMEMBERED_EMAIL_KEY);
+      if (isRemembered) {
+        setRememberMe(true);
+        if (savedEmail) {
+          setEmail(savedEmail);
+        }
+      }
+    } catch {
+      // Ignore storage errors in restricted iframe/browser environments
+    }
+  }, []);
 
   // Validation helpers
   const validateEmail = (val: string): boolean => {
@@ -62,6 +82,19 @@ export default function LoginPage() {
     setIsLoading(true);
     const cleanEmail = email.trim().toLowerCase();
 
+    // Persist or clear remembered credentials preference
+    try {
+      if (rememberMe) {
+        localStorage.setItem(REMEMBER_ME_KEY, "true");
+        localStorage.setItem(REMEMBERED_EMAIL_KEY, cleanEmail);
+      } else {
+        localStorage.removeItem(REMEMBER_ME_KEY);
+        localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+      }
+    } catch {
+      // Storage access might fail in restricted environments
+    }
+
     // Vendor portal direct preview route if designated
     if (cleanEmail.includes("vendor")) {
       setTimeout(() => {
@@ -72,7 +105,7 @@ export default function LoginPage() {
     }
 
     try {
-      await api.auth.login({ email: cleanEmail, password });
+      await api.auth.login({ email: cleanEmail, password, rememberMe });
       setIsLoading(false);
       router.push("/admin/dashboard");
     } catch (err: any) {
@@ -208,21 +241,12 @@ export default function LoginPage() {
 
             {/* Password Field */}
             <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label
-                  htmlFor="password"
-                  className="block text-[13px] sm:text-[14px] font-medium text-[#111111]"
-                >
-                  Password
-                </label>
-                <button
-                  type="button"
-                  onClick={handleForgotPassword}
-                  className="text-[13px] font-medium text-[#D94B17] hover:text-[#FF5A1F] hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF5A1F] rounded transition-colors"
-                >
-                  Forgot Password?
-                </button>
-              </div>
+              <label
+                htmlFor="password"
+                className="block text-[13px] sm:text-[14px] font-medium text-[#111111]"
+              >
+                Password
+              </label>
               <div className="relative flex items-center">
                 <span
                   className="material-symbols-outlined absolute left-3.5 text-[#6B6667] text-[18px] pointer-events-none"
@@ -275,6 +299,35 @@ export default function LoginPage() {
                   {passwordError}
                 </p>
               )}
+            </div>
+
+            {/* Remember Me & Forgot Password */}
+            <div className="flex items-center justify-between pt-0.5">
+              <label
+                htmlFor="remember-me"
+                className="inline-flex items-center gap-2 cursor-pointer select-none group"
+              >
+                <input
+                  id="remember-me"
+                  name="rememberMe"
+                  type="checkbox"
+                  checked={rememberMe}
+                  disabled={isLoading}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded border-[#E4E0DB] text-[#FF5A1F] accent-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] cursor-pointer transition-colors"
+                />
+                <span className="text-[13px] text-[#6B6667] group-hover:text-[#111111] transition-colors font-normal">
+                  Remember me
+                </span>
+              </label>
+
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className="text-[13px] font-medium text-[#D94B17] hover:text-[#FF5A1F] hover:underline focus:outline-none focus-visible:ring-1 focus-visible:ring-[#FF5A1F] rounded transition-colors"
+              >
+                Forgot Password?
+              </button>
             </div>
 
             {/* Submit Action */}

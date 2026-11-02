@@ -40,6 +40,7 @@
 
 ## Phase 2 — Authentication + Role Routing — **Status:** [x]
 - Unified `/login` route refined into production-quality interface with warm neutral left panel (`#F4F1EA`) and clean light right panel (`#F7F7F5`).
+- Added "Remember me" option with persistent `localStorage` identity restoration and session vs persistent storage integration.
 - Removed redundant Central Ops and Vendor Portal role cards, overlines, and template-like features.
 - Applied precise geometry: 8px border radius on inputs and button, 14px on form card, 44px control heights, subtle brand focus states without double outlines.
 - Left panel copy: "Marketplace Operations for KudiCart" / "Manage orders, vendors, products, and marketplace activity in one place."

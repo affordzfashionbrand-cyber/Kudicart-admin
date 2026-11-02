@@ -37,6 +37,15 @@ export interface CatalogProduct {
   updatedAt: string;
 }
 
+export interface ProductColor {
+  name: string;
+  hex: string;
+  image?: string;
+  galleryImages?: string[];
+  stockQuantity?: number;
+  productId?: string;
+}
+
 export interface CreateDarkStoreProductInput {
   title: string;
   brand?: string;
@@ -54,6 +63,9 @@ export interface CreateDarkStoreProductInput {
   altText: string;
   galleryImages?: string[];
   fulfillmentType?: "DARK_STORE";
+  colors?: ProductColor[];
+  specifications?: Record<string, string>;
+  certification?: string;
 }
 
 export interface DarkStoreHub {

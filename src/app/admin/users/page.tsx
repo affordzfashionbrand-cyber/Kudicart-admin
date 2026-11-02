@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { CustomerUser } from "@/types/users";
-import { getDemoCustomers, generateCustomersCSV } from "@/demo-data/users";
+import { generateCustomersCSV } from "@/demo-data/users";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 
@@ -32,11 +32,12 @@ export default function AdminUsersPage() {
         if (res?.data && res.data.length > 0) {
           setCustomers(res.data);
         } else {
-          setCustomers(getDemoCustomers());
+          setCustomers([]);
         }
       })
       .catch(() => {
-        setCustomers(getDemoCustomers());
+        setError("Failed to load customer directory.");
+        setCustomers([]);
       })
       .finally(() => {
         setIsLoading(false);
