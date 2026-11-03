@@ -148,6 +148,21 @@ export const api = {
       }
       return res;
     },
+    loginFirebase: async (idToken: string, rememberMe: boolean = true) => {
+      const res = await request<{
+        success: boolean;
+        token: string;
+        user: { id: string; email: string; name: string; role: string; avatarUrl?: string };
+      }>("/admin/auth/firebase/login", {
+        method: "POST",
+        body: JSON.stringify({ idToken }),
+      });
+      if (res.token) {
+        setAuthToken(res.token, rememberMe);
+        setStoredProfile(res.user, rememberMe);
+      }
+      return res;
+    },
     getProfile: async () => {
       const res = await request<{
         id: string;
@@ -596,4 +611,25 @@ export const api = {
       );
     },
   },
+
+  vendorOrders: {
+    list: async (status?: string) => {
+      const qs = status && status !== "ALL" ? `?status=${encodeURIComponent(status)}` : "";
+      return request<any[]>(`/vendor/orders${qs}`);
+    },
+    getById: async (id: string) => {
+      return request<any>(`/vendor/orders/${id}`);
+    },
+    accept: async (id: string) => {
+      return request<any>(`/vendor/orders/${id}/accept`, { method: "POST" });
+    },
+    prepare: async (id: string) => {
+      return request<any>(`/vendor/orders/${id}/prepare`, { method: "POST" });
+    },
+    readyForPickup: async (id: string) => {
+      return request<any>(`/vendor/orders/${id}/ready-for-pickup`, { method: "POST" });
+    },
+  },
 };
+
+export const adminApi = api;

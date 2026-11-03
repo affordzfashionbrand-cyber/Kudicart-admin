@@ -95,19 +95,14 @@ export default function LoginPage() {
       // Storage access might fail in restricted environments
     }
 
-    // Vendor portal direct preview route if designated
-    if (cleanEmail.includes("vendor")) {
-      setTimeout(() => {
-        setIsLoading(false);
-        router.push("/vendor/dashboard");
-      }, 300);
-      return;
-    }
-
     try {
-      await api.auth.login({ email: cleanEmail, password, rememberMe });
+      const res = await api.auth.login({ email: cleanEmail, password, rememberMe });
       setIsLoading(false);
-      router.push("/admin/dashboard");
+      if (res?.user?.role === "VENDOR") {
+        router.push("/vendor/dashboard");
+      } else {
+        router.push("/admin/dashboard");
+      }
     } catch (err: any) {
       setIsLoading(false);
       setInfoMessage(err.message || "Invalid credentials or connection error.");

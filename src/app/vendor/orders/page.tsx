@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   ShoppingCart,
   Search,
@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { formatINR } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { adminApi } from "@/lib/api";
 
 type VendorFulfillmentStatus =
   | "PLACED"
@@ -160,6 +161,41 @@ export default function VendorOrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<VendorOrder | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  useEffect(() => {
+    adminApi.vendorOrders
+      .list(activeTab)
+      .then((data: any) => {
+        if (data && Array.isArray(data) && data.length > 0) {
+          setOrders(data);
+        }
+      })
+      .catch(() => {
+        // Fallback to initial orders if offline
+      });
+  }, [activeTab]);
+
+  const updateStatus = async (id: string, newStatus: VendorFulfillmentStatus) => {
+    try {
+      if (newStatus === "ACCEPTED") {
+        await adminApi.vendorOrders.accept(id);
+      } else if (newStatus === "PREPARING") {
+        await adminApi.vendorOrders.prepare(id);
+      } else if (newStatus === "READY_FOR_PICKUP") {
+        await adminApi.vendorOrders.readyForPickup(id);
+      }
+    } catch (err: any) {
+      console.warn("API status update error:", err?.message);
+    }
+    setOrders((prev) =>
+      prev.map((o) => (o.id === id ? { ...o, status: newStatus } : o))
+    );
+    if (selectedOrder && selectedOrder.id === id) {
+      setSelectedOrder({ ...selectedOrder, status: newStatus });
+    }
+    setToastMessage(`Order status updated to ${newStatus}.`);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
   const filteredOrders = useMemo(() => {
     return orders.filter((o) => {
       if (searchTerm.trim()) {
@@ -173,17 +209,6 @@ export default function VendorOrdersPage() {
       return o.status === activeTab;
     });
   }, [orders, activeTab, searchTerm]);
-
-  const updateStatus = (id: string, newStatus: VendorFulfillmentStatus) => {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, status: newStatus } : o))
-    );
-    if (selectedOrder && selectedOrder.id === id) {
-      setSelectedOrder({ ...selectedOrder, status: newStatus });
-    }
-    setToastMessage(`Order status updated to ${newStatus}.`);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[1440px] w-full mx-auto space-y-6">
