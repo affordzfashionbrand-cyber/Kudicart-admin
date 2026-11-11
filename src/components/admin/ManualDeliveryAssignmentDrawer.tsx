@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Order } from "@/types/orders";
 import { DeliveryPartner } from "@/types/drivers";
-import { getDemoDeliveryPartners } from "@/demo-data/drivers";
 import { formatINR } from "@/lib/utils";
 import { api } from "@/lib/api";
+import { formatFulfillmentBadgeLabel } from "@/lib/orderMappers";
 
 interface ManualDeliveryAssignmentDrawerProps {
   order: Order | null;
@@ -37,6 +37,26 @@ export function ManualDeliveryAssignmentDrawer({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
 
+  const loadDrivers = useCallback(() => {
+    setIsLoadingDrivers(true);
+    setDriverLoadError(null);
+    api.deliveryPartners
+      .list({ limit: 100 })
+      .then((res) => {
+        const list = Array.isArray(res?.data) ? res.data : [];
+        setDrivers(list);
+      })
+      .catch((err: any) => {
+        setDrivers([]);
+        setDriverLoadError(
+          err?.message || "Unable to load verified delivery partners."
+        );
+      })
+      .finally(() => {
+        setIsLoadingDrivers(false);
+      });
+  }, []);
+
   // Load drivers when drawer opens
   useEffect(() => {
     if (isOpen) {
@@ -46,22 +66,9 @@ export function ManualDeliveryAssignmentDrawer({
       setSuccessMessage(null);
       setErrorMessage(null);
       setNoticeMessage(null);
-      setIsLoadingDrivers(false);
-      setDriverLoadError(null);
-
-      const demoDrivers = getDemoDeliveryPartners();
-      setDrivers(demoDrivers);
-
-      // Fetch live available standby drivers from backend
-      api.deliveryPartners.list({ limit: 50 })
-        .then((res) => {
-          if (res?.data && res.data.length > 0) {
-            setDrivers(res.data);
-          }
-        })
-        .catch(() => {});
+      loadDrivers();
     }
-  }, [isOpen]);
+  }, [isOpen, loadDrivers]);
 
   // Keyboard navigation: Escape key closes drawer
   useEffect(() => {
@@ -74,37 +81,41 @@ export function ManualDeliveryAssignmentDrawer({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, isSubmitting, onClose]);
 
-  // Filter available drivers based on search and vehicle type
+  // Filter available drivers based on KYC approval, search and vehicle type
   const eligibleDrivers = useMemo(() => {
     return drivers.filter((driver) => {
-      // Must be online / standby to be eligible for assignment
-      // If driver is offline, they shouldn't be assigned
+      const isKycApproved = driver.kycStatus === "APPROVED";
       const isAvailable = driver.isOnline !== false;
+      if (!isKycApproved || !isAvailable) return false;
 
       // Search match
       const query = searchQuery.trim().toLowerCase();
       const matchesSearch =
         !query ||
-        driver.fullName.toLowerCase().includes(query) ||
-        driver.driverCode.toLowerCase().includes(query) ||
-        driver.vehicleModel.toLowerCase().includes(query) ||
-        driver.vehicleRegistration.toLowerCase().includes(query) ||
-        driver.phone.includes(query);
+        (driver.fullName || "").toLowerCase().includes(query) ||
+        (driver.driverCode || "").toLowerCase().includes(query) ||
+        (driver.vehicleModel || "").toLowerCase().includes(query) ||
+        (driver.vehicleRegistration || "").toLowerCase().includes(query) ||
+        (driver.phone || "").includes(query);
 
       // Vehicle category match
+      const vt = (driver.vehicleType || "").toLowerCase();
+      const vm = (driver.vehicleModel || "").toLowerCase();
       let matchesType = true;
       if (filterType === "TWO_WHEELER") {
         matchesType =
           driver.vehicleType === "Two-Wheeler" ||
-          driver.vehicleType.toLowerCase().includes("bike") ||
-          driver.vehicleType.toLowerCase().includes("scooty");
+          vt.includes("2w") ||
+          vt.includes("scooter") ||
+          vt.includes("bike") ||
+          vt.includes("scooty");
       } else if (filterType === "EV") {
         matchesType =
           driver.vehicleType === "EV / Electric" ||
-          driver.vehicleType.toLowerCase().includes("ev") ||
-          driver.vehicleModel.toLowerCase().includes("electric") ||
-          driver.vehicleModel.toLowerCase().includes("ather") ||
-          driver.vehicleModel.toLowerCase().includes("chetak");
+          vt.includes("ev") ||
+          vm.includes("electric") ||
+          vm.includes("ather") ||
+          vm.includes("chetak");
       }
 
       return matchesSearch && matchesType;
@@ -113,21 +124,31 @@ export function ManualDeliveryAssignmentDrawer({
 
   // Counts for filter pills
   const counts = useMemo(() => {
-    const total = drivers.length;
-    const twoWheeler = drivers.filter(
-      (d) =>
+    const approvedOnline = drivers.filter(
+      (d) => d.kycStatus === "APPROVED" && d.isOnline !== false
+    );
+    const total = approvedOnline.length;
+    const twoWheeler = approvedOnline.filter((d) => {
+      const vt = (d.vehicleType || "").toLowerCase();
+      return (
         d.vehicleType === "Two-Wheeler" ||
-        d.vehicleType.toLowerCase().includes("bike") ||
-        d.vehicleType.toLowerCase().includes("scooty")
-    ).length;
-    const ev = drivers.filter(
-      (d) =>
+        vt.includes("2w") ||
+        vt.includes("scooter") ||
+        vt.includes("bike") ||
+        vt.includes("scooty")
+      );
+    }).length;
+    const ev = approvedOnline.filter((d) => {
+      const vt = (d.vehicleType || "").toLowerCase();
+      const vm = (d.vehicleModel || "").toLowerCase();
+      return (
         d.vehicleType === "EV / Electric" ||
-        d.vehicleType.toLowerCase().includes("ev") ||
-        d.vehicleModel.toLowerCase().includes("electric") ||
-        d.vehicleModel.toLowerCase().includes("ather") ||
-        d.vehicleModel.toLowerCase().includes("chetak")
-    ).length;
+        vt.includes("ev") ||
+        vm.includes("electric") ||
+        vm.includes("ather") ||
+        vm.includes("chetak")
+      );
+    }).length;
     return { total, twoWheeler, ev };
   }, [drivers]);
 
@@ -297,7 +318,10 @@ export function ManualDeliveryAssignmentDrawer({
                   inventory_2
                 </span>
                 <span>
-                  Fulfillment: <strong className="text-[#111111]">{order.fulfillmentType}</strong>
+                  Fulfillment:{" "}
+                  <strong className="text-[#111111]">
+                    {formatFulfillmentBadgeLabel(order)}
+                  </strong>
                 </span>
               </div>
               <span className="text-[11px] font-semibold text-[#111111]">
@@ -377,8 +401,15 @@ export function ManualDeliveryAssignmentDrawer({
                 <p>Loading eligible delivery partners...</p>
               </div>
             ) : driverLoadError ? (
-              <div className="p-4 rounded-xl bg-[#FEF2F2] border border-[#ffdad6] text-center text-xs text-[#DA1E28]">
+              <div className="p-4 rounded-xl bg-[#FEF2F2] border border-[#ffdad6] text-center text-xs text-[#DA1E28] space-y-2">
                 <p className="font-semibold">{driverLoadError}</p>
+                <button
+                  type="button"
+                  onClick={loadDrivers}
+                  className="h-7 px-3 rounded-[6px] bg-white border border-[#ffdad6] text-xs font-medium text-[#DA1E28] hover:bg-[#FEF2F2]"
+                >
+                  Retry
+                </button>
               </div>
             ) : eligibleDrivers.length === 0 ? (
               <div className="p-8 text-center border border-dashed border-[#E4E0DB] rounded-xl text-xs text-[#6B6667] space-y-1">

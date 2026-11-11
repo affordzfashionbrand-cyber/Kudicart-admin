@@ -18,12 +18,21 @@ import {
   User,
 } from "lucide-react";
 import { AdminUserAccount, AdminRoleType } from "@/types/user-access";
-import { DEMO_ADMIN_USERS, DEMO_ADMIN_ROLES } from "@/demo-data/user-access";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
 
+const ALLOWED_ADMIN_ROLES: AdminRoleType[] = [
+  "Super Admin",
+  "Marketplace Operations",
+  "Catalog Manager",
+  "Finance Reviewer",
+  "Support Manager",
+];
+
 export function UsersListView() {
-  const [users, setUsers] = useState<AdminUserAccount[]>(DEMO_ADMIN_USERS);
+  const [users, setUsers] = useState<AdminUserAccount[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [apiError, setApiError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -39,15 +48,25 @@ export function UsersListView() {
   const [newRole, setNewRole] = useState<AdminRoleType>("Marketplace Operations");
   const [newDepartment, setNewDepartment] = useState("Fulfillment & Dispatch");
 
-  React.useEffect(() => {
-    api.userAccess.listUsers()
-      .then((res) => {
-        if (res?.data && res.data.length > 0) {
-          setUsers(res.data);
-        }
-      })
-      .catch(() => {});
+  const loadUsers = React.useCallback(async () => {
+    setLoading(true);
+    setApiError(null);
+    try {
+      const res = await api.userAccess.listUsers();
+      setUsers(Array.isArray(res?.data) ? res.data : []);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Unable to load administrative accounts from backend.";
+      setUsers([]);
+      setApiError(message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  React.useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
@@ -138,6 +157,18 @@ export function UsersListView() {
         </div>
       )}
 
+      {apiError && (
+        <div className="p-3 bg-[#FEF2F2] border border-[#ffdad6] rounded-[8px] flex items-center justify-between text-xs text-[#DA1E28] gap-3">
+          <span>{apiError}</span>
+          <button
+            onClick={loadUsers}
+            className="px-2.5 py-1 rounded-[6px] bg-white border border-[#ffdad6] font-medium hover:bg-[#fff5f5] shrink-0"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Filter Toolbar & Actions */}
       <section className="bg-white border border-[#E4E0DB] rounded-[10px] p-3 shadow-2xs flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-[280px]">
@@ -161,9 +192,9 @@ export function UsersListView() {
               className="h-[36px] pl-3 pr-8 text-xs bg-white border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:outline-none focus:border-[#FF5A1F] appearance-none cursor-pointer"
             >
               <option value="ALL">All Roles</option>
-              {DEMO_ADMIN_ROLES.map((r) => (
-                <option key={r.id} value={r.name}>
-                  {r.name}
+              {ALLOWED_ADMIN_ROLES.map((roleName) => (
+                <option key={roleName} value={roleName}>
+                  {roleName}
                 </option>
               ))}
             </select>
@@ -230,7 +261,13 @@ export function UsersListView() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E4E0DB] text-xs text-[#111111]">
-              {filteredUsers.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="py-10 text-center text-xs text-[#6B6667]">
+                    Loading administrative accounts from backend...
+                  </td>
+                </tr>
+              ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-8 text-center">
                     <EmptyState
@@ -408,9 +445,9 @@ export function UsersListView() {
                   onChange={(e) => setSelectedNewRole(e.target.value as AdminRoleType)}
                   className="w-full h-[38px] px-3 rounded-[8px] bg-[#F7F7F5] border border-[#E4E0DB] text-xs text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F] cursor-pointer"
                 >
-                  {DEMO_ADMIN_ROLES.map((r) => (
-                    <option key={r.id} value={r.name}>
-                      {r.name}
+                  {ALLOWED_ADMIN_ROLES.map((roleName) => (
+                    <option key={roleName} value={roleName}>
+                      {roleName}
                     </option>
                   ))}
                 </select>
@@ -479,7 +516,7 @@ export function UsersListView() {
                   required
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
-                  placeholder="e.g. b.adeyemi@kudicart.com"
+                  placeholder="e.g. ops.lead@affordz.com"
                   className="w-full h-[38px] px-3 rounded-[8px] bg-[#F7F7F5] border border-[#E4E0DB] text-xs text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F]"
                 />
               </div>
@@ -494,9 +531,9 @@ export function UsersListView() {
                     onChange={(e) => setNewRole(e.target.value as AdminRoleType)}
                     className="w-full h-[38px] px-2.5 rounded-[8px] bg-[#F7F7F5] border border-[#E4E0DB] text-xs text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F] cursor-pointer"
                   >
-                    {DEMO_ADMIN_ROLES.map((r) => (
-                      <option key={r.id} value={r.name}>
-                        {r.name}
+                    {ALLOWED_ADMIN_ROLES.map((roleName) => (
+                      <option key={roleName} value={roleName}>
+                        {roleName}
                       </option>
                     ))}
                   </select>
@@ -515,7 +552,7 @@ export function UsersListView() {
               </div>
 
               <div className="p-3 bg-[#FFFBEB] border border-[#FDE68A] rounded-[8px] text-[11px] text-[#B45309] leading-relaxed">
-                Demonstration modal: In this frontend-only build, new administrative account creation is not persisted to IAM identity directories.
+                Invitations are submitted to the backend user-access API. Granular permission definitions remain gated under O-002.
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E4E0DB]">

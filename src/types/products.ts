@@ -74,8 +74,33 @@ export interface DarkStoreHub {
   code?: string;
   locality?: string;
   address?: string;
+  lat?: number;
+  lng?: number;
+  deliveryMinutes?: number;
   city?: string;
   pincode?: string;
   isActive?: boolean;
   slaMinutes?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateDarkStoreHubInput {
+  name: string;
+  locality: string;
+  address: string;
+  lat: number;
+  lng: number;
+  deliveryMinutes?: number;
+  isActive?: boolean;
+}
+
+export interface UpdateDarkStoreHubInput {
+  name?: string;
+  locality?: string;
+  address?: string;
+  lat?: number;
+  lng?: number;
+  deliveryMinutes?: number;
+  isActive?: boolean;
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   RefreshCw,
   Search,
@@ -23,17 +24,14 @@ import {
   NotificationTargetRole,
   NotificationDeliveryStatus,
 } from "@/types/notifications";
-import { MOCK_NOTIFICATIONS } from "@/mocks/notifications";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
 
 export default function AdminNotificationsPage() {
-  const [notifications, setNotifications] = useState<OperationalNotification[]>(
-    MOCK_NOTIFICATIONS
-  );
+  const queryClient = useQueryClient();
   const [selectedNotification, setSelectedNotification] =
-    useState<OperationalNotification | null>(MOCK_NOTIFICATIONS[0]);
+    useState<OperationalNotification | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
@@ -46,10 +44,35 @@ export default function AdminNotificationsPage() {
   const [broadcastModalOpen, setBroadcastModalOpen] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  const notificationsQuery = useQuery({
+    queryKey: ["admin-notifications"],
+    queryFn: () => api.notifications.list({ limit: 100 }),
+    staleTime: 15_000,
+    retry: 1,
+  });
+
+  const notifications: OperationalNotification[] = useMemo(
+    () => (notificationsQuery.data?.data as OperationalNotification[]) || [],
+    [notificationsQuery.data]
+  );
+
+  useEffect(() => {
+    if (notifications.length === 0) {
+      setSelectedNotification(null);
+      return;
+    }
+    setSelectedNotification((prev) =>
+      prev ? notifications.find((n) => n.id === prev.id) || notifications[0] : notifications[0]
+    );
+  }, [notifications]);
+
   // Unread count
   const unreadCount = useMemo(() => {
+    if (typeof notificationsQuery.data?.unreadCount === "number") {
+      return notificationsQuery.data.unreadCount;
+    }
     return notifications.filter((n) => !n.read).length;
-  }, [notifications]);
+  }, [notifications, notificationsQuery.data?.unreadCount]);
 
   // Filter logic
   const filteredNotifications = useMemo(() => {
@@ -87,33 +110,24 @@ export default function AdminNotificationsPage() {
     setStatusFilter("ALL");
   };
 
-  const loadNotifications = () => {
-    api.notifications.list({ limit: 50 })
-      .then((res) => {
-        if (res?.data && res.data.length > 0) {
-          setNotifications(res.data);
-          setSelectedNotification(res.data[0]);
-        }
-      })
-      .catch(() => {});
-  };
-
-  React.useEffect(() => {
-    loadNotifications();
-  }, []);
+  const markReadMutation = useMutation({
+    mutationFn: (id: string) => api.notifications.markAsRead(id),
+    onSuccess: (_res, id) => {
+      if (selectedNotification && selectedNotification.id === id) {
+        setSelectedNotification({ ...selectedNotification, read: true });
+      }
+      queryClient.invalidateQueries({ queryKey: ["admin-notifications"] });
+      setToastMessage("Notification marked as read.");
+      setTimeout(() => setToastMessage(null), 3000);
+    },
+    onError: (err: any) => {
+      setToastMessage(err?.message || "Failed to mark notification as read.");
+      setTimeout(() => setToastMessage(null), 4000);
+    },
+  });
 
   const handleMarkAsRead = async (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
-    if (selectedNotification && selectedNotification.id === id) {
-      setSelectedNotification({ ...selectedNotification, read: true });
-    }
-    try {
-      await api.notifications.markAsRead(id);
-    } catch {}
-    setToastMessage("Notification marked as read.");
-    setTimeout(() => setToastMessage(null), 3000);
+    markReadMutation.mutate(id);
   };
 
   const handleExecuteBroadcast = async () => {
@@ -124,14 +138,14 @@ export default function AdminNotificationsPage() {
         scope: broadcastScope,
         severity: broadcastSeverity,
       });
+      await queryClient.invalidateQueries({ queryKey: ["admin-notifications"] });
       if (res?.notification) {
-        setNotifications((prev) => [res.notification, ...prev]);
         setSelectedNotification(res.notification);
       }
       setBroadcastModalOpen(false);
       setBroadcastTitle("");
       setBroadcastNote("");
-      setToastMessage("Broadcast dispatched across operational network.");
+      setToastMessage("Broadcast dispatched and persisted to notification log.");
     } catch (err: any) {
       setBroadcastModalOpen(false);
       setToastMessage(err?.message || "Failed to dispatch broadcast.");
@@ -164,17 +178,33 @@ export default function AdminNotificationsPage() {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => {
+            onClick={async () => {
+              await notificationsQuery.refetch();
               setToastMessage("Notification queue refreshed.");
               setTimeout(() => setToastMessage(null), 2500);
             }}
             className="h-9 px-3.5 bg-white border border-[#E4E0DB] hover:bg-[#F7F7F5] rounded-[8px] text-xs font-medium text-[#111111] flex items-center gap-1.5 shadow-2xs transition-colors"
           >
-            <RefreshCw className="w-3.5 h-3.5 text-[#6B6667]" />
+            <RefreshCw className={`w-3.5 h-3.5 text-[#6B6667] ${notificationsQuery.isFetching ? "animate-spin" : ""}`} />
             <span>Refresh Queue</span>
           </button>
         </div>
       </div>
+
+      {notificationsQuery.isError && (
+        <div className="p-3 bg-[#FEF2F2] border border-[#FECACA] rounded-[8px] flex items-center justify-between gap-3 text-xs text-[#DA1E28]">
+          <span>
+            {(notificationsQuery.error as Error)?.message || "Failed to load notifications from backend."}
+          </span>
+          <button
+            type="button"
+            onClick={() => notificationsQuery.refetch()}
+            className="px-2.5 py-1 rounded-[6px] bg-white border border-[#FECACA] text-[#DA1E28] font-medium hover:bg-[#FEF2F2]"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {toastMessage && (
         <div className="p-3 bg-[#ECFDF5] border border-[#A7F3D0] rounded-[8px] flex items-center justify-between text-xs text-[#20885A]">
@@ -207,8 +237,8 @@ export default function AdminNotificationsPage() {
               </p>
             </div>
           </div>
-          <span className="text-[11px] text-[#6B6667] bg-[#F7F7F5] px-2.5 py-1 rounded-[6px] border border-[#E4E0DB]">
-            Live gateway integration required for push delivery
+          <span className="text-[11px] text-[#20885A] bg-[#ECFDF5] px-2.5 py-1 rounded-[6px] border border-[#A7F3D0] font-medium">
+            Persisted + FCM Push Gateway
           </span>
         </div>
 
@@ -272,9 +302,9 @@ export default function AdminNotificationsPage() {
 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 pt-3 border-t border-[#E4E0DB]">
             <div className="flex items-center gap-1.5 text-[11px] text-[#6B6667]">
-              <Info className="w-3.5 h-3.5 text-[#B45309] shrink-0" />
+              <Info className="w-3.5 h-3.5 text-[#20885A] shrink-0" />
               <span>
-                Broadcast form operates in demonstration mode. Dispatches to real devices require connected message gateways.
+                Broadcasts persist to PostgreSQL notification records and trigger FCM pushes for registered role devices.
               </span>
             </div>
 
@@ -415,7 +445,13 @@ export default function AdminNotificationsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E4E0DB] text-xs text-[#111111]">
-                {filteredNotifications.length === 0 ? (
+                {notificationsQuery.isLoading ? (
+                  <tr>
+                    <td colSpan={7} className="py-10 text-center text-[#6B6667]">
+                      Loading persisted operational notifications...
+                    </td>
+                  </tr>
+                ) : filteredNotifications.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-8 text-center">
                       <EmptyState

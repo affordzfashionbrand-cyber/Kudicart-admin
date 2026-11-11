@@ -16,14 +16,15 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { AdminReviewItem } from "@/types/reviews";
-import { MOCK_REVIEWS, MOCK_REVIEWS_METRICS } from "@/mocks/reviews";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
 
 export default function AdminReviewsPage() {
-  const [reviews, setReviews] = useState<AdminReviewItem[]>(MOCK_REVIEWS);
-  const [selectedReview, setSelectedReview] = useState<AdminReviewItem | null>(MOCK_REVIEWS[0]);
+  const [reviews, setReviews] = useState<AdminReviewItem[]>([]);
+  const [selectedReview, setSelectedReview] = useState<AdminReviewItem | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [apiError, setApiError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [ratingFilter, setRatingFilter] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
@@ -39,16 +40,65 @@ export default function AdminReviewsPage() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  useEffect(() => {
-    api.reviews.list({ limit: 50 })
-      .then((res) => {
-        if (res?.data && res.data.length > 0) {
-          setReviews(res.data);
-          setSelectedReview(res.data[0]);
+  const loadReviews = async (showRefreshToast = false) => {
+    setLoading(true);
+    setApiError(null);
+    try {
+      const res = await api.reviews.list({ limit: 100 });
+      const items = Array.isArray(res?.data) ? res.data : [];
+      setReviews(items);
+      setSelectedReview((prev) => {
+        if (prev && items.some((r) => r.id === prev.id)) {
+          return items.find((r) => r.id === prev.id) || null;
         }
-      })
-      .catch(() => {});
+        return items[0] || null;
+      });
+      if (showRefreshToast) {
+        showToast("Reviews refreshed from backend.");
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Unable to load customer reviews from the backend.";
+      setReviews([]);
+      setSelectedReview(null);
+      setApiError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadReviews(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const boutiqueOptions = useMemo(() => {
+    return Array.from(new Set(reviews.map((r) => r.vendorName).filter(Boolean))).sort();
+  }, [reviews]);
+
+  const reviewMetrics = useMemo(() => {
+    const totalReviews = reviews.length;
+    const sumRatings = reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0);
+    const averageRating = totalReviews > 0 ? (sumRatings / totalReviews).toFixed(1) : "0.0";
+    const verifiedCount = reviews.filter((r) => r.verifiedPurchase).length;
+    const positiveCount = reviews.filter((r) => Number(r.rating) >= 4).length;
+    const positivePercentage = totalReviews > 0 ? Math.round((positiveCount / totalReviews) * 100) : 0;
+    const flaggedCount = reviews.filter((r) => r.status === "FLAGGED").length;
+    const ratingDistribution = [5, 4, 3, 2, 1].map((stars) => {
+      const count = reviews.filter((r) => Math.round(Number(r.rating)) === stars).length;
+      const percentage = totalReviews > 0 ? Math.round((count / totalReviews) * 100) : 0;
+      return { stars, count, percentage };
+    });
+
+    return {
+      totalReviews,
+      averageRating,
+      verifiedCount,
+      positivePercentage,
+      flaggedCount,
+      ratingDistribution,
+    };
+  }, [reviews]);
 
   const filteredReviews = useMemo(() => {
     return reviews.filter((r) => {
@@ -96,8 +146,9 @@ export default function AdminReviewsPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `kudicart_reviews_export_${new Date().toISOString().split("T")[0]}.csv`;
+    link.download = `affordz_reviews_export_${new Date().toISOString().split("T")[0]}.csv`;
     link.click();
+    URL.revokeObjectURL(url);
     showToast(`Exported ${filteredReviews.length} reviews to CSV.`);
   };
 
@@ -183,26 +234,37 @@ export default function AdminReviewsPage() {
 
           {/* Refresh Button */}
           <button
-            onClick={() => {
-              setReviews([...MOCK_REVIEWS]);
-              showToast("Reviews refreshed.");
-            }}
-            className="h-9 w-9 rounded-[8px] bg-white border border-[#E4E0DB] hover:bg-[#F7F7F5] flex items-center justify-center text-[#6B6667] hover:text-[#111111] transition-colors"
+            onClick={() => loadReviews(true)}
+            disabled={loading}
+            className="h-9 w-9 rounded-[8px] bg-white border border-[#E4E0DB] hover:bg-[#F7F7F5] flex items-center justify-center text-[#6B6667] hover:text-[#111111] transition-colors disabled:opacity-50"
             title="Refresh Feed"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-[#FF5A1F]" : ""}`} />
           </button>
 
           {/* Export CSV */}
           <button
             onClick={handleExportCsv}
-            className="h-9 px-3.5 bg-white border border-[#E4E0DB] hover:bg-[#F7F7F5] text-[#111111] text-xs font-medium rounded-[8px] flex items-center gap-1.5 transition-colors shadow-xs"
+            disabled={filteredReviews.length === 0}
+            className="h-9 px-3.5 bg-white border border-[#E4E0DB] hover:bg-[#F7F7F5] text-[#111111] text-xs font-medium rounded-[8px] flex items-center gap-1.5 transition-colors shadow-xs disabled:opacity-50"
           >
             <Download className="w-3.5 h-3.5 text-[#6B6667]" />
             <span>Export CSV</span>
           </button>
         </div>
       </section>
+
+      {apiError && (
+        <div className="bg-[#FEF2F2] border border-[#ffdad6] text-[#DA1E28] rounded-[10px] px-4 py-3 text-xs flex items-center justify-between gap-3">
+          <span>{apiError}</span>
+          <button
+            onClick={() => loadReviews(false)}
+            className="px-2.5 py-1 rounded-[6px] bg-white border border-[#ffdad6] font-medium hover:bg-[#fff5f5] shrink-0"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* ================= OPERATIONAL SUMMARY METRICS ================= */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -216,7 +278,7 @@ export default function AdminReviewsPage() {
           </div>
           <div className="my-2 flex items-baseline gap-2">
             <span className="text-2xl font-semibold text-[#111111]">
-              {MOCK_REVIEWS_METRICS.averageRating}
+              {reviewMetrics.averageRating}
             </span>
             <div className="flex items-center text-[#C9822E]">
               {[...Array(5)].map((_, i) => (
@@ -225,7 +287,7 @@ export default function AdminReviewsPage() {
             </div>
           </div>
           <div className="text-xs text-[#6B6667]">
-            <span>Across 1,124 verified customer purchases</span>
+            <span>Across {reviewMetrics.verifiedCount} verified customer purchases</span>
           </div>
         </div>
 
@@ -239,13 +301,13 @@ export default function AdminReviewsPage() {
           </div>
           <div className="my-2 flex items-baseline gap-2">
             <span className="text-2xl font-semibold text-[#111111]">
-              {MOCK_REVIEWS_METRICS.totalReviews}
+              {reviewMetrics.totalReviews}
             </span>
             <span className="text-xs text-[#6B6667]">Reviews</span>
           </div>
           <div className="text-xs text-[#6B6667]">
             <span className="font-medium text-[#20885A] mr-1">
-              {MOCK_REVIEWS_METRICS.positivePercentage}%
+              {reviewMetrics.positivePercentage}%
             </span>
             positive 4★ &amp; 5★ ratings
           </div>
@@ -260,7 +322,7 @@ export default function AdminReviewsPage() {
             <span className="font-mono text-[10px] text-[#6B6667]">Distribution</span>
           </div>
           <div className="space-y-1 py-0.5">
-            {MOCK_REVIEWS_METRICS.ratingDistribution.map((item) => (
+            {reviewMetrics.ratingDistribution.map((item) => (
               <div key={item.stars} className="flex items-center text-[11px] gap-2">
                 <span className="w-4 text-[#6B6667] font-mono">{item.stars}★</span>
                 <div className="flex-1 bg-[#F4F1EA] rounded-full h-1.5 overflow-hidden">
@@ -289,7 +351,7 @@ export default function AdminReviewsPage() {
           </div>
           <div className="my-2 flex items-baseline gap-2">
             <span className="text-2xl font-semibold text-[#111111]">
-              {MOCK_REVIEWS_METRICS.flaggedCount}
+              {reviewMetrics.flaggedCount}
             </span>
             <span className="text-xs font-medium text-[#C9822E]">Reports pending</span>
           </div>
@@ -354,12 +416,11 @@ export default function AdminReviewsPage() {
               className="h-9 pl-3 pr-8 bg-white border border-[#E4E0DB] rounded-[8px] text-xs font-medium text-[#111111] appearance-none focus:border-[#FF5A1F] outline-none cursor-pointer hover:bg-[#F7F7F5] transition-colors"
             >
               <option value="ALL">All Boutiques</option>
-              <option value="Luxe Heritage Clothiers">Luxe Heritage Clothiers</option>
-              <option value="Kashmir Loom Heritage">Kashmir Loom Heritage</option>
-              <option value="Malabar Spice Co.">Malabar Spice Co.</option>
-              <option value="Deccan Metalcraft">Deccan Metalcraft</option>
-              <option value="Minimalist Leather Works">Minimalist Leather Works</option>
-              <option value="Artisan Silks Co.">Artisan Silks Co.</option>
+              {boutiqueOptions.map((vendorName) => (
+                <option key={vendorName} value={vendorName}>
+                  {vendorName}
+                </option>
+              ))}
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
           </div>
@@ -401,7 +462,13 @@ export default function AdminReviewsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E4E0DB] text-xs text-[#111111]">
-                {filteredReviews.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={9} className="py-12 text-center text-xs text-[#6B6667]">
+                      Loading customer reviews from backend...
+                    </td>
+                  </tr>
+                ) : filteredReviews.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="py-10">
                       <EmptyState

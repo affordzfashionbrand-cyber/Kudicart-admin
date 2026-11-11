@@ -504,6 +504,31 @@
   - Content offset strictly synchronized (`lg:pl-[260px]` vs `lg:pl-[72px]`).
   - Verified with `npm run type-check` (`tsc --noEmit`) with 0 errors.
 
+---
+
+# 8. 2026-11-11 Order Management Cutover Verification
+- Synced shared contracts into `src/contracts/order-contracts.ts` via `kudicart-backend/scripts/sync-contracts.js`.
+- Wrapped derived query fallback arrays (`?? []`) in `useMemo` across 6 Admin/Vendor pages (`admin/{assignments,ledger,orders,payments}/page.tsx`, `vendor/{dashboard,orders}/page.tsx`) to resolve `react-hooks/exhaustive-deps` lint warnings.
+- Verified `npx tsc --noEmit` exit code 0, `npm run build` (`next build`, 32/32 static/dynamic pages / 35 app routes) exit code 0, and `npm run lint` (`✔ No ESLint warnings or errors`) exit code 0.
 
 
 
+
+
+
+---
+
+## Wave 2 Alignment & Verification (Backend Sync #32 / #33 / #35)
+
+- **Firebase Auth & Session Lifecycle (`D-017`, `D-018`, `D-033`, `D-035`):**
+  - Installed `firebase@^11.10.0` (compatible with Node `v22.22.0`) and added `NEXT_PUBLIC_FIREBASE_*` keys to `.env.production.example` and `Dockerfile`.
+  - Added SSR-safe `src/lib/firebase.ts` (`signInFirebaseWithEmailPassword`, `sendFirebasePasswordReset`, `getFreshFirebaseIdToken`, `subscribeFirebaseTokenRefresh`, `signOutFirebase`).
+  - Wired `src/app/login/page.tsx` to Firebase Email/Password sign-in, `/admin/auth/firebase/login` with 403/401 fallback to `/vendor/auth/firebase/login`, and real Firebase `sendPasswordResetEmail`.
+  - Added single-flight `refreshSessionToken()` (`401` single retry) and `onIdTokenChanged` background listener (`AppProviders.tsx`) in `src/lib/api.ts`; preserved non-logout behavior on HTTP `403`.
+  - Added normalized `getPortalRole()` handling backend Admin sub-roles (`Super Admin`, `adminId`) vs `VENDOR`, hardening `AdminLayout`, `VendorLayout`, `VendorHeader.tsx` (`/vendor/auth/logout`), `VendorSidebar.tsx`, and live `/vendor/auth/me` hydration/editing in `src/app/vendor/profile/page.tsx`.
+- **Contracts, Admin CRUD & API Alignment:**
+  - Synced `src/types/orders.ts`, `src/lib/orderMappers.ts`, `src/app/admin/orders/[id]/page.tsx`, and `src/app/vendor/orders/page.tsx` against `src/contracts/order-contracts.ts` (`SELECTION_CONFIRMED`, `deliveryInstructions`, `verificationPhotos`, `rejectedByVendor`, `expiresAt`, all 12 canonical status tabs, split `checkoutGroupId` groups; removed hardcoded GST `(5%)` and `12.5` commission fallbacks in `orderMappers.ts` and `admin/ledger/page.tsx`).
+  - Implemented `/admin/coupons` CRUD UI (`src/app/admin/coupons/page.tsx`, `src/types/coupons.ts`, `api.coupons`) and `/admin/hubs` Dark Store Hubs CRUD UI (`src/app/admin/hubs/page.tsx`, `src/types/products.ts`, `api.hubs`), linked in `AdminSidebar.tsx` and `AdminHeader.tsx`.
+  - Aligned `admin/support` (`CLOSED` ticket status tab, `StatusBadge`, `Close Ticket` with `resolutionRemarks`), `api.userAccess` (`/admin/user-access/permissions`), and `admin/products/[id]/page.tsx` live `updateStatus`/`updateStock` actions while preserving `DCR-015` gating (`O-002`, `O-004`, `O-013`–`O-016`).
+- **Automated Test Suite (`Vitest` + Testing Library):**
+  - Added `vitest.config.ts`, `src/test/setup.ts`, and 6 test suites under `src/__tests__/` (`auth-guards.test.tsx`, `admin-orders.test.tsx`, `admin-coupons.test.tsx`, `admin-hubs.test.tsx`, `admin-support.test.tsx`, `vendor-orders.test.tsx`).

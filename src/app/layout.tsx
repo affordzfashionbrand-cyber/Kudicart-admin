@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AppProviders } from "@/components/providers/AppProviders";
 
 export const metadata: Metadata = {
   title: "KudiCart Ops — Central Operations & Vendor Portal",
@@ -26,7 +27,7 @@ export default function RootLayout({
         />
       </head>
       <body className="h-full bg-[#F7F7F5] text-[#111111] font-sans antialiased selection:bg-[#FFF0E8] selection:text-[#D94B17]">
-        {children}
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   );

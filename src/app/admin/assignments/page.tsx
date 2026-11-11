@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useMemo } from "react";
 import Link from "next/link";
-import { Order, OrderStatus } from "@/types/orders";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Order } from "@/types/orders";
 import { DeliveryPartner } from "@/types/drivers";
-import { getDemoOrders } from "@/demo-data/orders";
+import { mapBackendOrderToWebOrder } from "@/lib/orderMappers";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ManualDeliveryAssignmentDrawer } from "@/components/admin/ManualDeliveryAssignmentDrawer";
 import { formatINR } from "@/lib/utils";
@@ -13,7 +14,7 @@ import { api } from "@/lib/api";
 type AssignmentTab = "READY" | "ASSIGNED" | "ALL";
 
 export default function AdminAssignmentsPage() {
-  const [orders, setOrders] = useState<Order[]>(getDemoOrders());
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<AssignmentTab>("READY");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -25,28 +26,27 @@ export default function AdminAssignmentsPage() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  const loadAssignments = useCallback(() => {
-    api.assignments.list()
-      .then((res) => {
-        if (res?.data && res.data.length > 0) {
-          setOrders(res.data);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const assignmentsQuery = useQuery({
+    queryKey: ["admin-assignments", "queue"],
+    queryFn: async () => {
+      const res = await api.assignments.list();
+      const raw = Array.isArray(res?.data) ? res.data : [];
+      return raw.map(mapBackendOrderToWebOrder);
+    },
+    refetchInterval: 15_000,
+  });
 
-  useEffect(() => {
-    loadAssignments();
-  }, [loadAssignments]);
+  const orders: Order[] = useMemo(
+    () => assignmentsQuery.data ?? [],
+    [assignmentsQuery.data]
+  );
 
   // Filter orders
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
-      // Tab filter
       if (activeTab === "READY" && order.status !== "READY_FOR_PICKUP") return false;
       if (activeTab === "ASSIGNED" && order.status !== "ASSIGNED") return false;
 
-      // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const matchesId = order.orderNumber.toLowerCase().includes(q) || order.id.toLowerCase().includes(q);
@@ -71,8 +71,9 @@ export default function AdminAssignmentsPage() {
   const handleConfirmAssignment = async (orderId: string, driver: DeliveryPartner) => {
     try {
       await api.assignments.assign(orderId, driver.id);
-      showToast(`Assigned Order #${orderId} to ${driver.fullName} successfully.`);
-      loadAssignments();
+      showToast(`Assigned Order to ${driver.fullName} successfully.`);
+      await queryClient.invalidateQueries({ queryKey: ["admin-assignments"] });
+      await queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
     } catch (err: any) {
       showToast(err?.message || "Failed to assign driver.");
       throw err;
@@ -181,7 +182,29 @@ export default function AdminAssignmentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E4E0DB] text-[13px] text-[#111111]">
-              {filteredOrders.length === 0 ? (
+              {assignmentsQuery.isLoading ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center text-xs text-[#6B6667]">
+                    Loading dispatch queue from PostgreSQL...
+                  </td>
+                </tr>
+              ) : assignmentsQuery.isError ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center text-xs text-[#DA1E28] space-y-2">
+                    <p className="font-semibold">
+                      {(assignmentsQuery.error as any)?.message ||
+                        "Failed to load assignment queue."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => assignmentsQuery.refetch()}
+                      className="px-3 py-1 rounded-[6px] border border-[#FECACA] bg-white text-xs font-medium text-[#DA1E28]"
+                    >
+                      Retry
+                    </button>
+                  </td>
+                </tr>
+              ) : filteredOrders.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-[#6B6667]">
                     <p className="font-medium text-[#111111]">No orders in queue</p>
@@ -208,7 +231,11 @@ export default function AdminAssignmentsPage() {
                         <div>
                           <span className="font-medium text-[#111111]">{order.customerName}</span>
                           <p className="text-xs text-[#6B6667] line-clamp-1 mt-0.5">
-                            {order.customerAddress?.locality || order.customerAddress?.city || "Bandra West, Mumbai"}
+                            {[order.customerAddress?.locality, order.customerAddress?.city]
+                              .filter(Boolean)
+                              .join(", ") ||
+                              order.customerAddress?.line1 ||
+                              "Address unavailable"}
                           </p>
                         </div>
                       </td>

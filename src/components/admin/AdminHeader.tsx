@@ -3,13 +3,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { MOCK_NOTIFICATIONS } from "@/mocks/notifications";
 import { api, getStoredProfile, getAuthToken } from "@/lib/api";
 
 const ROUTE_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
   users: "Users",
   vendors: "Vendors",
+  coupons: "Coupons",
+  hubs: "Dark Store Hubs",
   categories: "Categories",
   products: "Products",
   orders: "Orders",
@@ -87,9 +88,10 @@ export function AdminHeader({
   const notifRef = useRef<HTMLDivElement>(null);
 
   // Authenticated user identity for UI presentation
-  const [userName, setUserName] = useState("Amara Okonkwo");
-  const [userEmail, setUserEmail] = useState("amara@kudicart.com");
-  const [liveNotifications, setLiveNotifications] = useState(MOCK_NOTIFICATIONS);
+  const [userName, setUserName] = useState("Operations Admin");
+  const [userEmail, setUserEmail] = useState("");
+  const [liveNotifications, setLiveNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     // 1. Initial check from stored profile
@@ -105,21 +107,26 @@ export function AdminHeader({
           if (profile?.email) setUserEmail(profile.email);
         })
         .catch(() => {
-          // Keep stored/fallback info
+          // Keep stored profile info
         });
 
       api.notifications.list({ limit: 5 })
         .then((res) => {
-          if (res?.data && res.data.length > 0) {
+          if (Array.isArray(res?.data)) {
             setLiveNotifications(res.data);
+            setUnreadCount(
+              typeof res.unreadCount === "number"
+                ? res.unreadCount
+                : res.data.filter((n: any) => !n.read).length
+            );
           }
         })
-        .catch(() => {});
+        .catch(() => {
+          setLiveNotifications([]);
+        });
     }
   }, []);
 
-  // Derive unread count from live notifications dataset
-  const unreadCount = liveNotifications.filter((n) => !n.read).length;
   const recentNotifications = liveNotifications.slice(0, 3);
 
   const breadcrumbs = getBreadcrumbs(pathname || "");
@@ -155,6 +162,13 @@ export function AdminHeader({
       // Ignored
     }
     router.replace("/login");
+  };
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const q = searchQuery.trim();
+    if (!q) return;
+    router.push(`/admin/orders?search=${encodeURIComponent(q)}`);
   };
 
   const userInitials = userName
@@ -198,7 +212,10 @@ export function AdminHeader({
       </div>
 
       {/* Middle: Global Search (Fills available middle space) */}
-      <div className="flex-1 max-w-3xl min-w-0 flex items-center">
+      <form
+        onSubmit={handleSearchSubmit}
+        className="flex-1 max-w-3xl min-w-0 flex items-center"
+      >
         <div className="relative w-full">
           <span className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-[#6B6667]">
             <span className="material-symbols-outlined text-[18px]">search</span>
@@ -207,7 +224,7 @@ export function AdminHeader({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search..."
+            placeholder="Search orders by ID, split group, or customer (Enter)..."
             className="w-full h-[36px] pl-9 pr-8 text-xs bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] placeholder:text-[#6B6667]/70 focus:bg-white focus:outline-none focus:border-[#FF5A1F] focus:ring-1 focus:ring-[#FF5A1F] transition-all font-normal"
           />
           {searchQuery && (
@@ -222,7 +239,7 @@ export function AdminHeader({
             </button>
           )}
         </div>
-      </div>
+      </form>
 
       {/* Region C: Right — Notifications & Small Circular Profile Avatar */}
       <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 justify-end">
@@ -256,19 +273,31 @@ export function AdminHeader({
                 )}
               </div>
               <div className="divide-y divide-[#E4E0DB] text-xs">
-                {recentNotifications.map((notif) => (
-                  <Link
-                    key={notif.id}
-                    href={notif.category === "KYC" ? "/admin/vendors" : "/admin/orders"}
-                    onClick={() => setIsNotificationsOpen(false)}
-                    className="p-3 block hover:bg-[#F7F7F5] transition-colors"
-                  >
-                    <p className="font-medium text-[#111111]">{notif.title}</p>
-                    <p className="text-[11px] text-[#6B6667] mt-0.5 line-clamp-1">
-                      {notif.messagePreview}
-                    </p>
-                  </Link>
-                ))}
+                {recentNotifications.length === 0 ? (
+                  <div className="p-4 text-center text-[#6B6667]">
+                    No recent notifications.
+                  </div>
+                ) : (
+                  recentNotifications.map((notif) => (
+                    <Link
+                      key={notif.id}
+                      href={
+                        notif.orderId
+                          ? `/admin/orders/${notif.orderId}`
+                          : notif.category === "KYC"
+                            ? "/admin/delivery-partners"
+                            : "/admin/notifications"
+                      }
+                      onClick={() => setIsNotificationsOpen(false)}
+                      className="p-3 block hover:bg-[#F7F7F5] transition-colors"
+                    >
+                      <p className="font-medium text-[#111111]">{notif.title}</p>
+                      <p className="text-[11px] text-[#6B6667] mt-0.5 line-clamp-1">
+                        {notif.messagePreview}
+                      </p>
+                    </Link>
+                  ))
+                )}
               </div>
               <div className="p-2 border-t border-[#E4E0DB] text-center bg-[#F7F7F5]">
                 <Link

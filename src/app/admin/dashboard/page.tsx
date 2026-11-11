@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
+import { useQuery } from "@tanstack/react-query";
 import { DashboardHeader } from "@/components/admin/dashboard/DashboardHeader";
 import { ActionRequiredRibbon } from "@/components/admin/dashboard/ActionRequiredRibbon";
 import { MarketplaceMetricsGrid } from "@/components/admin/dashboard/MarketplaceMetricsGrid";
@@ -10,121 +11,124 @@ import { RecentOrdersTable } from "@/components/admin/dashboard/RecentOrdersTabl
 import { FinancialHealthSnapshot } from "@/components/admin/dashboard/FinancialHealthSnapshot";
 import { api } from "@/lib/api";
 
+const EMPTY_PIPELINE = {
+  placed: 0,
+  accepted: 0,
+  preparing: 0,
+  readyForPickup: 0,
+  assigned: 0,
+  pickedUp: 0,
+  inTransit: 0,
+  delivered: 0,
+  returning: 0,
+  returned: 0,
+  cancelled: 0,
+  failed: 0,
+};
+
 export default function AdminDashboardPage() {
-  const [data, setData] = useState({
-    operationalQueues: {
-      unassignedOrders: 4,
-      pendingBoutiques: 3,
-      driverKyc: 2,
-    },
-    metrics: {
-      totalOrders: 148,
-      grossVolume: 482450,
-      activeVendors: 42,
-      totalVendors: 48,
-      activeDeliveryFleet: 28,
-    },
-    lifecyclePipeline: {
-      placed: 12,
-      accepted: 18,
-      preparing: 24,
-      readyForPickup: 14,
-      assigned: 16,
-      pickedUp: 22,
-      inTransit: 19,
-      delivered: 23,
-    },
-    recentOrders: [] as any[],
+  const summaryQuery = useQuery({
+    queryKey: ["admin-dashboard", "today"],
+    queryFn: () => api.dashboard.getSummary("today") as Promise<any>,
+    refetchInterval: 30_000,
   });
 
-  useEffect(() => {
-    api.dashboard.getSummary("today")
-      .then((res: any) => {
-        if (res) {
-          setData((prev) => ({
-            operationalQueues: {
-              unassignedOrders:
-                res.actionRequired?.unassignedCount ??
-                res.operationalQueues?.unassignedOrders ??
-                prev.operationalQueues.unassignedOrders,
-              pendingBoutiques:
-                res.actionRequired?.pendingBoutiquesCount ??
-                res.operationalQueues?.pendingBoutiques ??
-                prev.operationalQueues.pendingBoutiques,
-              driverKyc:
-                res.actionRequired?.driverKycCount ??
-                res.operationalQueues?.driverKyc ??
-                prev.operationalQueues.driverKyc,
-            },
-            metrics: {
-              totalOrders: res.metrics?.totalOrders ?? prev.metrics.totalOrders,
-              grossVolume:
-                res.metrics?.grossVolume ??
-                res.metrics?.gov ??
-                res.financialHealth?.grossVolume ??
-                prev.metrics.grossVolume,
-              activeVendors:
-                res.metrics?.activeVendors ?? prev.metrics.activeVendors,
-              totalVendors:
-                res.metrics?.totalVendors ?? prev.metrics.totalVendors,
-              activeDeliveryFleet:
-                res.metrics?.activeDeliveryFleet ??
-                res.metrics?.deliveryFleetCount ??
-                prev.metrics.activeDeliveryFleet,
-            },
-            lifecyclePipeline:
-              res.lifecyclePipeline ??
-              res.pipelineCounts ??
-              prev.lifecyclePipeline,
-            recentOrders: res.recentOrders ?? prev.recentOrders,
-          }));
-        }
-      })
-      .catch((err) => {
-        console.warn("Using baseline dashboard state:", err?.message);
-      });
-  }, []);
+  const res = summaryQuery.data;
+
+  const operationalQueues = {
+    unassignedOrders:
+      res?.actionRequired?.unassignedCount ??
+      res?.operationalQueues?.readyForPickup ??
+      res?.operationalQueues?.unassignedOrders ??
+      0,
+    pendingBoutiques:
+      res?.actionRequired?.pendingBoutiquesCount ??
+      res?.operationalQueues?.pendingBoutiques ??
+      0,
+    driverKyc:
+      res?.actionRequired?.driverKycCount ??
+      res?.operationalQueues?.pendingDrivers ??
+      res?.operationalQueues?.driverKyc ??
+      0,
+  };
+
+  const metrics = {
+    totalOrders: res?.metrics?.totalOrders ?? 0,
+    grossVolume:
+      res?.metrics?.grossVolume ??
+      res?.metrics?.gov ??
+      res?.financialHealth?.grossVolume ??
+      0,
+    activeVendors: res?.metrics?.activeVendors ?? 0,
+    totalVendors: res?.metrics?.totalVendors ?? 0,
+    activeDeliveryFleet:
+      res?.metrics?.activeDeliveryFleet ??
+      res?.metrics?.deliveryFleetCount ??
+      0,
+  };
+
+  const lifecyclePipeline = {
+    ...EMPTY_PIPELINE,
+    ...(res?.lifecyclePipeline ?? res?.pipelineCounts ?? {}),
+  };
+
+  const recentOrders = Array.isArray(res?.recentOrders)
+    ? res.recentOrders
+    : [];
 
   return (
     <div className="w-full max-w-[1400px] mx-auto box-border min-w-0 px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 pb-8">
-      {/* 1. Compact Dashboard Header (12-14px spacing to first card) */}
       <div className="mb-3 sm:mb-3.5">
         <DashboardHeader />
       </div>
 
-      {/* Main Operational Sections */}
+      {summaryQuery.isError && (
+        <div className="mb-4 p-3.5 rounded-[10px] border border-[#FECACA] bg-[#FEF2F2] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-[#B91C1C]">
+          <span>
+            {(summaryQuery.error as any)?.message ||
+              "Unable to fetch live dashboard summary from backend."}
+          </span>
+          <button
+            type="button"
+            onClick={() => summaryQuery.refetch()}
+            className="h-7 px-3 rounded-[6px] bg-white border border-[#FECACA] font-medium hover:bg-[#FEF2F2] self-start sm:self-auto"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       <div className="space-y-4 sm:space-y-5">
-        {/* 2. Needs Attention (Only genuine, approved pending items) */}
         <ActionRequiredRibbon
-          unassignedCount={data.operationalQueues?.unassignedOrders ?? 0}
-          pendingBoutiquesCount={data.operationalQueues?.pendingBoutiques ?? 0}
-          driverKycCount={data.operationalQueues?.driverKyc ?? 0}
+          unassignedCount={operationalQueues.unassignedOrders}
+          pendingBoutiquesCount={operationalQueues.pendingBoutiques}
+          driverKycCount={operationalQueues.driverKyc}
         />
 
-        {/* 3. Marketplace Summary Metrics (Consistent 4-card grid) */}
         <MarketplaceMetricsGrid
-          totalOrders={data.metrics?.totalOrders ?? 0}
-          gov={data.metrics?.grossVolume ?? 0}
-          activeVendors={data.metrics?.activeVendors ?? 0}
-          totalVendors={data.metrics?.totalVendors ?? 0}
-          deliveryFleetCount={data.metrics?.activeDeliveryFleet ?? 0}
+          totalOrders={metrics.totalOrders}
+          gov={metrics.grossVolume}
+          activeVendors={metrics.activeVendors}
+          totalVendors={metrics.totalVendors}
+          deliveryFleetCount={metrics.activeDeliveryFleet}
         />
 
-        {/* 4. Order Lifecycle Overview (Order Status) */}
-        <OrderLifecyclePipeline
-          pipelineCounts={data.lifecyclePipeline}
+        <OrderLifecyclePipeline pipelineCounts={lifecyclePipeline} />
+
+        <OperationalQueues
+          activeVendorsCount={metrics.activeVendors}
+          pendingBoutiquesCount={operationalQueues.pendingBoutiques}
+          activeFleetCount={metrics.activeDeliveryFleet}
+          pendingDriverKycCount={operationalQueues.driverKyc}
         />
 
-        {/* 5. Vendor & Delivery Partner Summaries */}
-        <OperationalQueues />
+        <RecentOrdersTable orders={recentOrders} />
 
-        {/* 6. Recent Marketplace Orders */}
-        <RecentOrdersTable orders={data.recentOrders} />
-
-        {/* 7. Compact Financial Summary (Approved GMV & accounting links only) */}
         <FinancialHealthSnapshot
-          grossVolume={data.metrics?.grossVolume ?? 0}
-          recordedTransactions={data.metrics?.totalOrders ?? 0}
+          grossVolume={metrics.grossVolume}
+          recordedTransactions={
+            res?.financialHealth?.recordedTransactions ?? metrics.totalOrders
+          }
         />
       </div>
     </div>

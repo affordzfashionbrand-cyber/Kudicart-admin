@@ -124,6 +124,28 @@ export function StatusBadge({
             Delivered
           </span>
         );
+      case "RETURNING":
+        return (
+          <span
+            className={cn(
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#FFF7ED] text-[#C2410C] border border-[#FED7AA]",
+              className
+            )}
+          >
+            Returning
+          </span>
+        );
+      case "RETURNED":
+        return (
+          <span
+            className={cn(
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#F5F3FF] text-[#6D28D9] border border-[#DDD6FE]",
+              className
+            )}
+          >
+            Returned
+          </span>
+        );
       case "CANCELLED":
         return (
           <span
@@ -133,6 +155,17 @@ export function StatusBadge({
             )}
           >
             Cancelled
+          </span>
+        );
+      case "FAILED":
+        return (
+          <span
+            className={cn(
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#FEF2F2] text-[#B91C1C] border border-[#FECACA]",
+              className
+            )}
+          >
+            Failed
           </span>
         );
       default:
@@ -185,6 +218,17 @@ export function StatusBadge({
             )}
           >
             Failed
+          </span>
+        );
+      case "REFUND_PENDING":
+        return (
+          <span
+            className={cn(
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-50 text-amber-800 border border-amber-200",
+              className
+            )}
+          >
+            Refund Pending
           </span>
         );
       case "REFUNDED":
@@ -303,6 +347,17 @@ export function StatusBadge({
   // Ticket status badge
   if (variant === "ticket") {
     switch (normalized) {
+      case "CLOSED":
+        return (
+          <span
+            className={cn(
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-[#F4F1EA] text-[#6B6667] border border-[#E4E0DB]",
+              className
+            )}
+          >
+            Closed
+          </span>
+        );
       case "OPEN":
       case "OPEN (ACTION REQ.)":
         return (

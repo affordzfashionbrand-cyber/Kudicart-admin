@@ -9,15 +9,47 @@ import {
   StockStatus,
   ProductListingStatus,
 } from "@/types/products";
-import { getDemoProducts, generateProductsCSV } from "@/demo-data/products";
 import { api } from "@/lib/api";
 
 const PAGE_SIZE = 8;
+
+function buildProductsCSV(products: CatalogProduct[]): string {
+  const headers = [
+    "SKU",
+    "Product Title",
+    "Boutique Vendor",
+    "Category",
+    "Selling Price (INR)",
+    "MRP (INR)",
+    "Available Stock",
+    "Stock Status",
+    "Listing Status",
+    "Fulfillment Mode",
+  ];
+  const escapeCSV = (value: unknown): string => {
+    if (value === null || value === undefined) return '""';
+    return `"${String(value).replace(/"/g, '""')}"`;
+  };
+  const rows = products.map((p) => [
+    escapeCSV(p.sku),
+    escapeCSV(p.title),
+    escapeCSV(p.vendorName),
+    escapeCSV(p.category),
+    escapeCSV(p.sellingPrice.toFixed(2)),
+    escapeCSV(p.originalPrice ? p.originalPrice.toFixed(2) : p.sellingPrice.toFixed(2)),
+    escapeCSV(p.stockQuantity),
+    escapeCSV(p.stockStatus),
+    escapeCSV(p.listingStatus),
+    escapeCSV(p.fulfillmentType),
+  ]);
+  return "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
+}
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<CatalogProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   // Filters & Search
   const [searchTerm, setSearchTerm] = useState("");
@@ -38,25 +70,26 @@ export default function AdminProductsPage() {
     } else {
       setLoading(true);
     }
+    setApiError(null);
 
-    api.products.list({ limit: 100 })
+    api.products
+      .list({ limit: 100 })
       .then((res) => {
-        if (res?.data && res.data.length > 0) {
-          setProducts(res.data);
-        } else {
-          setProducts(getDemoProducts());
-        }
-      })
-      .catch(() => {
-        setProducts(getDemoProducts());
-      })
-      .finally(() => {
-        setLoading(false);
+        setProducts(Array.isArray(res?.data) ? res.data : []);
         if (showRefreshState) {
-          setIsRefreshing(false);
           setToastMessage("Catalog view refreshed.");
           setTimeout(() => setToastMessage(null), 3000);
         }
+      })
+      .catch((err: unknown) => {
+        const message =
+          err instanceof Error ? err.message : "Unable to load catalog products from backend.";
+        setApiError(message);
+        setProducts([]);
+      })
+      .finally(() => {
+        setLoading(false);
+        setIsRefreshing(false);
       });
   };
 
@@ -151,7 +184,7 @@ export default function AdminProductsPage() {
   const handleExportCSV = () => {
     if (filteredProducts.length === 0) return;
 
-    const csvContent = generateProductsCSV(filteredProducts);
+    const csvContent = buildProductsCSV(filteredProducts);
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -227,6 +260,20 @@ export default function AdminProductsPage() {
           </button>
         </div>
       </div>
+
+      {/* Error Banner */}
+      {apiError && (
+        <div className="p-3.5 rounded-[10px] border border-[#FECACA] bg-[#FEF2F2] flex items-center justify-between gap-2 text-xs text-[#B91C1C]">
+          <span>{apiError}</span>
+          <button
+            type="button"
+            onClick={() => loadData(false)}
+            className="h-7 px-3 rounded-[6px] bg-white border border-[#FECACA] font-medium hover:bg-[#FEF2F2]"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Status Tabs */}
       <div className="border-b border-[#E4E0DB] flex items-center gap-1 text-xs font-medium overflow-x-auto select-none">

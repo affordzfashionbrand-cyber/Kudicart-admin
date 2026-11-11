@@ -56,16 +56,16 @@ export default function AddDarkStoreProductPage() {
   const [customColorHex, setCustomColorHex] = useState("#881337");
 
   // Garment Specifications & Matrix state
-  const [silhouette, setSilhouette] = useState("Straight Couture Regular Fit");
-  const [neckline, setNeckline] = useState("Mandarin Collar with V-Placket");
-  const [sleeveLength, setSleeveLength] = useState("Three-Quarter Churidar Sleeves");
-  const [lining, setLining] = useState("Pure Mulmul Cotton (Breathable)");
-  const [transparency, setTransparency] = useState("Opaque (Fully Pre-Lined)");
-  const [ornamentation, setOrnamentation] = useState("Hand Zari Work & Zardozi Placket");
-  const [occasion, setOccasion] = useState("Festive, Sangeet & Intimate Weddings");
-  const [careProtocol, setCareProtocol] = useState("Dry Clean Recommended");
-  const [certification, setCertification] = useState("Silk Mark Certified");
-  const [fabricDensity, setFabricDensity] = useState("90 GSM Featherweight");
+  const [silhouette, setSilhouette] = useState("");
+  const [neckline, setNeckline] = useState("");
+  const [sleeveLength, setSleeveLength] = useState("");
+  const [lining, setLining] = useState("");
+  const [transparency, setTransparency] = useState("");
+  const [ornamentation, setOrnamentation] = useState("");
+  const [occasion, setOccasion] = useState("");
+  const [careProtocol, setCareProtocol] = useState("");
+  const [certification, setCertification] = useState("");
+  const [fabricDensity, setFabricDensity] = useState("");
 
   // Metadata loaders
   const [categories, setCategories] = useState<CategoryOption[]>([]);
@@ -391,18 +391,17 @@ export default function AddDarkStoreProductPage() {
 
     setSubmitting(true);
 
-    const specifications: Record<string, string> = {
-      "Fabric Composition": fabric.trim() || "100% Pure Handloom Chanderi",
-      "Weave Technique": "Banarasi Zari Kadwa Weft",
-      "Silhouette & Fit": silhouette.trim() || "Straight Couture Regular Fit",
-      "Neckline": neckline.trim() || "Mandarin Collar with V-Placket",
-      "Sleeve Length": sleeveLength.trim() || "Three-Quarter Churidar Sleeves",
-      "Lining Material": lining.trim() || "Pure Mulmul Cotton (Breathable)",
-      "Transparency": transparency.trim() || "Opaque (Fully Pre-Lined)",
-      "Ornamentation": ornamentation.trim() || "Hand Zari Work & Zardozi Placket",
-      "Occasion": occasion.trim() || "Festive, Sangeet & Intimate Weddings",
-      "Care Protocol": careProtocol.trim() || "Dry Clean Recommended",
-    };
+    const specifications: Record<string, string> = {};
+    if (fabric.trim()) specifications["Fabric Composition"] = fabric.trim();
+    if (silhouette.trim()) specifications["Silhouette & Fit"] = silhouette.trim();
+    if (neckline.trim()) specifications["Neckline"] = neckline.trim();
+    if (sleeveLength.trim()) specifications["Sleeve Length"] = sleeveLength.trim();
+    if (lining.trim()) specifications["Lining Material"] = lining.trim();
+    if (transparency.trim()) specifications["Transparency"] = transparency.trim();
+    if (ornamentation.trim()) specifications["Ornamentation"] = ornamentation.trim();
+    if (occasion.trim()) specifications["Occasion"] = occasion.trim();
+    if (careProtocol.trim()) specifications["Care Protocol"] = careProtocol.trim();
+    if (fabricDensity.trim()) specifications["Fabric Density"] = fabricDensity.trim();
 
     const payload: CreateDarkStoreProductInput = {
       title: title.trim(),
@@ -422,8 +421,8 @@ export default function AddDarkStoreProductPage() {
       galleryImages: galleryImages.length > 0 ? galleryImages : [image.trim()],
       fulfillmentType: "DARK_STORE",
       colors,
-      specifications,
-      certification: certification.trim() || "Silk Mark Certified",
+      specifications: Object.keys(specifications).length > 0 ? specifications : undefined,
+      certification: certification.trim() || undefined,
     };
 
     try {
@@ -1258,6 +1257,7 @@ export default function AddDarkStoreProductPage() {
                     onChange={(e) => setCertification(e.target.value)}
                     className="w-full h-9 px-3 text-xs font-medium bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F] cursor-pointer"
                   >
+                    <option value="">None / Unspecified (Optional)</option>
                     <option value="Silk Mark Certified">Silk Mark Certified</option>
                     <option value="Handloom Mark Certified">Handloom Mark Certified</option>
                     <option value="Craftmark India Certified">Craftmark India Certified</option>

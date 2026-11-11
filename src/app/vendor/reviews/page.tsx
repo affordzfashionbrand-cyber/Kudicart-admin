@@ -4,13 +4,8 @@ import React, { useState, useMemo } from "react";
 import {
   Star,
   Search,
-  Filter,
-  CheckCircle2,
   ChevronDown,
   X,
-  Package,
-  User,
-  ThumbsUp,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/EmptyState";
 
@@ -24,63 +19,29 @@ interface VendorReview {
   verified: boolean;
 }
 
-const INITIAL_VENDOR_REVIEWS: VendorReview[] = [
-  {
-    id: "vr-1",
-    customerName: "Priya Sharma",
-    productName: "Silk Kaftan Dress",
-    rating: 5,
-    date: "Oct 24, 2024",
-    comment:
-      "Stunning drape and the emerald green color is exactly as pictured. Fabric quality is magnificent.",
-    verified: true,
-  },
-  {
-    id: "vr-2",
-    customerName: "Rohan Deshmukh",
-    productName: "Structured Linen Blazer",
-    rating: 5,
-    date: "Oct 22, 2024",
-    comment:
-      "Tailoring is very crisp. Great breathable fabric for Mumbai weather. Will order another color.",
-    verified: true,
-  },
-  {
-    id: "vr-3",
-    customerName: "Ananya Mehta",
-    productName: "Hand-Embroidered Kurta",
-    rating: 4,
-    date: "Oct 19, 2024",
-    comment:
-      "Very neat zari embroidery work. Sleeves were slightly tighter than expected but fits nicely overall.",
-    verified: true,
-  },
-  {
-    id: "vr-4",
-    customerName: "Zoya Akhtar",
-    productName: "Handloom Tussar Sari",
-    rating: 5,
-    date: "Oct 15, 2024",
-    comment:
-      "Authentic handloom weave. The packaging was immaculate with boutique garment bag included.",
-    verified: true,
-  },
-  {
-    id: "vr-5",
-    customerName: "Vikram Malhotra",
-    productName: "Pleated Palazzo Pants",
-    rating: 4,
-    date: "Oct 10, 2024",
-    comment:
-      "Comfortable waist fit and flowy silhouette. Fast dispatch from Bandra hub.",
-    verified: true,
-  },
-];
-
 export default function VendorReviewsPage() {
-  const [reviews] = useState<VendorReview[]>(INITIAL_VENDOR_REVIEWS);
+  const [reviews] = useState<VendorReview[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [ratingFilter, setRatingFilter] = useState<string>("ALL");
+
+  const stats = useMemo(() => {
+    const total = reviews.length;
+    const avg =
+      total > 0
+        ? (reviews.reduce((sum, r) => sum + r.rating, 0) / total).toFixed(1)
+        : "0.0";
+    const starPct = (target: number) =>
+      total > 0
+        ? Math.round((reviews.filter((r) => Math.round(r.rating) === target).length / total) * 100)
+        : 0;
+    return {
+      total,
+      avg,
+      fivePct: starPct(5),
+      fourPct: starPct(4),
+      threePct: starPct(3),
+    };
+  }, [reviews]);
 
   const filteredReviews = useMemo(() => {
     return reviews.filter((r) => {
@@ -115,11 +76,11 @@ export default function VendorReviewsPage() {
               Customer Reviews
             </h1>
             <span className="px-2.5 py-0.5 rounded-[6px] text-xs font-medium bg-[#FFF0E8] text-[#D94B17] border border-[#FF5A1F]/20">
-              4.8 ★ Boutique Rating
+              {stats.total > 0 ? `${stats.avg} ★ Boutique Rating` : "No Ratings Yet"}
             </span>
           </div>
           <p className="text-xs text-[#6B6667] mt-1">
-            Buyer ratings and feedback on Maison Lagos garments and packaging.
+            Buyer ratings and feedback for your store garments and packaging.
           </p>
         </div>
       </div>
@@ -128,36 +89,41 @@ export default function VendorReviewsPage() {
       <div className="bg-white rounded-[10px] border border-[#E4E0DB] p-5 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-5">
           <div className="flex flex-col items-center justify-center p-4 bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] min-w-[120px]">
-            <span className="text-3xl font-bold font-mono text-[#111111]">4.8</span>
+            <span className="text-3xl font-bold font-mono text-[#111111]">{stats.avg}</span>
             <div className="flex items-center gap-0.5 mt-1 text-[#FF5A1F]">
               {[1, 2, 3, 4, 5].map((s) => (
-                <Star key={s} className="w-3.5 h-3.5 fill-[#FF5A1F] text-[#FF5A1F]" />
+                <Star
+                  key={s}
+                  className={`w-3.5 h-3.5 ${
+                    Number(stats.avg) >= s ? "fill-[#FF5A1F] text-[#FF5A1F]" : "text-[#E4E0DB]"
+                  }`}
+                />
               ))}
             </div>
-            <span className="text-[11px] text-[#6B6667] mt-1">34 Reviews</span>
+            <span className="text-[11px] text-[#6B6667] mt-1">{stats.total} Reviews</span>
           </div>
 
           <div className="space-y-1.5 text-xs">
             <div className="flex items-center gap-2">
               <span className="text-[#6B6667] w-12">5 Star</span>
               <div className="w-36 h-2 bg-[#F4F1EA] rounded-full overflow-hidden">
-                <div className="w-[85%] h-full bg-[#FF5A1F] rounded-full" />
+                <div className="h-full bg-[#FF5A1F] rounded-full" style={{ width: `${stats.fivePct}%` }} />
               </div>
-              <span className="text-[#111111] font-medium">85%</span>
+              <span className="text-[#111111] font-medium">{stats.fivePct}%</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[#6B6667] w-12">4 Star</span>
               <div className="w-36 h-2 bg-[#F4F1EA] rounded-full overflow-hidden">
-                <div className="w-[15%] h-full bg-[#FF5A1F] rounded-full" />
+                <div className="h-full bg-[#FF5A1F] rounded-full" style={{ width: `${stats.fourPct}%` }} />
               </div>
-              <span className="text-[#111111] font-medium">15%</span>
+              <span className="text-[#111111] font-medium">{stats.fourPct}%</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[#6B6667] w-12">3 Star</span>
               <div className="w-36 h-2 bg-[#F4F1EA] rounded-full overflow-hidden">
-                <div className="w-[0%] h-full bg-[#FF5A1F] rounded-full" />
+                <div className="h-full bg-[#FF5A1F] rounded-full" style={{ width: `${stats.threePct}%` }} />
               </div>
-              <span className="text-[#111111] font-medium">0%</span>
+              <span className="text-[#111111] font-medium">{stats.threePct}%</span>
             </div>
           </div>
         </div>
@@ -209,10 +175,18 @@ export default function VendorReviewsPage() {
         {filteredReviews.length === 0 ? (
           <div className="bg-white rounded-[10px] border border-[#E4E0DB] p-8 text-center">
             <EmptyState
-              title="No customer reviews found"
-              description="Try adjusting your search query or active rating filter."
-              actionLabel="Clear Filters"
-              onAction={clearFilters}
+              title={
+                reviews.length === 0
+                  ? "Vendor review feed awaiting Wave 2 integration"
+                  : "No customer reviews found"
+              }
+              description={
+                reviews.length === 0
+                  ? "Store-scoped review moderation and eligibility rules (O-010) will load from backend once Wave 2 vendor endpoints are wired."
+                  : "Try adjusting your search query or active rating filter."
+              }
+              actionLabel={reviews.length > 0 ? "Clear Filters" : undefined}
+              onAction={reviews.length > 0 ? clearFilters : undefined}
             />
           </div>
         ) : (

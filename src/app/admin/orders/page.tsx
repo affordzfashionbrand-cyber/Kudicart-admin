@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { Suspense, useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Download,
   RefreshCw,
@@ -21,10 +22,10 @@ import {
 import { Order, OrderStatus } from "@/types/orders";
 import { DeliveryPartner } from "@/types/drivers";
 import {
-  getDemoOrders,
-  calculateOrderStats,
-  exportOrdersToCSV,
-} from "@/demo-data/orders";
+  calculateCanonicalOrderStats,
+  exportOrdersListToCSV,
+  mapBackendOrderToWebOrder,
+} from "@/lib/orderMappers";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ManualDeliveryAssignmentDrawer } from "@/components/admin/ManualDeliveryAssignmentDrawer";
@@ -43,26 +44,42 @@ const CANONICAL_STATUS_TABS: { id: TabFilter; label: string }[] = [
   { id: "PICKED_UP", label: "Picked Up" },
   { id: "OUT_FOR_DELIVERY", label: "Out for Delivery" },
   { id: "DELIVERED", label: "Delivered" },
+  { id: "RETURNING", label: "Returning" },
+  { id: "RETURNED", label: "Returned" },
+  { id: "CANCELLED", label: "Cancelled" },
+  { id: "FAILED", label: "Failed" },
 ];
 
 const PAGE_SIZE = 8;
 
-export default function AdminMarketplaceOrdersPage() {
+function AdminMarketplaceOrdersContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
 
-  // Primary data state
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [apiError, setApiError] = useState<string | null>(null);
+  const urlStatusParam = searchParams.get("status");
+  const urlSearchParam = searchParams.get("search");
 
   // Filters & Pagination
   const [activeTab, setActiveTab] = useState<TabFilter>("ALL");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [searchQuery, setSearchQuery] = useState(() => urlSearchParam || "");
+  const [statusFilter, setStatusFilter] = useState<string>(() => urlStatusParam || "ALL");
   const [fulfillmentFilter, setFulfillmentFilter] = useState<string>("ALL");
   const [dateRangeFilter, setDateRangeFilter] = useState<string>("ALL");
   const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    if (urlStatusParam && CANONICAL_STATUS_TABS.some((t) => t.id === urlStatusParam)) {
+      setStatusFilter(urlStatusParam);
+      setActiveTab("ALL");
+    }
+  }, [urlStatusParam]);
+
+  useEffect(() => {
+    if (urlSearchParam !== null) {
+      setSearchQuery(urlSearchParam);
+    }
+  }, [urlSearchParam]);
 
   // Assignment Drawer state
   const [selectedOrderForDrawer, setSelectedOrderForDrawer] = useState<Order | null>(null);
@@ -76,41 +93,36 @@ export default function AdminMarketplaceOrdersPage() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Load orders from backend with graceful demo fallback
-  const loadOrders = useCallback((isRefresh = false) => {
+  const ordersQuery = useQuery({
+    queryKey: ["admin-orders", "list"],
+    queryFn: async () => {
+      const res = await api.orders.list({ limit: 200 });
+      const raw = Array.isArray(res?.data) ? res.data : [];
+      return raw.map(mapBackendOrderToWebOrder);
+    },
+    refetchInterval: 20_000,
+  });
+
+  const orders: Order[] = useMemo(
+    () => ordersQuery.data ?? [],
+    [ordersQuery.data]
+  );
+  const isLoading = ordersQuery.isLoading;
+  const isRefreshing = ordersQuery.isFetching && !ordersQuery.isLoading;
+  const apiError = ordersQuery.isError
+    ? (ordersQuery.error as any)?.message || "Unable to fetch marketplace orders from backend."
+    : null;
+
+  const loadOrders = async (isRefresh = false) => {
+    await ordersQuery.refetch();
     if (isRefresh) {
-      setIsRefreshing(true);
-    } else {
-      setIsLoading(true);
+      showToast("Orders list refreshed.");
     }
-
-    api.orders.list({ limit: 100 })
-      .then((res) => {
-        if (res?.data && res.data.length > 0) {
-          setOrders(res.data);
-        } else {
-          setOrders(getDemoOrders());
-        }
-      })
-      .catch(() => {
-        setOrders(getDemoOrders());
-      })
-      .finally(() => {
-        setIsLoading(false);
-        if (isRefresh) {
-          setIsRefreshing(false);
-          showToast("Orders list refreshed.");
-        }
-      });
-  }, []);
-
-  useEffect(() => {
-    loadOrders();
-  }, [loadOrders]);
+  };
 
   // Compute dynamic counts per status
   const orderStats = useMemo(() => {
-    return calculateOrderStats(orders);
+    return calculateCanonicalOrderStats(orders);
   }, [orders]);
 
   // Dynamic count map for tabs
@@ -134,6 +146,14 @@ export default function AdminMarketplaceOrdersPage() {
         return orderStats.outForDelivery;
       case "DELIVERED":
         return orderStats.delivered;
+      case "RETURNING":
+        return orderStats.returning;
+      case "RETURNED":
+        return orderStats.returned;
+      case "CANCELLED":
+        return orderStats.cancelled;
+      case "FAILED":
+        return orderStats.failed;
       default:
         return 0;
     }
@@ -153,8 +173,12 @@ export default function AdminMarketplaceOrdersPage() {
       }
 
       // 3. Fulfillment filter
-      if (fulfillmentFilter !== "ALL" && order.fulfillmentType !== fulfillmentFilter) {
-        return false;
+      if (fulfillmentFilter !== "ALL") {
+        if (fulfillmentFilter === "TRY_AND_BUY") {
+          if (!order.isTryAndBuy) return false;
+        } else if (order.fulfillmentType !== fulfillmentFilter) {
+          return false;
+        }
       }
 
       // 4. Date range filter
@@ -181,6 +205,8 @@ export default function AdminMarketplaceOrdersPage() {
         const query = searchQuery.toLowerCase().trim();
         const matchesQuery =
           order.orderNumber.toLowerCase().includes(query) ||
+          (order.groupNumber || "").toLowerCase().includes(query) ||
+          (order.checkoutGroupId || "").toLowerCase().includes(query) ||
           order.customerName.toLowerCase().includes(query) ||
           order.customerPhone.includes(query) ||
           order.vendorName.toLowerCase().includes(query) ||
@@ -193,6 +219,16 @@ export default function AdminMarketplaceOrdersPage() {
       return true;
     });
   }, [orders, activeTab, statusFilter, fulfillmentFilter, dateRangeFilter, searchQuery]);
+
+  const checkoutGroupCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const o of orders) {
+      if (o.checkoutGroupId) {
+        counts.set(o.checkoutGroupId, (counts.get(o.checkoutGroupId) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [orders]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -223,7 +259,8 @@ export default function AdminMarketplaceOrdersPage() {
     try {
       await api.orders.assignDriver(orderId, driver.id);
       showToast(`Order assigned to ${driver.fullName} successfully.`, "success");
-      loadOrders();
+      await queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+      await queryClient.invalidateQueries({ queryKey: ["admin-assignments"] });
     } catch (err: any) {
       showToast(err?.message || "Failed to assign delivery partner.", "error");
       throw err;
@@ -242,7 +279,7 @@ export default function AdminMarketplaceOrdersPage() {
 
   // Real CSV Export
   const handleExportCSV = () => {
-    const success = exportOrdersToCSV(filteredOrders, "kudicart_marketplace_orders");
+    const success = exportOrdersListToCSV(filteredOrders, "kudicart_marketplace_orders");
     if (success) {
       showToast(`Exported ${filteredOrders.length} orders to CSV successfully.`);
     } else {
@@ -373,6 +410,10 @@ export default function AdminMarketplaceOrdersPage() {
               <option value="PICKED_UP">Picked Up</option>
               <option value="OUT_FOR_DELIVERY">Out for Delivery</option>
               <option value="DELIVERED">Delivered</option>
+              <option value="RETURNING">Returning</option>
+              <option value="RETURNED">Returned</option>
+              <option value="CANCELLED">Cancelled</option>
+              <option value="FAILED">Failed</option>
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
           </div>
@@ -384,10 +425,10 @@ export default function AdminMarketplaceOrdersPage() {
               onChange={(e) => setFulfillmentFilter(e.target.value)}
               className="h-9 pl-3 pr-8 rounded-[8px] border border-[#E4E0DB] bg-white text-xs text-[#111111] hover:bg-[#F7F7F5] focus:border-[#FF5A1F] outline-none appearance-none cursor-pointer"
             >
-              <option value="ALL">All Fulfillment Types</option>
-              <option value="Standard">Standard</option>
-              <option value="Express (60m)">Express (60m)</option>
-              <option value="Try & Buy">Try &amp; Buy</option>
+              <option value="ALL">All Fulfillment Channels</option>
+              <option value="DARK_STORE">Dark Store (60m)</option>
+              <option value="VENDOR">Vendor Boutique</option>
+              <option value="TRY_AND_BUY">Try &amp; Buy</option>
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
           </div>
@@ -493,9 +534,25 @@ export default function AdminMarketplaceOrdersPage() {
                     >
                       {/* Order ID */}
                       <td className="px-4 py-2 whitespace-nowrap">
-                        <span className="font-mono font-medium text-[#111111]">
+                        <div className="font-mono font-medium text-[#111111]">
                           #{order.orderNumber}
-                        </span>
+                        </div>
+                        {order.checkoutGroupId && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSearchQuery(order.groupNumber || order.checkoutGroupId || "");
+                            }}
+                            title="Filter all split orders in this checkout group"
+                            className="mt-0.5 inline-flex items-center px-1.5 py-0.2 rounded-[4px] bg-[#EFF6FF] text-[#1D4ED8] border border-[#BFDBFE] text-[10px] font-mono hover:bg-[#DBEAFE] transition-colors"
+                          >
+                            Split: {order.groupNumber || order.checkoutGroupId.slice(0, 8)}
+                            {(checkoutGroupCounts.get(order.checkoutGroupId) ?? 0) > 1
+                              ? ` (${checkoutGroupCounts.get(order.checkoutGroupId)})`
+                              : ""}
+                          </button>
+                        )}
                       </td>
 
                       {/* Order Time */}
@@ -536,7 +593,10 @@ export default function AdminMarketplaceOrdersPage() {
 
                       {/* Fulfillment */}
                       <td className="px-3 py-2 whitespace-nowrap">
-                        <StatusBadge status={order.fulfillmentType} variant="fulfillment" />
+                        <StatusBadge
+                          status={order.isTryAndBuy ? "TRY_AND_BUY" : order.fulfillmentType}
+                          variant="fulfillment"
+                        />
                       </td>
 
                       {/* Items */}
@@ -684,5 +744,19 @@ export default function AdminMarketplaceOrdersPage() {
         onConfirmAssignment={handleConfirmAssignment}
       />
     </div>
+  );
+}
+
+export default function AdminMarketplaceOrdersPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="w-full max-w-[1400px] mx-auto px-4 sm:px-5 lg:px-6 py-8">
+          <div className="h-40 rounded-[10px] bg-white border border-[#E4E0DB] animate-pulse" />
+        </div>
+      }
+    >
+      <AdminMarketplaceOrdersContent />
+    </Suspense>
   );
 }

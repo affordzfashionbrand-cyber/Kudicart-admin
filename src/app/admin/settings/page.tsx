@@ -27,27 +27,106 @@ import {
   WorkspacePreferences,
   ActiveSessionDetails,
 } from "@/types/settings";
-import {
-  MOCK_ADMIN_PROFILE,
-  DEFAULT_WORKSPACE_PREFERENCES,
-  MOCK_ACTIVE_SESSION,
-} from "@/mocks/settings";
-import { api } from "@/lib/api";
+import { api, getStoredProfile, clearAuthToken } from "@/lib/api";
+
+const DEFAULT_WORKSPACE_PREFERENCES: WorkspacePreferences = {
+  defaultPageSize: 10,
+  currencyStandard: "INR (₹)",
+  timestampFormat: "IST",
+  highDensityRows: false,
+  audioAlertExceptions: true,
+};
+
+function computeInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return (parts[0]?.slice(0, 2) || "AD").toUpperCase();
+}
 
 export default function AdminSettingsPage() {
-  const [profile] = useState<AdminAccountProfile>(MOCK_ADMIN_PROFILE);
+  const [profile, setProfile] = useState<AdminAccountProfile>({
+    displayName: "Administrator",
+    email: "—",
+    staffId: "—",
+    role: "ADMIN",
+    assignedTerminal: "Affordz Central Operations",
+    accessLevel: "ADMIN",
+    assignedPermissions: "Administrator Session",
+    verified: true,
+  });
   const [preferences, setPreferences] = useState<WorkspacePreferences>(
     DEFAULT_WORKSPACE_PREFERENCES
   );
-  const [sessionInfo] = useState<ActiveSessionDetails>(MOCK_ACTIVE_SESSION);
+  const [sessionInfo, setSessionInfo] = useState<ActiveSessionDetails>({
+    gatewayIp: "Web Client",
+    networkName: "HTTPS",
+    sessionInitiated: "Active Browser Session",
+    expiresIn: "Managed by identity provider",
+    clientDevice: "Web Console",
+    channelStatus: "Active Session",
+  });
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [tokenModalOpen, setTokenModalOpen] = useState<boolean>(false);
   const [logoutModalOpen, setLogoutModalOpen] = useState<boolean>(false);
 
-  // Load preferences from backend API or localStorage fallback
   useEffect(() => {
+    const storedUser = getStoredProfile() as Record<string, unknown> | null;
+    if (storedUser) {
+      setProfile((prev) => ({
+        ...prev,
+        displayName: String(storedUser.fullName || storedUser.name || storedUser.email || prev.displayName),
+        email: String(storedUser.email || prev.email),
+        staffId: String(storedUser.id || prev.staffId),
+        role: String(storedUser.role || prev.role),
+        accessLevel: String(storedUser.role || prev.accessLevel),
+      }));
+    }
+
+    if (typeof window !== "undefined") {
+      setSessionInfo({
+        gatewayIp: window.location.host || "Web Client",
+        networkName: window.location.protocol.replace(":", "").toUpperCase() || "HTTPS",
+        sessionInitiated: new Date().toLocaleString(),
+        expiresIn: "Managed by identity provider",
+        clientDevice: navigator.platform || "Web Browser",
+        channelStatus: "Active Session",
+      });
+    }
+
+    api.auth
+      .getProfile()
+      .then((res) => {
+        const raw = (res as unknown as Record<string, unknown>) || {};
+        const data =
+          raw.user && typeof raw.user === "object"
+            ? (raw.user as Record<string, unknown>)
+            : raw.data && typeof raw.data === "object"
+              ? (raw.data as Record<string, unknown>)
+              : raw;
+        if (data.email || data.id || data.fullName || data.name) {
+          setProfile((prev) => ({
+            ...prev,
+            displayName: String(data.fullName || data.name || data.email || prev.displayName),
+            email: String(data.email || prev.email),
+            staffId: String(data.id || prev.staffId),
+            role: String(data.role || prev.role),
+            accessLevel: String(data.role || prev.accessLevel),
+            assignedTerminal: String(data.assignedTerminal || "Affordz Central Operations"),
+            assignedPermissions: String(data.assignedPermissions || "Administrator Session"),
+          }));
+        }
+      })
+      .catch((err: unknown) => {
+        setProfileError(
+          err instanceof Error ? err.message : "Unable to refresh administrator profile from backend."
+        );
+      });
+
     try {
-      const stored = localStorage.getItem("kudicart_workspace_prefs");
+      const stored =
+        localStorage.getItem("affordz_workspace_prefs") ||
+        localStorage.getItem("kudicart_workspace_prefs");
       if (stored) {
         setPreferences(JSON.parse(stored));
       }
@@ -55,10 +134,15 @@ export default function AdminSettingsPage() {
       // Ignore local storage error
     }
 
-    api.settings.getPreferences()
-      .then((prefs: any) => {
-        if (prefs) {
-          const unwrapped = prefs.data || prefs;
+    api.settings
+      .getPreferences()
+      .then((prefs: unknown) => {
+        if (prefs && typeof prefs === "object") {
+          const obj = prefs as Record<string, unknown>;
+          const unwrapped =
+            obj.data && typeof obj.data === "object"
+              ? (obj.data as Partial<WorkspacePreferences>)
+              : (obj as Partial<WorkspacePreferences>);
           setPreferences((prev) => ({
             ...prev,
             ...unwrapped,
@@ -75,7 +159,7 @@ export default function AdminSettingsPage() {
   const savePreferences = async (newPrefs: WorkspacePreferences) => {
     setPreferences(newPrefs);
     try {
-      localStorage.setItem("kudicart_workspace_prefs", JSON.stringify(newPrefs));
+      localStorage.setItem("affordz_workspace_prefs", JSON.stringify(newPrefs));
     } catch {
       // Ignore local storage error
     }
@@ -84,13 +168,14 @@ export default function AdminSettingsPage() {
       await api.settings.savePreferences(newPrefs);
       setFeedback("Workspace preferences synchronized with server.");
     } catch {
-      setFeedback("Workspace preferences updated locally.");
+      setFeedback("Workspace preferences saved locally (backend sync failed).");
     }
     setTimeout(() => setFeedback(null), 3000);
   };
 
   const handleResetCache = () => {
     try {
+      localStorage.removeItem("affordz_workspace_prefs");
       localStorage.removeItem("kudicart_workspace_prefs");
       setPreferences(DEFAULT_WORKSPACE_PREFERENCES);
       setFeedback("Local client cache and presentation preferences reset.");
@@ -104,15 +189,16 @@ export default function AdminSettingsPage() {
     try {
       await api.auth.logout();
     } catch {
-      // Ignore
+      // Clear local session regardless of backend logout error
     }
+    clearAuthToken();
     try {
       localStorage.clear();
       sessionStorage.clear();
-      window.location.href = "/login";
     } catch {
-      window.location.href = "/login";
+      // Ignore storage clear errors
     }
+    window.location.href = "/login";
   };
 
   return (
@@ -143,6 +229,13 @@ export default function AdminSettingsPage() {
           </span>
         </div>
       </div>
+
+      {profileError && (
+        <div className="p-3 bg-[#FFFBEB] border border-[#FDE68A] rounded-[8px] flex items-center gap-2 text-xs text-[#B45309]">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{profileError}</span>
+        </div>
+      )}
 
       {feedback && (
         <div className="p-3 bg-[#ECFDF5] border border-[#A7F3D0] rounded-[8px] flex items-center justify-between text-xs text-[#20885A]">
@@ -187,7 +280,7 @@ export default function AdminSettingsPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-[8px] bg-[#F7F7F5] border border-[#E4E0DB] mb-6">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-[#1A1C1B] text-white flex items-center justify-center text-base font-semibold border-2 border-white shadow-xs">
-                  AO
+                  {computeInitials(profile.displayName)}
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -518,7 +611,7 @@ export default function AdminSettingsPage() {
                       <td className="px-4">
                         {sessionInfo.sessionInitiated}{" "}
                         <span className="text-[11px] text-[#20885A] font-medium block">
-                          Expires in {sessionInfo.expiresIn}
+                          Token validity: {sessionInfo.expiresIn}
                         </span>
                       </td>
                       <td className="px-4 text-[#6B6667] font-mono text-[11px]">
@@ -600,14 +693,14 @@ export default function AdminSettingsPage() {
       {/* Footer */}
       <footer className="mt-8 py-5 border-t border-[#E4E0DB] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#6B6667]">
         <div>
-          KudiCart Operations Central Management
+          Affordz Operations Central Management
         </div>
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-[#20885A]" />
-            Frontend-Only Evaluation Build
+            Backend API Connected
           </span>
-          <span>Access Level: SuperAdmin</span>
+          <span>Access Level: {profile.accessLevel}</span>
         </div>
       </footer>
 
@@ -621,29 +714,35 @@ export default function AdminSettingsPage() {
               </div>
               <div>
                 <h3 className="text-[15px] font-semibold text-[#111111]">
-                  Session Token Rotation Notice
+                  Session Token Management
                 </h3>
                 <p className="text-xs text-[#6B6667]">
-                  Backend API contract dependency
+                  Managed by platform authentication provider
                 </p>
               </div>
             </div>
 
             <div className="p-3.5 bg-[#FFFBEB] border border-[#FDE68A] rounded-[8px] text-xs text-[#B45309] space-y-1.5">
               <p className="font-medium">
-                Not connected in this build
+                Re-authenticate to rotate session tokens
               </p>
               <p className="text-[11px] leading-relaxed">
-                Cryptographic session token regeneration requires live backend authentication services. In this frontend-only build, session tokens are simulated locally.
+                Access tokens are issued and verified server-side. To invalidate your current token and obtain a fresh credential immediately, sign out and log back in.
               </p>
             </div>
 
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end gap-2 pt-2">
               <button
                 onClick={() => setTokenModalOpen(false)}
+                className="px-4 py-2 border border-[#E4E0DB] rounded-[8px] text-xs font-medium text-[#6B6667] hover:bg-[#F7F7F5] transition-colors"
+              >
+                Close
+              </button>
+              <button
+                onClick={handleSignOut}
                 className="px-4 py-2 bg-[#111111] text-white rounded-[8px] text-xs font-medium hover:bg-[#333333] transition-colors"
               >
-                Close Notice
+                Sign Out &amp; Re-authenticate
               </button>
             </div>
           </div>
@@ -669,7 +768,7 @@ export default function AdminSettingsPage() {
             </div>
 
             <p className="text-xs text-[#6B6667] leading-relaxed">
-              This will clear local session storage and return you to the KudiCart authentication screen.
+              This will clear local session storage and return you to the Affordz authentication screen.
             </p>
 
             <div className="flex items-center justify-end gap-2 pt-2">

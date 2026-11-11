@@ -1,5 +1,5 @@
 import React from "react";
-import { Check } from "lucide-react";
+import { AlertTriangle, Check, RotateCcw } from "lucide-react";
 import { OrderStatus, OrderStatusHistoryItem } from "@/types/orders";
 
 interface TimelineProps {
@@ -7,7 +7,7 @@ interface TimelineProps {
   history?: OrderStatusHistoryItem[];
 }
 
-const MILESTONES: { status: OrderStatus; label: string; stepNumber: number }[] = [
+const FORWARD_MILESTONES: { status: OrderStatus; label: string; stepNumber: number }[] = [
   { status: "PLACED", label: "Placed", stepNumber: 1 },
   { status: "ACCEPTED", label: "Accepted", stepNumber: 2 },
   { status: "PREPARING", label: "Preparing", stepNumber: 3 },
@@ -18,41 +18,96 @@ const MILESTONES: { status: OrderStatus; label: string; stepNumber: number }[] =
   { status: "DELIVERED", label: "Delivered", stepNumber: 8 },
 ];
 
-export function OrderLifecycleTimeline({ currentStatus, history = [] }: TimelineProps) {
-  const currentIndex = MILESTONES.findIndex((m) => m.status === currentStatus);
-  const safeCurrentIndex = currentIndex >= 0 ? currentIndex : 0;
+const RETURN_MILESTONES: { status: OrderStatus; label: string; stepNumber: number }[] = [
+  { status: "RETURNING", label: "Returning", stepNumber: 9 },
+  { status: "RETURNED", label: "Returned", stepNumber: 10 },
+];
 
-  // Percentage for connection fill line
-  const progressPercent = Math.min(100, Math.max(0, (safeCurrentIndex / (MILESTONES.length - 1)) * 100));
+export function OrderLifecycleTimeline({ currentStatus, history = [] }: TimelineProps) {
+  const isReturnState = currentStatus === "RETURNING" || currentStatus === "RETURNED";
+  const isTerminalFailure = currentStatus === "CANCELLED" || currentStatus === "FAILED";
+
+  const milestones = isReturnState
+    ? [...FORWARD_MILESTONES, ...RETURN_MILESTONES]
+    : FORWARD_MILESTONES;
+
+  const historyStatuses = new Set(history.map((h) => h.status));
+  const highestHistoryForwardIdx = FORWARD_MILESTONES.reduce((maxIdx, m, idx) => {
+    return historyStatuses.has(m.status) ? Math.max(maxIdx, idx) : maxIdx;
+  }, -1);
+
+  const activeIndex = isTerminalFailure
+    ? -1
+    : milestones.findIndex((m) => m.status === currentStatus);
+
+  const completedUpToIdx = isTerminalFailure
+    ? highestHistoryForwardIdx
+    : isReturnState
+    ? Math.max(FORWARD_MILESTONES.length - 1, highestHistoryForwardIdx)
+    : activeIndex;
+
+  const progressIndex = activeIndex >= 0 ? activeIndex : Math.max(0, completedUpToIdx);
+  const progressPercent = Math.min(
+    100,
+    Math.max(0, (progressIndex / Math.max(1, milestones.length - 1)) * 100)
+  );
+
+  const terminalHistItem = history.find((h) => h.status === currentStatus);
 
   return (
-    <section className="bg-white border border-[#E4E0DB] rounded-[10px] p-5 shadow-xs">
-      <div className="flex items-center justify-between mb-5">
+    <section className="bg-white border border-[#E4E0DB] rounded-[10px] p-5 shadow-xs space-y-4">
+      <div className="flex items-center justify-between">
         <h2 className="text-[15px] font-semibold text-[#111111]">Order Lifecycle Timeline</h2>
         <span className="text-xs text-[#6B6667] font-medium">
-          8 Canonical Milestones
+          {isTerminalFailure || isReturnState
+            ? `Canonical State: ${currentStatus.replace(/_/g, " ")}`
+            : "8 Forward Milestones"}
         </span>
       </div>
 
+      {isTerminalFailure && (
+        <div className="p-3 rounded-[8px] border border-[#FECACA] bg-[#FEF2F2] text-xs text-[#991B1B] flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 font-medium">
+            <AlertTriangle className="w-4 h-4 shrink-0 text-[#DC2626]" />
+            <span>
+              Order ended in <strong>{currentStatus}</strong> state
+              {terminalHistItem?.note ? ` — ${terminalHistItem.note}` : "."}
+            </span>
+          </div>
+          {terminalHistItem?.timestamp && (
+            <span className="font-mono text-[11px] shrink-0">{terminalHistItem.timestamp}</span>
+          )}
+        </div>
+      )}
+
       <div className="overflow-x-auto pb-2 custom-scrollbar">
-        <div className="min-w-[840px] relative flex items-start justify-between">
+        <div
+          className={`${isReturnState ? "min-w-[980px]" : "min-w-[840px]"} relative flex items-start justify-between`}
+        >
           {/* Continuous Track Line */}
           <div className="absolute left-6 right-6 top-3.5 h-[2px] bg-[#E4E0DB] -z-0">
             <div
-              className="h-full bg-[#20885A] transition-all duration-500"
+              className={`h-full transition-all duration-500 ${
+                isTerminalFailure ? "bg-[#DA1E28]" : "bg-[#20885A]"
+              }`}
               style={{ width: `${progressPercent}%` }}
             />
           </div>
 
           {/* Steps */}
-          {MILESTONES.map((milestone, idx) => {
-            const isCompleted = idx < safeCurrentIndex;
-            const isActive = idx === safeCurrentIndex;
-            const isPending = idx > safeCurrentIndex;
+          {milestones.map((milestone, idx) => {
+            const isCompleted = isTerminalFailure
+              ? idx <= completedUpToIdx
+              : idx < activeIndex;
+            const isActive = !isTerminalFailure && idx === activeIndex;
+            const isPending = !isCompleted && !isActive;
+            const isReturnStep =
+              milestone.status === "RETURNING" || milestone.status === "RETURNED";
 
-            // Find matching history item if available
             const histItem = history.find((h) => h.status === milestone.status);
-            const timeLabel = histItem?.timestamp || (isCompleted || isActive ? "Completed" : "Pending");
+            const timeLabel =
+              histItem?.timestamp ||
+              (isActive ? "Current" : isCompleted ? "Completed" : "Pending");
 
             return (
               <div
@@ -68,8 +123,18 @@ export function OrderLifecycleTimeline({ currentStatus, history = [] }: Timeline
                 )}
 
                 {isActive && (
-                  <div className="w-7 h-7 rounded-full bg-[#FFF0E8] border-2 border-[#FF5A1F] text-[#FF5A1F] flex items-center justify-center shadow-xs">
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#FF5A1F]" />
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center shadow-xs ${
+                      isReturnStep
+                        ? "bg-[#FFFBEB] border-2 border-[#D97706] text-[#D97706]"
+                        : "bg-[#FFF0E8] border-2 border-[#FF5A1F] text-[#FF5A1F]"
+                    }`}
+                  >
+                    {isReturnStep ? (
+                      <RotateCcw className="w-3.5 h-3.5" />
+                    ) : (
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#FF5A1F]" />
+                    )}
                   </div>
                 )}
 
@@ -82,7 +147,9 @@ export function OrderLifecycleTimeline({ currentStatus, history = [] }: Timeline
                 <span
                   className={`text-xs mt-2 leading-tight ${
                     isActive
-                      ? "font-semibold text-[#FF5A1F]"
+                      ? isReturnStep
+                        ? "font-semibold text-[#B45309]"
+                        : "font-semibold text-[#FF5A1F]"
                       : isCompleted
                       ? "font-medium text-[#111111]"
                       : "font-normal text-[#6B6667]"
@@ -94,7 +161,9 @@ export function OrderLifecycleTimeline({ currentStatus, history = [] }: Timeline
                 <span
                   className={`text-[11px] font-mono mt-0.5 ${
                     isActive
-                      ? "font-semibold text-[#FF5A1F]"
+                      ? isReturnStep
+                        ? "font-semibold text-[#B45309]"
+                        : "font-semibold text-[#FF5A1F]"
                       : "text-[#6B6667]"
                   }`}
                 >
@@ -108,4 +177,3 @@ export function OrderLifecycleTimeline({ currentStatus, history = [] }: Timeline
     </section>
   );
 }
-

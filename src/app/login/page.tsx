@@ -3,7 +3,11 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { api } from "@/lib/api";
+import { api, clearAuthToken, getPortalRole } from "@/lib/api";
+import {
+  sendFirebasePasswordReset,
+  signInFirebaseWithEmailPassword,
+} from "@/lib/firebase";
 
 const REMEMBER_ME_KEY = "kudicart_admin_remember_me";
 const REMEMBERED_EMAIL_KEY = "kudicart_admin_remembered_email";
@@ -96,22 +100,83 @@ export default function LoginPage() {
     }
 
     try {
-      const res = await api.auth.login({ email: cleanEmail, password, rememberMe });
+      const idToken = await signInFirebaseWithEmailPassword(cleanEmail, password);
+      let resolvedPortal: "ADMIN" | "VENDOR" | null = null;
+      let fallbackErr: any = null;
+
+      try {
+        const adminRes = await api.auth.loginAdminFirebase(idToken, rememberMe);
+        resolvedPortal =
+          getPortalRole({ ...adminRes?.user, role: adminRes?.role || adminRes?.user?.role }) ||
+          "ADMIN";
+      } catch (adminErr: any) {
+        const statusCode = adminErr?.statusCode ?? adminErr?.status;
+        if (statusCode === 403 || statusCode === 401) {
+          try {
+            const vendorRes = await api.vendorAuth.loginFirebase(idToken, rememberMe);
+            resolvedPortal =
+              getPortalRole({
+                ...vendorRes?.user,
+                role: vendorRes?.role || vendorRes?.user?.role || "VENDOR",
+              }) || "VENDOR";
+          } catch (vendorErr: any) {
+            fallbackErr = vendorErr;
+          }
+        } else {
+          fallbackErr = adminErr;
+        }
+      }
+
       setIsLoading(false);
-      if (res?.user?.role === "VENDOR") {
+      if (resolvedPortal === "VENDOR") {
         router.push("/vendor/dashboard");
-      } else {
+      } else if (resolvedPortal === "ADMIN") {
         router.push("/admin/dashboard");
+      } else {
+        clearAuthToken();
+        setInfoMessage(
+          fallbackErr?.message ||
+            "Access denied: this portal is restricted to Admin and Vendor accounts."
+        );
       }
     } catch (err: any) {
       setIsLoading(false);
-      setInfoMessage(err.message || "Invalid credentials or connection error.");
+      const code = String(err?.code || "");
+      if (code === "auth/invalid-credential" || code === "auth/wrong-password" || code === "auth/user-not-found") {
+        setInfoMessage("Invalid email or password. Please verify your credentials.");
+      } else if (code === "auth/too-many-requests") {
+        setInfoMessage("Too many failed attempts. Please wait a few minutes before retrying.");
+      } else {
+        setInfoMessage(err?.message || "Invalid credentials or connection error.");
+      }
     }
   };
 
-  // Forgot password click — Concise informational notice without faking reset
-  const handleForgotPassword = () => {
-    setInfoMessage("Password recovery is not connected in this build.");
+  // Forgot password click — sends Firebase password reset email
+  const handleForgotPassword = async () => {
+    const cleanEmail = email.trim();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      setInfoMessage(
+        "Enter your registered email address above, then select Forgot password to receive a reset link."
+      );
+      return;
+    }
+
+    setInfoMessage(null);
+    setIsLoading(true);
+    try {
+      await sendFirebasePasswordReset(cleanEmail);
+      setIsLoading(false);
+      setInfoMessage(
+        `Password reset link sent to ${cleanEmail}. Check your inbox and follow Firebase instructions.`
+      );
+    } catch (err: any) {
+      setIsLoading(false);
+      setInfoMessage(
+        err?.message ||
+          "Unable to send password reset email right now. Verify your email or Firebase configuration."
+      );
+    }
   };
 
   return (

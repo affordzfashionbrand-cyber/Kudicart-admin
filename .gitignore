@@ -19,6 +19,7 @@ yarn-error.log*
 # Environment
 .env
 .env*.local
+.env.production
 
 # System
 .DS_Store

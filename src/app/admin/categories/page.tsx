@@ -2,22 +2,54 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { CategoryItem } from "@/types/categories";
-import { getDemoCategories, generateCategoriesCSV } from "@/demo-data/categories";
 import { api } from "@/lib/api";
 
+function buildCategoriesCSV(categories: CategoryItem[]): string {
+  const headers = [
+    "Category Code",
+    "Category Name",
+    "Slug",
+    "Description",
+    "Products",
+    "Status",
+    "Parent Category",
+  ];
+  const rows = categories.map((c) => [
+    `"${String(c.code || "").replace(/"/g, '""')}"`,
+    `"${String(c.name || "").replace(/"/g, '""')}"`,
+    `"${String(c.slug || "").replace(/"/g, '""')}"`,
+    `"${String(c.description || "").replace(/"/g, '""')}"`,
+    c.productCount ?? 0,
+    `"${String(c.status || "")}"`,
+    `"${String(c.parentCategory || "None").replace(/"/g, '""')}"`,
+  ]);
+  return "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
+}
+
 export default function AdminCategoriesPage() {
-  const [categories, setCategories] = useState<CategoryItem[]>(getDemoCategories());
+  const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
   const loadCategories = useCallback(() => {
-    api.categories.list()
+    setLoading(true);
+    setApiError(null);
+    api.categories
+      .list()
       .then((res) => {
-        if (res?.data && res.data.length > 0) {
-          setCategories(res.data);
-        }
+        setCategories(Array.isArray(res?.data) ? res.data : []);
       })
-      .catch(() => {});
+      .catch((err: unknown) => {
+        const message =
+          err instanceof Error ? err.message : "Unable to load categories from backend.";
+        setApiError(message);
+        setCategories([]);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
@@ -121,13 +153,13 @@ export default function AdminCategoriesPage() {
 
   const handleExportCSV = () => {
     if (!filteredCategories.length) return;
-    const csvContent = generateCategoriesCSV(filteredCategories);
+    const csvContent = buildCategoriesCSV(filteredCategories);
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     const dateStr = new Date().toISOString().split("T")[0];
     link.href = url;
-    link.setAttribute("download", `kudicart_categories_${dateStr}.csv`);
+    link.setAttribute("download", `affordz_categories_${dateStr}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -236,6 +268,20 @@ export default function AdminCategoriesPage() {
         </div>
       </div>
 
+      {/* Error Banner */}
+      {apiError && (
+        <div className="p-3.5 rounded-[10px] border border-[#FECACA] bg-[#FEF2F2] flex items-center justify-between gap-2 text-xs text-[#B91C1C]">
+          <span>{apiError}</span>
+          <button
+            type="button"
+            onClick={loadCategories}
+            className="h-7 px-3 rounded-[6px] bg-white border border-[#FECACA] font-medium hover:bg-[#FEF2F2]"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Categories Data Table */}
       <div className="bg-white border border-[#E4E0DB] rounded-[10px] overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
@@ -252,7 +298,13 @@ export default function AdminCategoriesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E4E0DB] text-[13px] text-[#111111]">
-              {filteredCategories.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-12 text-center text-xs text-[#6B6667]">
+                    Loading marketplace categories...
+                  </td>
+                </tr>
+              ) : filteredCategories.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-[#6B6667]">
                     <p className="font-medium text-[#111111]">No categories found</p>

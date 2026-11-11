@@ -1,14 +1,21 @@
-export type TicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED";
+export type TicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
 
-export type TicketPriority = "HIGH" | "MEDIUM" | "NORMAL";
+export type TicketPriority = "HIGH" | "MEDIUM" | "NORMAL" | "LOW" | "URGENT" | string;
 
 export type TicketCategory =
+  | "DELIVERY"
+  | "PAYMENT"
+  | "RETURN"
+  | "ORDER"
+  | "ACCOUNT"
+  | "GENERAL"
   | "Try & Buy Inspection"
   | "Delivery Delay"
   | "Damaged Goods"
   | "Payment Failure"
   | "Vendor Dispute"
-  | "Address Correction";
+  | "Address Correction"
+  | string;
 
 export interface SupportTicketItem {
   id: string; // e.g. #TICK-4032

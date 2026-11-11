@@ -1,17 +1,51 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { VendorBoutique } from "@/types/vendors";
-import { getDemoVendors, generateVendorsCSV } from "@/demo-data/vendors";
 import { api } from "@/lib/api";
 
 const PAGE_SIZE = 8;
 
+function buildVendorsCSV(vendors: VendorBoutique[]): string {
+  const headers = [
+    "Vendor ID",
+    "Boutique Store Name",
+    "Primary Category",
+    "Owner Name",
+    "Work Email",
+    "Phone Number",
+    "Operating Hub",
+    "Approval Status",
+    "Submission Date",
+    "Products Count",
+    "Active Orders",
+  ];
+  const escapeCSV = (value: unknown): string => {
+    if (value === null || value === undefined) return '""';
+    return `"${String(value).replace(/"/g, '""')}"`;
+  };
+  const rows = vendors.map((v) => [
+    escapeCSV(v.vendorNumber),
+    escapeCSV(v.storeName),
+    escapeCSV(v.category),
+    escapeCSV(v.ownerName),
+    escapeCSV(v.email),
+    escapeCSV(v.phone),
+    escapeCSV(v.operatingHub),
+    escapeCSV(v.status),
+    escapeCSV(v.submissionDate),
+    escapeCSV(v.productCount),
+    escapeCSV(v.activeOrderCount),
+  ]);
+  return "\uFEFF" + [headers.join(","), ...rows.map((r) => r.join(","))].join("\r\n");
+}
+
 export default function AdminVendorsPage() {
   const [vendors, setVendors] = useState<VendorBoutique[]>([]);
   const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   // Filters & Search
   const [searchTerm, setSearchTerm] = useState("");
@@ -24,23 +58,28 @@ export default function AdminVendorsPage() {
   const [isAddVendorModalOpen, setIsAddVendorModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadVendors = useCallback(() => {
     setLoading(true);
-    api.vendors.list({ limit: 100 })
+    setApiError(null);
+    api.vendors
+      .list({ limit: 100 })
       .then((res) => {
-        if (res?.data && res.data.length > 0) {
-          setVendors(res.data);
-        } else {
-          setVendors(getDemoVendors());
-        }
+        setVendors(Array.isArray(res?.data) ? res.data : []);
       })
-      .catch(() => {
-        setVendors(getDemoVendors());
+      .catch((err: unknown) => {
+        const message =
+          err instanceof Error ? err.message : "Unable to load vendors from backend.";
+        setApiError(message);
+        setVendors([]);
       })
       .finally(() => {
         setLoading(false);
       });
   }, []);
+
+  useEffect(() => {
+    loadVendors();
+  }, [loadVendors]);
 
   // Dynamic status counts
   const counts = useMemo(() => {
@@ -116,14 +155,14 @@ export default function AdminVendorsPage() {
 
   const handleExportCSV = () => {
     if (filteredVendors.length === 0) return;
-    const csvContent = generateVendorsCSV(filteredVendors);
+    const csvContent = buildVendorsCSV(filteredVendors);
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.setAttribute("href", url);
     link.setAttribute(
       "download",
-      `kudicart_vendors_${new Date().toISOString().split("T")[0]}.csv`
+      `affordz_vendors_${new Date().toISOString().split("T")[0]}.csv`
     );
     document.body.appendChild(link);
     link.click();
@@ -189,6 +228,20 @@ export default function AdminVendorsPage() {
           </button>
         </div>
       </div>
+
+      {/* Error Banner */}
+      {apiError && (
+        <div className="p-3.5 rounded-[10px] border border-[#FECACA] bg-[#FEF2F2] flex items-center justify-between gap-2 text-xs text-[#B91C1C]">
+          <span>{apiError}</span>
+          <button
+            type="button"
+            onClick={loadVendors}
+            className="h-7 px-3 rounded-[6px] bg-white border border-[#FECACA] font-medium hover:bg-[#FEF2F2]"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Status Tabs */}
       <div className="flex items-center border-b border-[#E4E0DB] gap-1 text-xs font-medium">
@@ -516,7 +569,7 @@ export default function AdminVendorsPage() {
             </div>
 
             <div className="bg-[#F4F1EA] rounded-[8px] p-3 text-xs text-[#6B6667]">
-              Not connected in this build. Administrative vendor creation requires backend server connectivity.
+              Boutique accounts register through partner onboarding and appear in this queue for administrative KYC verification.
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E4E0DB]">

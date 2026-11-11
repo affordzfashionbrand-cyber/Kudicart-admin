@@ -23,7 +23,6 @@ import {
 import {
   DeliveryPartnerDetail,
 } from "@/types/drivers";
-import { getDemoDeliveryPartnerById } from "@/demo-data/drivers";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -32,7 +31,7 @@ import { api } from "@/lib/api";
 export default function AdminDeliveryPartnerDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const driverId = (params?.id as string) || "drv-118";
+  const driverId = (params?.id as string) || "";
 
   const [partner, setPartner] = useState<DeliveryPartnerDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -64,6 +63,12 @@ export default function AdminDeliveryPartnerDetailPage() {
   } | null>(null);
 
   useEffect(() => {
+    if (!driverId) {
+      setFetchError("Missing delivery partner identifier.");
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setFetchError(null);
 
@@ -72,15 +77,15 @@ export default function AdminDeliveryPartnerDetailPage() {
         if (res && res.id) {
           setPartner(res);
         } else {
-          const data = getDemoDeliveryPartnerById(driverId);
-          if (data) setPartner(data);
-          else setFetchError("Partner not found");
+          setPartner(null);
+          setFetchError(`Delivery partner "${driverId}" was not found.`);
         }
       })
-      .catch(() => {
-        const data = getDemoDeliveryPartnerById(driverId);
-        if (data) setPartner(data);
-        else setFetchError("Partner not found");
+      .catch((err: unknown) => {
+        const message =
+          err instanceof Error ? err.message : "Unable to load delivery partner profile.";
+        setPartner(null);
+        setFetchError(message);
       })
       .finally(() => {
         setLoading(false);
@@ -180,8 +185,8 @@ export default function AdminDeliveryPartnerDetailPage() {
     return (
       <div className="p-8 max-w-[1440px] mx-auto">
         <EmptyState
-          title="Delivery Partner Not Found"
-          description={`Could not locate partner record for identifier "${driverId}".`}
+          title={fetchError ? "Unable to Load Delivery Partner" : "Delivery Partner Not Found"}
+          description={fetchError || `Could not locate partner record for identifier "${driverId}".`}
           actionLabel="Back to Delivery Partners"
           onAction={() => router.push("/admin/delivery-partners")}
           icon="search_off"

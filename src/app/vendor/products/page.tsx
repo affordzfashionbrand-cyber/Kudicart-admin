@@ -5,16 +5,11 @@ import {
   Package,
   Search,
   Plus,
-  Filter,
   X,
   CheckCircle2,
   ChevronDown,
-  Edit2,
-  ArrowUpDown,
-  Tag,
 } from "lucide-react";
 import { formatINR } from "@/lib/utils";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 
 interface VendorProduct {
@@ -29,82 +24,17 @@ interface VendorProduct {
   sizes: string[];
 }
 
-const INITIAL_VENDOR_PRODUCTS: VendorProduct[] = [
-  {
-    id: "VP-01",
-    name: "Silk Kaftan Dress",
-    sku: "MLA-KAF-001",
-    category: "Ethnic Wear",
-    price: 14850,
-    stock: 18,
-    stockStatus: "IN_STOCK",
-    listingStatus: "ACTIVE",
-    sizes: ["38", "40", "42"],
-  },
-  {
-    id: "VP-02",
-    name: "Structured Linen Blazer",
-    sku: "MLA-BLZ-002",
-    category: "Western Wear",
-    price: 9200,
-    stock: 3,
-    stockStatus: "LOW_STOCK",
-    listingStatus: "ACTIVE",
-    sizes: ["36", "38"],
-  },
-  {
-    id: "VP-03",
-    name: "Hand-Embroidered Kurta",
-    sku: "MLA-KUR-003",
-    category: "Ethnic Wear",
-    price: 6450,
-    stock: 24,
-    stockStatus: "IN_STOCK",
-    listingStatus: "ACTIVE",
-    sizes: ["38", "40", "42", "44"],
-  },
-  {
-    id: "VP-04",
-    name: "Handloom Tussar Sari",
-    sku: "MLA-SAR-004",
-    category: "Traditional",
-    price: 18500,
-    stock: 6,
-    stockStatus: "IN_STOCK",
-    listingStatus: "ACTIVE",
-    sizes: ["Free Size"],
-  },
-  {
-    id: "VP-05",
-    name: "Organza Dupatta Set",
-    sku: "MLA-DUP-005",
-    category: "Accessories",
-    price: 4800,
-    stock: 0,
-    stockStatus: "OUT_OF_STOCK",
-    listingStatus: "ARCHIVED",
-    sizes: ["Free Size"],
-  },
-  {
-    id: "VP-06",
-    name: "Pleated Palazzo Pants",
-    sku: "MLA-PAL-006",
-    category: "Western Wear",
-    price: 5200,
-    stock: 12,
-    stockStatus: "IN_STOCK",
-    listingStatus: "ACTIVE",
-    sizes: ["S", "M", "L"],
-  },
-];
-
 export default function VendorProductsPage() {
-  const [products] = useState<VendorProduct[]>(INITIAL_VENDOR_PRODUCTS);
+  const [products] = useState<VendorProduct[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [stockFilter, setStockFilter] = useState("ALL");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const categoryOptions = useMemo(() => {
+    return Array.from(new Set(products.map((p) => p.category).filter(Boolean))).sort();
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
@@ -134,8 +64,8 @@ export default function VendorProductsPage() {
   };
 
   const handleActionNotice = (message: string) => {
-    setToastMessage(`Not connected in this build: ${message}`);
-    setTimeout(() => setToastMessage(null), 3500);
+    setToastMessage(message);
+    setTimeout(() => setToastMessage(null), 4000);
   };
 
   return (
@@ -202,10 +132,11 @@ export default function VendorProductsPage() {
               className="h-[36px] pl-3 pr-8 text-xs bg-white border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:outline-none focus:border-[#FF5A1F] appearance-none cursor-pointer"
             >
               <option value="ALL">All Categories</option>
-              <option value="Ethnic Wear">Ethnic Wear</option>
-              <option value="Western Wear">Western Wear</option>
-              <option value="Traditional">Traditional</option>
-              <option value="Accessories">Accessories</option>
+              {categoryOptions.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
             </select>
             <ChevronDown className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-[#6B6667] pointer-events-none" />
           </div>
@@ -268,10 +199,18 @@ export default function VendorProductsPage() {
                 <tr>
                   <td colSpan={8} className="py-8 text-center">
                     <EmptyState
-                      title="No products found"
-                      description="Try adjusting your keyword search or active category filters."
-                      actionLabel="Clear Filters"
-                      onAction={clearFilters}
+                      title={
+                        products.length === 0
+                          ? "Vendor catalog feed awaiting Wave 2 integration"
+                          : "No products found"
+                      }
+                      description={
+                        products.length === 0
+                          ? "Store catalog synchronization and product attributes (O-004) require the Wave 2 vendor portal endpoints."
+                          : "Try adjusting your keyword search or active category filters."
+                      }
+                      actionLabel={products.length > 0 ? "Clear Filters" : undefined}
+                      onAction={products.length > 0 ? clearFilters : undefined}
                     />
                   </td>
                 </tr>
@@ -336,7 +275,11 @@ export default function VendorProductsPage() {
                     </td>
                     <td className="px-4 text-right whitespace-nowrap">
                       <button
-                        onClick={() => handleActionNotice("Stock adjustment requires backend catalog persistence.")}
+                        onClick={() =>
+                          handleActionNotice(
+                            "Vendor stock updates require Wave 2 vendor catalog API integration."
+                          )
+                        }
                         className="h-7 px-2.5 rounded-[6px] border border-[#E4E0DB] hover:bg-[#F7F7F5] text-xs font-medium text-[#111111] transition-colors"
                       >
                         Adjust Stock
@@ -371,10 +314,10 @@ export default function VendorProductsPage() {
 
             <div className="p-3.5 bg-[#FFFBEB] border border-[#FDE68A] rounded-[8px] text-xs text-[#B45309] space-y-1.5">
               <p className="font-medium">
-                Not connected in this build
+                Pending Wave 2 Catalog Integration &amp; O-004 Schema
               </p>
               <p className="text-[11px] leading-relaxed">
-                Product creation and asset uploads require active backend catalog persistence and image CDN pipelines.
+                Vendor-scoped catalog creation requires Wave 2 vendor endpoints and finalized product attribute specifications (O-004).
               </p>
             </div>
 

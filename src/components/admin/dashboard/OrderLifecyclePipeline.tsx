@@ -9,73 +9,116 @@ interface OrderLifecyclePipelineProps {
     readyForPickup: number;
     assigned: number;
     pickedUp: number;
-    inTransit: number;
+    inTransit?: number;
+    outForDelivery?: number;
     delivered: number;
+    returning?: number;
+    returned?: number;
+    cancelled?: number;
+    failed?: number;
   };
 }
 
 export function OrderLifecyclePipeline({
   pipelineCounts = {
-    placed: 12,
-    accepted: 18,
-    preparing: 24,
-    readyForPickup: 14,
-    assigned: 16,
-    pickedUp: 22,
-    inTransit: 19,
-    delivered: 23,
+    placed: 0,
+    accepted: 0,
+    preparing: 0,
+    readyForPickup: 0,
+    assigned: 0,
+    pickedUp: 0,
+    inTransit: 0,
+    delivered: 0,
+    returning: 0,
+    returned: 0,
+    cancelled: 0,
+    failed: 0,
   },
 }: OrderLifecyclePipelineProps) {
-  const stages = [
+  const stages: Array<{
+    key: string;
+    label: string;
+    count: number;
+    href: string;
+    tone?: "action" | "success" | "warning" | "danger";
+  }> = [
     {
       key: "PLACED",
       label: "Placed",
-      count: pipelineCounts.placed,
+      count: pipelineCounts.placed ?? 0,
       href: "/admin/orders?status=PLACED",
     },
     {
       key: "ACCEPTED",
       label: "Accepted",
-      count: pipelineCounts.accepted,
+      count: pipelineCounts.accepted ?? 0,
       href: "/admin/orders?status=ACCEPTED",
     },
     {
       key: "PREPARING",
       label: "Preparing",
-      count: pipelineCounts.preparing,
+      count: pipelineCounts.preparing ?? 0,
       href: "/admin/orders?status=PREPARING",
     },
     {
       key: "READY_FOR_PICKUP",
       label: "Ready for Pickup",
-      count: pipelineCounts.readyForPickup,
+      count: pipelineCounts.readyForPickup ?? 0,
       href: "/admin/orders?status=READY_FOR_PICKUP",
-      isActionable: true,
+      tone: "action",
     },
     {
       key: "ASSIGNED",
       label: "Assigned",
-      count: pipelineCounts.assigned,
+      count: pipelineCounts.assigned ?? 0,
       href: "/admin/orders?status=ASSIGNED",
     },
     {
       key: "PICKED_UP",
       label: "Picked Up",
-      count: pipelineCounts.pickedUp,
+      count: pipelineCounts.pickedUp ?? 0,
       href: "/admin/orders?status=PICKED_UP",
     },
     {
       key: "OUT_FOR_DELIVERY",
       label: "Out for Delivery",
-      count: pipelineCounts.inTransit,
+      count: pipelineCounts.inTransit ?? pipelineCounts.outForDelivery ?? 0,
       href: "/admin/orders?status=OUT_FOR_DELIVERY",
     },
     {
       key: "DELIVERED",
       label: "Delivered",
-      count: pipelineCounts.delivered,
+      count: pipelineCounts.delivered ?? 0,
       href: "/admin/orders?status=DELIVERED",
-      isSuccess: true,
+      tone: "success",
+    },
+    {
+      key: "RETURNING",
+      label: "Returning",
+      count: pipelineCounts.returning ?? 0,
+      href: "/admin/orders?status=RETURNING",
+      tone: "warning",
+    },
+    {
+      key: "RETURNED",
+      label: "Returned",
+      count: pipelineCounts.returned ?? 0,
+      href: "/admin/orders?status=RETURNED",
+      tone: "warning",
+    },
+    {
+      key: "CANCELLED",
+      label: "Cancelled",
+      count: pipelineCounts.cancelled ?? 0,
+      href: "/admin/orders?status=CANCELLED",
+      tone: "danger",
+    },
+    {
+      key: "FAILED",
+      label: "Failed",
+      count: pipelineCounts.failed ?? 0,
+      href: "/admin/orders?status=FAILED",
+      tone: "danger",
     },
   ];
 
@@ -107,14 +150,22 @@ export function OrderLifecyclePipeline({
           let labelStyle = "text-[#6B6667]";
           let countStyle = "text-[#111111]";
 
-          if (stage.isActionable) {
+          if (stage.tone === "action") {
             cardStyle = "bg-[#FFF0E8] border-[#FF5A1F]/30";
             labelStyle = "text-[#D94B17]";
             countStyle = "text-[#D94B17]";
-          } else if (stage.isSuccess) {
+          } else if (stage.tone === "success") {
             cardStyle = "bg-[#F0FDF4] border-[#BBF7D0]";
             labelStyle = "text-[#20885A]";
             countStyle = "text-[#20885A]";
+          } else if (stage.tone === "warning") {
+            cardStyle = "bg-[#FFFBEB] border-[#FDE68A]";
+            labelStyle = "text-[#B45309]";
+            countStyle = "text-[#B45309]";
+          } else if (stage.tone === "danger") {
+            cardStyle = "bg-[#FEF2F2] border-[#FECACA]";
+            labelStyle = "text-[#B91C1C]";
+            countStyle = "text-[#B91C1C]";
           }
 
           return (

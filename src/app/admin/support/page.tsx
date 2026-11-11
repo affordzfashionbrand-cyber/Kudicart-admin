@@ -19,15 +19,17 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { SupportTicketItem, TicketStatus } from "@/types/support";
-import { MOCK_TICKETS } from "@/mocks/support";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatINR } from "@/lib/utils";
 import { api } from "@/lib/api";
 
 export default function AdminSupportPage() {
-  const [tickets, setTickets] = useState<SupportTicketItem[]>(MOCK_TICKETS);
-  const [selectedTicket, setSelectedTicket] = useState<SupportTicketItem | null>(MOCK_TICKETS[0]);
+  const [tickets, setTickets] = useState<SupportTicketItem[]>([]);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicketItem | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [resolutionNotes, setResolutionNotes] = useState<string>("");
   const [activeTab, setActiveTab] = useState<string>("ALL"); // ALL, OPEN, IN_PROGRESS, RESOLVED
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
@@ -40,22 +42,58 @@ export default function AdminSupportPage() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  useEffect(() => {
-    api.support.list({ limit: 50 })
-      .then((res) => {
-        if (res?.data && res.data.length > 0) {
-          setTickets(res.data);
-          setSelectedTicket(res.data[0]);
+  const loadTickets = async (showRefreshToast = false) => {
+    setLoading(true);
+    setApiError(null);
+    try {
+      const res = await api.support.list({ limit: 100 });
+      const items = Array.isArray(res?.data) ? res.data : [];
+      setTickets(items);
+      setSelectedTicket((prev) => {
+        if (prev && items.some((t) => t.id === prev.id)) {
+          return items.find((t) => t.id === prev.id) || null;
         }
-      })
-      .catch(() => {});
+        return items[0] || null;
+      });
+      if (showRefreshToast) {
+        showToast("Support ticket list refreshed from backend.");
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : "Unable to load support tickets from the backend.";
+      setTickets([]);
+      setSelectedTicket(null);
+      setApiError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadTickets(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const categoryOptions = useMemo(() => {
+    return Array.from(new Set(tickets.map((t) => t.category).filter(Boolean))).sort();
+  }, [tickets]);
+
+  const assigneeOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        tickets
+          .map((t) => t.assignee)
+          .filter((a) => Boolean(a) && a.toLowerCase() !== "unassigned")
+      )
+    ).sort();
+  }, [tickets]);
 
   // Tab counts
   const allCount = tickets.length;
   const openCount = tickets.filter((t) => t.status === "OPEN").length;
   const inProgressCount = tickets.filter((t) => t.status === "IN_PROGRESS").length;
   const resolvedCount = tickets.filter((t) => t.status === "RESOLVED").length;
+  const closedCount = tickets.filter((t) => t.status === "CLOSED").length;
 
   const filteredTickets = useMemo(() => {
     return tickets.filter((t) => {
@@ -113,22 +151,51 @@ export default function AdminSupportPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `kudicart_support_tickets_${new Date().toISOString().split("T")[0]}.csv`;
+    link.download = `affordz_support_tickets_${new Date().toISOString().split("T")[0]}.csv`;
     link.click();
+    URL.revokeObjectURL(url);
     showToast(`Exported ${filteredTickets.length} support tickets.`);
   };
 
   const handleTransition = async (newStatus: TicketStatus) => {
     if (!selectedTicket) return;
+    const trimmedNotes = resolutionNotes.trim();
     try {
-      await api.support.updateTicket(selectedTicket.id, { status: newStatus });
+      await api.support.updateTicket(selectedTicket.id, {
+        status: newStatus,
+        ...(trimmedNotes ? { resolutionRemarks: trimmedNotes } : {}),
+      });
+      const nextResolvedAt =
+        newStatus === "RESOLVED" || newStatus === "CLOSED"
+          ? new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          : selectedTicket.resolvedAt;
       setTickets((prev) =>
-        prev.map((t) => (t.id === selectedTicket.id ? { ...t, status: newStatus } : t))
+        prev.map((t) =>
+          t.id === selectedTicket.id
+            ? {
+                ...t,
+                status: newStatus,
+                ...(trimmedNotes ? { resolutionRemarks: trimmedNotes } : {}),
+                resolvedAt: nextResolvedAt,
+              }
+            : t
+        )
       );
-      setSelectedTicket((prev) => (prev ? { ...prev, status: newStatus } : null));
+      setSelectedTicket((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: newStatus,
+              ...(trimmedNotes ? { resolutionRemarks: trimmedNotes } : {}),
+              resolvedAt: nextResolvedAt,
+            }
+          : null
+      );
+      setResolutionNotes("");
       showToast(`Ticket #${selectedTicket.id} updated to ${newStatus}.`, "success");
-    } catch (err: any) {
-      showToast(err?.message || "Failed to update ticket status.", "error");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to update ticket status.";
+      showToast(message, "error");
     }
   };
 
@@ -166,25 +233,36 @@ export default function AdminSupportPage() {
 
         <div className="flex items-center gap-2.5 shrink-0">
           <button
-            onClick={() => {
-              setTickets([...MOCK_TICKETS]);
-              showToast("Support ticket list refreshed.");
-            }}
-            className="h-9 px-3.5 rounded-[8px] border border-[#E4E0DB] bg-white text-[#111111] text-xs font-medium hover:bg-[#F7F7F5] transition-colors flex items-center gap-1.5 shadow-xs"
+            onClick={() => loadTickets(true)}
+            disabled={loading}
+            className="h-9 px-3.5 rounded-[8px] border border-[#E4E0DB] bg-white text-[#111111] text-xs font-medium hover:bg-[#F7F7F5] transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
             title="Refresh Queue"
           >
-            <RefreshCw className="w-3.5 h-3.5 text-[#6B6667]" />
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-[#FF5A1F]" : "text-[#6B6667]"}`} />
             <span>Refresh</span>
           </button>
           <button
             onClick={handleExportCsv}
-            className="h-9 px-3.5 rounded-[8px] border border-[#E4E0DB] bg-white text-[#111111] text-xs font-medium hover:bg-[#F7F7F5] transition-colors flex items-center gap-1.5 shadow-xs"
+            disabled={filteredTickets.length === 0}
+            className="h-9 px-3.5 rounded-[8px] border border-[#E4E0DB] bg-white text-[#111111] text-xs font-medium hover:bg-[#F7F7F5] transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
           >
             <Download className="w-3.5 h-3.5 text-[#6B6667]" />
             <span>Export CSV</span>
           </button>
         </div>
       </section>
+
+      {apiError && (
+        <div className="bg-[#FEF2F2] border border-[#ffdad6] text-[#DA1E28] rounded-[10px] px-4 py-3 text-xs flex items-center justify-between gap-3">
+          <span>{apiError}</span>
+          <button
+            onClick={() => loadTickets(false)}
+            className="px-2.5 py-1 rounded-[6px] bg-white border border-[#ffdad6] font-medium hover:bg-[#fff5f5] shrink-0"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* ================= SECTION 2: QUEUE STATUS TABS ================= */}
       <nav className="flex items-center border-b border-[#E4E0DB] gap-6 text-xs whitespace-nowrap overflow-x-auto pb-1">
@@ -243,6 +321,20 @@ export default function AdminSupportPage() {
             {resolvedCount}
           </span>
         </button>
+
+        <button
+          onClick={() => setActiveTab("CLOSED")}
+          className={`pb-2.5 flex items-center gap-1.5 font-medium transition-colors border-b-2 -mb-[1px] ${
+            activeTab === "CLOSED"
+              ? "text-[#111111] border-[#111111]"
+              : "text-[#6B6667] hover:text-[#111111] border-transparent"
+          }`}
+        >
+          <span>Closed</span>
+          <span className="px-1.5 py-0.5 rounded-[4px] bg-[#F4F1EA] text-[#6B6667] font-mono text-[10px]">
+            {closedCount}
+          </span>
+        </button>
       </nav>
 
       {/* ================= SECTION 3: SEARCH & MULTI-PARAM FILTERS ================= */}
@@ -268,12 +360,11 @@ export default function AdminSupportPage() {
               className="h-9 pl-3 pr-8 rounded-[8px] border border-[#E4E0DB] bg-white font-medium text-xs text-[#111111] hover:bg-[#F7F7F5] focus:border-[#FF5A1F] outline-none appearance-none cursor-pointer"
             >
               <option value="ALL">All Categories</option>
-              <option value="Try & Buy Inspection">Try &amp; Buy</option>
-              <option value="Delivery Delay">Delivery Delay</option>
-              <option value="Damaged Goods">Damaged Goods</option>
-              <option value="Payment Failure">Payment Failure</option>
-              <option value="Vendor Dispute">Vendor Dispute</option>
-              <option value="Address Correction">Address Correction</option>
+              {categoryOptions.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
           </div>
@@ -286,9 +377,11 @@ export default function AdminSupportPage() {
               className="h-9 pl-3 pr-8 rounded-[8px] border border-[#E4E0DB] bg-white font-medium text-xs text-[#111111] hover:bg-[#F7F7F5] focus:border-[#FF5A1F] outline-none appearance-none cursor-pointer"
             >
               <option value="ALL">All Priorities</option>
+              <option value="URGENT">Urgent Priority</option>
               <option value="HIGH">High Priority</option>
               <option value="MEDIUM">Medium Priority</option>
               <option value="NORMAL">Normal Priority</option>
+              <option value="LOW">Low Priority</option>
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
           </div>
@@ -301,9 +394,11 @@ export default function AdminSupportPage() {
               className="h-9 pl-3 pr-8 rounded-[8px] border border-[#E4E0DB] bg-white font-medium text-xs text-[#111111] hover:bg-[#F7F7F5] focus:border-[#FF5A1F] outline-none appearance-none cursor-pointer"
             >
               <option value="ALL">All Assignees</option>
-              <option value="Rahul M.">Rahul M.</option>
-              <option value="Sneha K.">Sneha K.</option>
-              <option value="Amara O.">Amara O.</option>
+              {assigneeOptions.map((assignee) => (
+                <option key={assignee} value={assignee}>
+                  {assignee}
+                </option>
+              ))}
               <option value="UNASSIGNED">Unassigned</option>
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
@@ -340,7 +435,13 @@ export default function AdminSupportPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E4E0DB] text-xs text-[#111111]">
-                {filteredTickets.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-xs text-[#6B6667]">
+                      Loading support tickets from backend...
+                    </td>
+                  </tr>
+                ) : filteredTickets.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-10">
                       <EmptyState
@@ -533,6 +634,30 @@ export default function AdminSupportPage() {
                 </span>
               </div>
 
+              {selectedTicket.status !== "CLOSED" && (
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-medium text-[#6B6667]">
+                    Resolution Remarks (Optional)
+                  </label>
+                  <textarea
+                    value={resolutionNotes}
+                    onChange={(e) => setResolutionNotes(e.target.value)}
+                    rows={2}
+                    placeholder="Add internal resolution note or action summary..."
+                    className="w-full p-2.5 rounded-[8px] border border-[#E4E0DB] bg-white text-xs text-[#111111] focus:outline-none focus:border-[#FF5A1F] placeholder:text-[#6B6667]"
+                  />
+                </div>
+              )}
+
+              {selectedTicket.resolutionRemarks && (
+                <div className="p-2.5 rounded-[6px] bg-white border border-[#E4E0DB] text-[11px] text-[#111111]">
+                  <span className="font-medium text-[#6B6667] block mb-0.5">
+                    Saved Resolution Remarks:
+                  </span>
+                  <span>{selectedTicket.resolutionRemarks}</span>
+                </div>
+              )}
+
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 {selectedTicket.status === "OPEN" && (
@@ -553,10 +678,26 @@ export default function AdminSupportPage() {
                   </button>
                 )}
 
+                {selectedTicket.status !== "CLOSED" && (
+                  <button
+                    onClick={() => handleTransition("CLOSED")}
+                    className="h-8 px-3.5 rounded-[8px] bg-[#111111] text-white font-medium text-xs hover:bg-[#333333] transition-colors shadow-xs"
+                  >
+                    Close Ticket
+                  </button>
+                )}
+
                 {selectedTicket.status === "RESOLVED" && (
                   <span className="inline-flex items-center gap-1 text-xs text-[#20885A] font-medium bg-[#ECFDF5] px-2.5 py-1 rounded-[6px] border border-[#A7F3D0]">
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    Resolved {selectedTicket.resolvedAt || "24 Oct 2024"}
+                    {selectedTicket.resolvedAt ? `Resolved ${selectedTicket.resolvedAt}` : "Resolved"}
+                  </span>
+                )}
+
+                {selectedTicket.status === "CLOSED" && (
+                  <span className="inline-flex items-center gap-1 text-xs text-[#6B6667] font-medium bg-white px-2.5 py-1 rounded-[6px] border border-[#E4E0DB]">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    {selectedTicket.resolvedAt ? `Closed ${selectedTicket.resolvedAt}` : "Closed"}
                   </span>
                 )}
               </div>

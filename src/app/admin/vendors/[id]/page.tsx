@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { VendorBoutique, VendorDocument } from "@/types/vendors";
-import { getDemoVendorById } from "@/demo-data/vendors";
 import { api } from "@/lib/api";
 
 export default function AdminVendorDetailPage() {
@@ -31,20 +30,21 @@ export default function AdminVendorDetailPage() {
     setLoading(true);
     setError(null);
 
-    api.vendors.getById(vendorId)
+    api.vendors
+      .getById(vendorId)
       .then((res) => {
         if (res && res.id) {
           setVendor(res);
         } else {
-          const found = getDemoVendorById(vendorId);
-          if (found) setVendor(found);
-          else setError(`Vendor boutique record "${vendorId}" was not found.`);
+          setError(`Vendor boutique record "${vendorId}" was not found.`);
         }
       })
-      .catch(() => {
-        const found = getDemoVendorById(vendorId);
-        if (found) setVendor(found);
-        else setError(`Vendor boutique record "${vendorId}" was not found.`);
+      .catch((err: unknown) => {
+        const msg =
+          err instanceof Error
+            ? err.message
+            : `Unable to load vendor record "${vendorId}" from backend.`;
+        setError(msg);
       })
       .finally(() => {
         setLoading(false);

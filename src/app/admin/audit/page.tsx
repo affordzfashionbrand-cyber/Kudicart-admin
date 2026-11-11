@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
 import {
   Download,
   Search,
@@ -18,16 +19,12 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { AuditEvent } from "@/types/audit";
-import { MOCK_AUDIT_EVENTS } from "@/mocks/audit";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
 
 export default function AdminAuditPage() {
-  const [events, setEvents] = useState<AuditEvent[]>(MOCK_AUDIT_EVENTS);
-  const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(
-    MOCK_AUDIT_EVENTS[0]
-  );
+  const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [actionFilter, setActionFilter] = useState<string>("ALL");
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
@@ -42,16 +39,44 @@ export default function AdminAuditPage() {
     setTimeout(() => setToastMessage(null), 4000);
   };
 
-  React.useEffect(() => {
-    api.audit.list({ limit: 50 })
-      .then((res) => {
-        if (res?.data && res.data.length > 0) {
-          setEvents(res.data);
-          setSelectedEvent(res.data[0]);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  const auditQuery = useQuery({
+    queryKey: ["admin-audit", dateRange],
+    queryFn: () => api.audit.list({ limit: 100, dateRange }),
+    staleTime: 20_000,
+    retry: 1,
+  });
+
+  const events: AuditEvent[] = useMemo(
+    () => (auditQuery.data?.data as AuditEvent[]) || [],
+    [auditQuery.data]
+  );
+
+  useEffect(() => {
+    if (events.length === 0) {
+      setSelectedEvent(null);
+      return;
+    }
+    setSelectedEvent((prev) =>
+      prev ? events.find((e) => e.id === prev.id) || events[0] : events[0]
+    );
+  }, [events]);
+
+  const dynamicActionTypes = useMemo(() => {
+    const preset = [
+      "DRIVER_KYC_APPROVED",
+      "DRIVER_ASSIGNED_MANUAL",
+      "VENDOR_APPROVED",
+      "VENDOR_REVIEW_START",
+      "PRODUCT_STATUS_CHANGED",
+      "PRODUCT_DRAFT_SUBMIT",
+      "PAYOUT_HOLD_UPDATED",
+      "CUSTOMER_TIER_UPGRADE",
+    ];
+    const extra = events
+      .map((e) => e.actionType)
+      .filter((a) => Boolean(a) && !preset.includes(a));
+    return Array.from(new Set([...preset, ...extra]));
+  }, [events]);
 
   const pageSize = 8;
 
@@ -208,6 +233,21 @@ export default function AdminAuditPage() {
         </div>
       </div>
 
+      {auditQuery.isError && (
+        <div className="p-3 bg-[#FEF2F2] border border-[#FECACA] rounded-[8px] flex items-center justify-between gap-3 text-xs text-[#DA1E28]">
+          <span>
+            {(auditQuery.error as Error)?.message || "Failed to load audit events from backend."}
+          </span>
+          <button
+            type="button"
+            onClick={() => auditQuery.refetch()}
+            className="px-2.5 py-1 rounded-[6px] bg-white border border-[#FECACA] text-[#DA1E28] font-medium hover:bg-[#FEF2F2]"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Filter Toolbar */}
       <section className="bg-white p-3 rounded-[10px] border border-[#E4E0DB] shadow-xs flex flex-wrap items-center gap-2.5">
         {/* Search input */}
@@ -236,14 +276,11 @@ export default function AdminAuditPage() {
             className="h-9 pl-3 pr-8 bg-white border border-[#E4E0DB] rounded-[8px] text-xs font-medium text-[#111111] hover:bg-[#F7F7F5] focus:border-[#FF5A1F] outline-none appearance-none cursor-pointer"
           >
             <option value="ALL">All Action Types</option>
-            <option value="DRIVER_KYC_APPROVED">Driver KYC Approved</option>
-            <option value="DRIVER_ASSIGNED_MANUAL">Driver Assigned Manual</option>
-            <option value="VENDOR_APPROVED">Vendor Approved</option>
-            <option value="VENDOR_REVIEW_START">Vendor Review Start</option>
-            <option value="PRODUCT_STATUS_CHANGED">Product Status Changed</option>
-            <option value="PRODUCT_DRAFT_SUBMIT">Product Draft Submit</option>
-            <option value="PAYOUT_HOLD_UPDATED">Payout Hold Updated</option>
-            <option value="CUSTOMER_TIER_UPGRADE">Customer Tier Upgrade</option>
+            {dynamicActionTypes.map((action) => (
+              <option key={action} value={action}>
+                {action.replace(/_/g, " ")}
+              </option>
+            ))}
           </select>
           <ChevronDown className="w-3.5 h-3.5 text-[#6B6667] absolute right-2.5 top-2.5 pointer-events-none" />
         </div>
@@ -331,7 +368,13 @@ export default function AdminAuditPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#E4E0DB] text-xs text-[#111111]">
-                {paginatedEvents.length === 0 ? (
+                {auditQuery.isLoading ? (
+                  <tr>
+                    <td colSpan={7} className="py-10 text-center text-[#6B6667]">
+                      Loading audit trail from PostgreSQL...
+                    </td>
+                  </tr>
+                ) : paginatedEvents.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-8 text-center">
                       <EmptyState

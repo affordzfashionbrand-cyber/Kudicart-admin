@@ -1,14 +1,14 @@
 import React from "react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { MOCK_ORDERS } from "@/mocks/orders";
+import { formatFulfillmentBadgeLabel } from "@/lib/orderMappers";
 
 interface RecentOrdersTableProps {
   orders?: any[];
 }
 
-export function RecentOrdersTable({ orders }: RecentOrdersTableProps = {}) {
-  const recentOrders = orders && orders.length > 0 ? orders : MOCK_ORDERS.slice(0, 6);
+export function RecentOrdersTable({ orders = [] }: RecentOrdersTableProps) {
+  const recentOrders = Array.isArray(orders) ? orders.slice(0, 8) : [];
 
   return (
     <section className="bg-white border border-[#E4E0DB] rounded-[10px] overflow-hidden shadow-xs">
@@ -46,37 +46,48 @@ export function RecentOrdersTable({ orders }: RecentOrdersTableProps = {}) {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E4E0DB] text-[13px] text-[#111111]">
-            {recentOrders.map((order) => (
-              <tr key={order.id} className="h-11 sm:h-12 hover:bg-[#F7F7F5]/50 transition-colors">
-                <td className="px-4 sm:px-5 py-0 font-mono text-xs font-medium text-[#111111] whitespace-nowrap">
-                  {order.orderNumber}
-                </td>
-                <td className="px-4 py-0 text-[#111111] font-medium whitespace-nowrap">
-                  {order.customerName}
-                </td>
-                <td className="px-4 py-0 text-[#6B6667] truncate max-w-[170px]">
-                  {order.vendorName || order.boutiqueName || "Boutique Partner"}
-                </td>
-                <td className="px-4 py-0 text-xs text-[#6B6667] whitespace-nowrap">
-                  {order.fulfillmentType || (order.isTryAndBuy ? "Try & Buy" : "Standard Delivery")}
-                </td>
-                <td className="px-4 py-0 font-semibold text-[#111111] text-right tabular-nums whitespace-nowrap">
-                  ₹{(order.grandTotal ?? order.amount ?? order.totalAmount ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
-                </td>
-                <td className="px-4 py-0 text-center whitespace-nowrap">
-                  <StatusBadge status={order.status} variant="order" />
-                </td>
-                <td className="px-4 sm:px-5 py-0 text-right whitespace-nowrap">
-                  <Link
-                    href={`/admin/orders/${order.id}`}
-                    className="text-xs font-medium text-[#FF5A1F] hover:text-[#D94B17] inline-flex items-center gap-0.5 hover:bg-[#FFF0E8] px-2 py-0.5 rounded transition-colors"
-                  >
-                    <span>View</span>
-                    <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
-                  </Link>
+            {recentOrders.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={7}
+                  className="px-4 sm:px-5 py-8 text-center text-xs text-[#6B6667]"
+                >
+                  No orders recorded in PostgreSQL yet.
                 </td>
               </tr>
-            ))}
+            ) : (
+              recentOrders.map((order) => (
+                <tr key={order.id} className="h-11 sm:h-12 hover:bg-[#F7F7F5]/50 transition-colors">
+                  <td className="px-4 sm:px-5 py-0 font-mono text-xs font-medium text-[#111111] whitespace-nowrap">
+                    #{order.orderNumber}
+                  </td>
+                  <td className="px-4 py-0 text-[#111111] font-medium whitespace-nowrap">
+                    {order.customerName}
+                  </td>
+                  <td className="px-4 py-0 text-[#6B6667] truncate max-w-[170px]">
+                    {order.vendorName || order.boutiqueName || "Boutique Partner"}
+                  </td>
+                  <td className="px-4 py-0 text-xs text-[#6B6667] whitespace-nowrap">
+                    {formatFulfillmentBadgeLabel(order)}
+                  </td>
+                  <td className="px-4 py-0 font-semibold text-[#111111] text-right tabular-nums whitespace-nowrap">
+                    ₹{(order.grandTotal ?? order.amount ?? order.totalAmount ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-4 py-0 text-center whitespace-nowrap">
+                    <StatusBadge status={order.status} variant="order" />
+                  </td>
+                  <td className="px-4 sm:px-5 py-0 text-right whitespace-nowrap">
+                    <Link
+                      href={`/admin/orders/${order.id}`}
+                      className="text-xs font-medium text-[#FF5A1F] hover:text-[#D94B17] inline-flex items-center gap-0.5 hover:bg-[#FFF0E8] px-2 py-0.5 rounded transition-colors"
+                    >
+                      <span>View</span>
+                      <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
+                    </Link>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

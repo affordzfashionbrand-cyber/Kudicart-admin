@@ -1,46 +1,123 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Store,
   MapPin,
-  Clock,
-  Phone,
-  Mail,
   User,
-  ShieldCheck,
   CheckCircle2,
   X,
   Edit2,
   Building2,
-  FileText,
 } from "lucide-react";
+import { api, getStoredProfile } from "@/lib/api";
+
+function computeInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  return (parts[0]?.slice(0, 2) || "VS").toUpperCase();
+}
 
 export default function VendorProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Vendor boutique state
   const [storeData, setStoreData] = useState({
-    businessName: "Maison Lagos Atelier",
-    tagline: "Luxury Indo-African Fusion & Artisanal Handlooms",
-    storeId: "VND-0492",
-    tier: "Tier 1 Verified Boutique",
-    managerName: "Folake Balogun",
-    managerEmail: "folake@maisonlagos.com",
-    managerPhone: "+91 98201 54321",
-    gstin: "27AABCU9603R1ZM",
-    registeredAddress: "Plot 14, Waterfield Road, Bandra West, Mumbai 400050",
-    operatingHours: "10:00 AM – 08:30 PM (Mon – Sun)",
-    dispatchBay: "Slot #4 • Bandra West Node",
-    preparationSla: "20 minutes average pack time",
+    businessName: "Vendor Store",
+    legalName: "—",
+    tagline: "Authenticated merchant workspace (pending O-001 profile fields)",
+    storeId: "—",
+    tier: "—",
+    managerName: "—",
+    managerEmail: "—",
+    managerPhone: "—",
+    gstin: "—",
+    cityLabel: "Location pending backend profile",
+    registeredAddress: "Pending O-001 vendor profile endpoint",
+    operatingHours: "Pending O-001 vendor profile endpoint",
+    dispatchBay: "Pending backend assignment",
+    preparationSla: "—",
   });
 
-  const handleSave = (e: React.FormEvent) => {
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const storedUser = getStoredProfile() as Record<string, any> | null;
+    if (storedUser) {
+      const storedVendor = storedUser.vendor as Record<string, any> | null | undefined;
+      setStoreData((prev) => ({
+        ...prev,
+        businessName: String(storedVendor?.storeName || prev.businessName),
+        storeId: String(storedVendor?.id || storedUser.vendorId || prev.storeId),
+        managerName: String(storedVendor?.contactPerson || storedUser.fullName || storedUser.name || prev.managerName),
+        managerEmail: String(storedUser.email || prev.managerEmail),
+        managerPhone: String(storedVendor?.phone || storedUser.phone || prev.managerPhone),
+        registeredAddress: String(storedVendor?.address || prev.registeredAddress),
+        dispatchBay: String(storedVendor?.operatingHub || prev.dispatchBay),
+        tagline: String(storedVendor?.category || prev.tagline),
+      }));
+    }
+
+    api.vendorAuth
+      .getProfile()
+      .then((res) => {
+        if (cancelled) return;
+        const user = (res?.user || {}) as Record<string, any>;
+        const vendor = (res?.vendor || {}) as Record<string, any>;
+        setStoreData((prev) => ({
+          ...prev,
+          businessName: String(vendor.storeName || prev.businessName),
+          storeId: String(vendor.id || user.vendorId || prev.storeId),
+          managerName: String(vendor.contactPerson || user.name || prev.managerName),
+          managerEmail: String(user.email || prev.managerEmail),
+          managerPhone: String(vendor.phone || user.phone || prev.managerPhone),
+          registeredAddress: String(vendor.address || prev.registeredAddress),
+          dispatchBay: String(vendor.operatingHub || prev.dispatchBay),
+          cityLabel: String(vendor.operatingHub || prev.cityLabel),
+          tagline: String(vendor.category || prev.tagline),
+          tier: String(vendor.status || prev.tier),
+        }));
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsEditing(false);
-    setToastMessage("Not connected in this build: Profile changes require backend persistence.");
-    setTimeout(() => setToastMessage(null), 3500);
+    setSaving(true);
+    try {
+      const res = await api.vendorAuth.updateProfile({
+        name: storeData.managerName.trim() || undefined,
+        contactPerson: storeData.managerName.trim() || undefined,
+        phone: storeData.managerPhone.trim() || undefined,
+        storeName: storeData.businessName.trim() || undefined,
+        address: storeData.registeredAddress.trim() || undefined,
+      });
+      const updatedUser = (res?.user || {}) as Record<string, any>;
+      const updatedVendor = (res?.vendor || {}) as Record<string, any>;
+      setStoreData((prev) => ({
+        ...prev,
+        businessName: String(updatedVendor.storeName || prev.businessName),
+        managerName: String(updatedVendor.contactPerson || updatedUser.name || prev.managerName),
+        managerPhone: String(updatedVendor.phone || updatedUser.phone || prev.managerPhone),
+        registeredAddress: String(updatedVendor.address || prev.registeredAddress),
+      }));
+      setIsEditing(false);
+      setToastMessage("Vendor boutique profile updated successfully.");
+    } catch (err: any) {
+      setToastMessage(err?.message || "Failed to update vendor profile.");
+    } finally {
+      setSaving(false);
+      setTimeout(() => setToastMessage(null), 4000);
+    }
   };
 
   return (
@@ -89,12 +166,12 @@ export default function VendorProfilePage() {
       <div className="bg-white rounded-[10px] border border-[#E4E0DB] p-6 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-start sm:items-center gap-4">
           <div className="w-16 h-16 rounded-[10px] bg-[#FFF0E8] border border-[#FF5A1F]/30 flex items-center justify-center text-[#D94B17] font-semibold text-2xl shrink-0">
-            ML
+            {computeInitials(storeData.businessName)}
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-[18px] font-semibold text-[#111111]">
-                {storeData.businessName}
+                {loading ? "Loading store..." : storeData.businessName}
               </h2>
               <span className="font-mono text-xs px-2 py-0.5 rounded-[4px] bg-[#F4F1EA] text-[#6B6667]">
                 {storeData.storeId}
@@ -106,7 +183,7 @@ export default function VendorProfilePage() {
             <div className="flex items-center gap-3 mt-2 text-xs text-[#6B6667] flex-wrap">
               <span className="flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5 text-[#6B6667]" />
-                Bandra West, Mumbai
+                {storeData.cityLabel}
               </span>
               <span>•</span>
               <span className="flex items-center gap-1">
@@ -120,15 +197,15 @@ export default function VendorProfilePage() {
         <div className="flex flex-col gap-2 p-3 rounded-[8px] bg-[#F7F7F5] border border-[#E4E0DB] text-xs shrink-0 min-w-[200px]">
           <div className="flex justify-between items-center">
             <span className="text-[#6B6667]">Tier:</span>
-            <span className="font-medium text-[#111111]">Tier 1 Boutique</span>
+            <span className="font-medium text-[#111111]">{storeData.tier}</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-[#6B6667]">Fulfillment SLA:</span>
-            <span className="font-medium text-[#20885A]">20m Prep Time</span>
+            <span className="font-medium text-[#20885A]">{storeData.preparationSla}</span>
           </div>
           <div className="flex justify-between items-center">
             <span className="text-[#6B6667]">Status:</span>
-            <span className="font-medium text-[#20885A]">Active &amp; Certified</span>
+            <span className="font-medium text-[#20885A]">Authenticated Session</span>
           </div>
         </div>
       </div>
@@ -150,7 +227,7 @@ export default function VendorProfilePage() {
                 Registered Legal Name
               </span>
               <span className="font-medium text-[#111111] mt-0.5 block">
-                Maison Lagos Handlooms &amp; Apparel Private Limited
+                {storeData.legalName}
               </span>
             </div>
 
@@ -225,7 +302,7 @@ export default function VendorProfilePage() {
                 Designated Fleet Handover Bay
               </span>
               <span className="text-[#111111] mt-0.5 block">
-                {storeData.dispatchBay} (Dedicated Rider Handover Point)
+                {storeData.dispatchBay}
               </span>
             </div>
           </div>
@@ -266,12 +343,12 @@ export default function VendorProfilePage() {
 
               <div>
                 <label className="block text-[11px] text-[#6B6667] font-medium mb-1 uppercase tracking-wider">
-                  Tagline / Description
+                  Registered Address
                 </label>
                 <input
                   type="text"
-                  value={storeData.tagline}
-                  onChange={(e) => setStoreData({ ...storeData, tagline: e.target.value })}
+                  value={storeData.registeredAddress}
+                  onChange={(e) => setStoreData({ ...storeData, registeredAddress: e.target.value })}
                   className="w-full h-[38px] px-3 rounded-[8px] bg-[#F7F7F5] border border-[#E4E0DB] text-xs text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F]"
                 />
               </div>
@@ -311,9 +388,10 @@ export default function VendorProfilePage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-[#FF5A1F] hover:bg-[#D94B17] text-white rounded-[8px] text-xs font-medium transition-colors"
+                  disabled={saving}
+                  className="px-4 py-2 bg-[#FF5A1F] hover:bg-[#D94B17] text-white rounded-[8px] text-xs font-medium transition-colors disabled:opacity-50"
                 >
-                  Save Profile
+                  {saving ? "Saving..." : "Save Profile"}
                 </button>
               </div>
             </form>

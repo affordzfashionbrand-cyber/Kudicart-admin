@@ -7,13 +7,15 @@ export type AuditActionType =
   | "PAYOUT_HOLD_UPDATED"
   | "PRODUCT_STATUS_CHANGED"
   | "VENDOR_APPROVED"
-  | "VENDOR_REJECTED";
+  | "VENDOR_REJECTED"
+  | (string & {});
 
 export type AuditActorRole =
   | "Central Ops Lead"
   | "Admin"
   | "System Automation"
-  | "Finance Settlement";
+  | "Finance Settlement"
+  | (string & {});
 
 export type AuditEntityType =
   | "Vendor"
@@ -21,7 +23,8 @@ export type AuditEntityType =
   | "Order"
   | "Product"
   | "Payment"
-  | "Customer";
+  | "Customer"
+  | (string & {});
 
 export interface AuditEvent {
   id: string;

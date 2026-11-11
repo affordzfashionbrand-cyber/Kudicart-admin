@@ -4,8 +4,8 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { CatalogProduct } from "@/types/products";
-import { getDemoProductById } from "@/demo-data/products";
+import { CatalogProduct, ProductListingStatus } from "@/types/products";
+import { api } from "@/lib/api";
 
 export default function AdminProductDetailPage() {
   const params = useParams();
@@ -15,20 +15,105 @@ export default function AdminProductDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [statusInput, setStatusInput] = useState<ProductListingStatus>("ACTIVE");
+  const [stockInput, setStockInput] = useState<string>("0");
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [savingStock, setSavingStock] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!productId) return;
+    if (!productId) {
+      setError("Missing product identifier.");
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
     setLoading(true);
     setError(null);
 
-    const found = getDemoProductById(productId);
-    if (found) {
-      setProduct(found);
-    } else {
-      setError(`Product record "${productId}" was not found.`);
-    }
-    setLoading(false);
+    api.products
+      .getById(productId)
+      .then((res) => {
+        if (cancelled) return;
+        if (!res || !res.id) {
+          setProduct(null);
+          setError(`Product record "${productId}" was not found.`);
+          return;
+        }
+
+        const raw = res as unknown as Record<string, unknown>;
+        const rawVendor = (raw.vendor && typeof raw.vendor === "object"
+          ? (raw.vendor as Record<string, unknown>)
+          : undefined);
+        const rawGallery = Array.isArray(raw.galleryImages)
+          ? (raw.galleryImages as Array<{ url?: string; label?: string; tag?: string }>).filter(
+              (img) => Boolean(img?.url)
+            )
+          : [];
+        const fallbackImage =
+          (typeof raw.primaryImageUrl === "string" && raw.primaryImageUrl) ||
+          (typeof raw.image === "string" && raw.image) ||
+          rawGallery[0]?.url ||
+          "";
+        const stockQuantity = Number(raw.stockQuantity ?? 0);
+        const computedStockStatus =
+          (typeof raw.stockStatus === "string" && raw.stockStatus) ||
+          (stockQuantity <= 0 ? "OUT_OF_STOCK" : stockQuantity <= 5 ? "LOW_STOCK" : "IN_STOCK");
+        const computedListingStatus =
+          (typeof raw.listingStatus === "string" && raw.listingStatus) ||
+          (raw.readyToShip === false ? "DRAFT" : "ACTIVE");
+
+        const mapped = {
+          ...(raw as unknown as CatalogProduct),
+          id: String(raw.id),
+          sku: String(raw.sku || raw.id),
+          category: String(raw.category || "Uncategorized"),
+          brand: String(raw.brand || "Affordz Official Store"),
+          vendorName: String(
+            raw.vendorName ||
+              rawVendor?.storeName ||
+              (raw.fulfillmentType === "DARK_STORE" ? "Affordz Official Store" : "Partner Vendor")
+          ),
+          sellingPrice: Number(raw.sellingPrice ?? raw.price ?? 0),
+          originalPrice:
+            raw.originalPrice !== undefined && raw.originalPrice !== null
+              ? Number(raw.originalPrice)
+              : undefined,
+          primaryImageUrl: fallbackImage,
+          galleryImages:
+            rawGallery.length > 0
+              ? rawGallery.map((img, idx) => ({
+                  url: String(img.url || ""),
+                  label: String(img.label || `Product Image ${idx + 1}`),
+                  tag: String(img.tag || (idx === 0 ? "Primary" : "Gallery")),
+                }))
+              : fallbackImage
+                ? [{ url: fallbackImage, label: "Primary Asset", tag: "Primary" }]
+                : [],
+          stockQuantity,
+          stockStatus: computedStockStatus as CatalogProduct["stockStatus"],
+          listingStatus: computedListingStatus as CatalogProduct["listingStatus"],
+        };
+
+        setProduct(mapped);
+        setStatusInput(mapped.listingStatus);
+        setStockInput(String(mapped.stockQuantity));
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const message =
+          err instanceof Error ? err.message : `Unable to load product "${productId}".`;
+        setProduct(null);
+        setError(message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [productId]);
 
   const handleExportJson = () => {
@@ -47,6 +132,63 @@ export default function AdminProductDetailPage() {
 
     setToastMessage(`Exported JSON for #${product.sku}`);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleStatusUpdate = async () => {
+    if (!product || savingStatus) return;
+    setSavingStatus(true);
+    try {
+      await api.products.updateStatus(product.id, statusInput);
+      setProduct((prev) => (prev ? { ...prev, listingStatus: statusInput } : prev));
+      setToastMessage(`Product status updated to ${statusInput}.`);
+    } catch (err: unknown) {
+      setToastMessage(
+        err instanceof Error ? err.message : "Failed to update product status."
+      );
+    } finally {
+      setSavingStatus(false);
+      setTimeout(() => setToastMessage(null), 3500);
+    }
+  };
+
+  const handleStockUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!product || savingStock) return;
+    const nextStock = Number(stockInput);
+    if (!Number.isFinite(nextStock) || nextStock < 0) {
+      setToastMessage("Stock quantity must be a non-negative integer.");
+      setTimeout(() => setToastMessage(null), 3000);
+      return;
+    }
+    const normalizedStock = Math.floor(nextStock);
+    setSavingStock(true);
+    try {
+      await api.products.updateStock(product.id, normalizedStock);
+      const nextStockStatus =
+        normalizedStock <= 0
+          ? "OUT_OF_STOCK"
+          : normalizedStock <= 5
+            ? "LOW_STOCK"
+            : "IN_STOCK";
+      setProduct((prev) =>
+        prev
+          ? {
+              ...prev,
+              stockQuantity: normalizedStock,
+              stockStatus: nextStockStatus,
+            }
+          : prev
+      );
+      setStockInput(String(normalizedStock));
+      setToastMessage(`Stock updated to ${normalizedStock} units.`);
+    } catch (err: unknown) {
+      setToastMessage(
+        err instanceof Error ? err.message : "Failed to update stock quantity."
+      );
+    } finally {
+      setSavingStock(false);
+      setTimeout(() => setToastMessage(null), 3500);
+    }
   };
 
   if (loading) {
@@ -83,11 +225,15 @@ export default function AdminProductDetailPage() {
     );
   }
 
-  const images = product.galleryImages && product.galleryImages.length > 0
-    ? product.galleryImages
-    : [{ url: product.primaryImageUrl, label: "Master Asset", tag: "Primary" }];
+  const images = (
+    product.galleryImages && product.galleryImages.length > 0
+      ? product.galleryImages
+      : product.primaryImageUrl
+        ? [{ url: product.primaryImageUrl, label: "Master Asset", tag: "Primary" }]
+        : []
+  ).filter((img) => Boolean(img?.url));
 
-  const currentImage = images[selectedImageIndex] || images[0];
+  const currentImage = images[selectedImageIndex] || images[0] || null;
 
   const discountPercent = product.originalPrice && product.originalPrice > product.sellingPrice
     ? Math.round(((product.originalPrice - product.sellingPrice) / product.originalPrice) * 100)
@@ -130,6 +276,27 @@ export default function AdminProductDetailPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5">
+              <select
+                aria-label="Listing status"
+                value={statusInput}
+                onChange={(e) => setStatusInput(e.target.value as ProductListingStatus)}
+                className="h-9 px-2.5 rounded-[8px] border border-[#E4E0DB] bg-white text-[#111111] text-xs font-medium focus:outline-none focus:border-[#FF5A1F]"
+              >
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="DRAFT">DRAFT</option>
+                <option value="REVIEW">REVIEW</option>
+                <option value="SUSPENDED">SUSPENDED</option>
+              </select>
+              <button
+                type="button"
+                onClick={handleStatusUpdate}
+                disabled={savingStatus || statusInput === product.listingStatus}
+                className="h-9 px-3 rounded-[8px] bg-[#111111] hover:bg-[#333333] text-white text-xs font-medium transition-colors disabled:opacity-50"
+              >
+                {savingStatus ? "Saving..." : "Save Status"}
+              </button>
+            </div>
             <button
               type="button"
               onClick={handleExportJson}
@@ -158,37 +325,47 @@ export default function AdminProductDetailPage() {
             </div>
 
             {/* Primary Image */}
-            <div className="relative w-full h-80 rounded-[8px] overflow-hidden border border-[#E4E0DB] bg-[#F4F1EA] mb-3">
-              <img
-                src={currentImage.url}
-                alt={currentImage.label}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute bottom-2.5 left-2.5 bg-[#111111]/80 text-white px-2 py-0.5 rounded text-xs">
-                {currentImage.label}
-              </div>
+            <div className="relative w-full h-80 rounded-[8px] overflow-hidden border border-[#E4E0DB] bg-[#F4F1EA] mb-3 flex items-center justify-center">
+              {currentImage?.url ? (
+                <>
+                  <img
+                    src={currentImage.url}
+                    alt={currentImage.label}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute bottom-2.5 left-2.5 bg-[#111111]/80 text-white px-2 py-0.5 rounded text-xs">
+                    {currentImage.label}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center text-xs text-[#6B6667] px-4">
+                  No product image uploaded
+                </div>
+              )}
             </div>
 
             {/* Thumbnail Strip */}
-            <div className="grid grid-cols-4 gap-2.5">
-              {images.map((img, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => setSelectedImageIndex(idx)}
-                  className={`relative aspect-square rounded-[6px] overflow-hidden cursor-pointer p-0.5 bg-white transition-all ${
-                    selectedImageIndex === idx
-                      ? "border-2 border-[#FF5A1F]"
-                      : "border border-[#E4E0DB] hover:border-[#FF5A1F]"
-                  }`}
-                >
-                  <img
-                    src={img.url}
-                    alt={img.label}
-                    className="w-full h-full object-cover rounded-[4px]"
-                  />
-                </div>
-              ))}
-            </div>
+            {images.length > 0 && (
+              <div className="grid grid-cols-4 gap-2.5">
+                {images.map((img, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => setSelectedImageIndex(idx)}
+                    className={`relative aspect-square rounded-[6px] overflow-hidden cursor-pointer p-0.5 bg-white transition-all ${
+                      selectedImageIndex === idx
+                        ? "border-2 border-[#FF5A1F]"
+                        : "border border-[#E4E0DB] hover:border-[#FF5A1F]"
+                    }`}
+                  >
+                    <img
+                      src={img.url}
+                      alt={img.label}
+                      className="w-full h-full object-cover rounded-[4px]"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
 
           {/* Description */}
@@ -298,9 +475,42 @@ export default function AdminProductDetailPage() {
             <div className="pt-2 border-t border-[#E4E0DB] text-xs">
               <span className="text-[#6B6667] block">Assigned Operating Hub</span>
               <span className="font-medium text-[#111111] mt-0.5 block">
-                {product.hubAssignment || "Bandra West Terminal Hub, Mumbai"}
+                {product.hubAssignment ||
+                  (product.fulfillmentType === "DARK_STORE"
+                    ? "Affordz Dark Store Hub"
+                    : "Partner Fulfillment Location")}
               </span>
             </div>
+
+            <form
+              onSubmit={handleStockUpdate}
+              className="pt-3 border-t border-[#E4E0DB] space-y-2"
+            >
+              <label
+                htmlFor="product-stock-input"
+                className="text-xs font-medium text-[#111111] block"
+              >
+                Adjust Available Stock
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  id="product-stock-input"
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={stockInput}
+                  onChange={(e) => setStockInput(e.target.value)}
+                  className="flex-1 h-9 px-3 rounded-[8px] border border-[#E4E0DB] bg-[#F7F7F5] text-xs font-mono text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F]"
+                />
+                <button
+                  type="submit"
+                  disabled={savingStock}
+                  className="h-9 px-3.5 rounded-[8px] bg-[#FF5A1F] hover:bg-[#D94B17] text-white text-xs font-medium transition-colors disabled:opacity-50"
+                >
+                  {savingStock ? "Updating..." : "Update Stock"}
+                </button>
+              </div>
+            </form>
           </div>
 
           {/* Merchant Attribution Card */}

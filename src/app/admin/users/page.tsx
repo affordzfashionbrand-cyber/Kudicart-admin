@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { CustomerUser } from "@/types/users";
-import { generateCustomersCSV } from "@/demo-data/users";
+
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 
@@ -101,13 +101,27 @@ export default function AdminUsersPage() {
 
   const handleExportCSV = () => {
     if (!filteredCustomers.length) return;
-    const csvContent = generateCustomersCSV(filteredCustomers);
+    const escapeCsv = (val: string) => `"${String(val || "").replace(/"/g, '""')}"`;
+    const csvContent =
+      "Customer ID,Name,Email,Phone,Registration Date,Status\n" +
+      filteredCustomers
+        .map((c) =>
+          [
+            escapeCsv(c.customerNumber),
+            escapeCsv(c.name),
+            escapeCsv(c.email),
+            escapeCsv(c.phone),
+            escapeCsv(c.registrationDate),
+            escapeCsv(c.status),
+          ].join(",")
+        )
+        .join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     const dateStr = new Date().toISOString().split("T")[0];
     link.href = url;
-    link.setAttribute("download", `kudicart_customers_${dateStr}.csv`);
+    link.setAttribute("download", `affordz_customers_${dateStr}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

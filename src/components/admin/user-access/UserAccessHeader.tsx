@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Shield, Users, Key, SlidersHorizontal } from "lucide-react";
+import { Users, Key, SlidersHorizontal } from "lucide-react";
 
 interface UserAccessHeaderProps {
   activeTab: "users" | "roles" | "permissions";
@@ -15,21 +15,21 @@ export function UserAccessHeader({ activeTab }: UserAccessHeaderProps) {
       label: "Users",
       href: "/admin/user-access",
       icon: Users,
-      count: "6",
+      badge: null as string | null,
     },
     {
       id: "roles",
       label: "Roles",
       href: "/admin/user-access/roles",
       icon: Key,
-      count: "5",
+      badge: "O-002",
     },
     {
       id: "permissions",
       label: "Permissions",
       href: "/admin/user-access/permissions",
       icon: SlidersHorizontal,
-      count: "17 Modules",
+      badge: "O-002",
     },
   ];
 
@@ -70,15 +70,17 @@ export function UserAccessHeader({ activeTab }: UserAccessHeaderProps) {
             >
               <Icon className={`w-3.5 h-3.5 ${isActive ? "text-[#FF5A1F]" : "text-[#6B6667]"}`} />
               <span>{tab.label}</span>
-              <span
-                className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
-                  isActive
-                    ? "bg-[#FFF0E8] text-[#D94B17]"
-                    : "bg-[#F4F1EA] text-[#6B6667]"
-                }`}
-              >
-                {tab.count}
-              </span>
+              {tab.badge && (
+                <span
+                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                    isActive
+                      ? "bg-[#FFF0E8] text-[#D94B17]"
+                      : "bg-[#F4F1EA] text-[#6B6667]"
+                  }`}
+                >
+                  {tab.badge}
+                </span>
+              )}
             </Link>
           );
         })}

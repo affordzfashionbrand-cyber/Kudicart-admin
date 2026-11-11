@@ -25,6 +25,7 @@ const ADMIN_NAVIGATION: NavSection[] = [
       { name: "Vendors", href: "/admin/vendors", icon: "storefront" },
       { name: "Categories", href: "/admin/categories", icon: "category" },
       { name: "Products", href: "/admin/products", icon: "inventory_2" },
+      { name: "Coupons", href: "/admin/coupons", icon: "confirmation_number" },
     ],
   },
   {
@@ -33,6 +34,7 @@ const ADMIN_NAVIGATION: NavSection[] = [
       { name: "Orders", href: "/admin/orders", icon: "shopping_cart" },
       { name: "Delivery Partners", href: "/admin/delivery-partners", icon: "local_shipping" },
       { name: "Assignments", href: "/admin/assignments", icon: "assignment" },
+      { name: "Dark Store Hubs", href: "/admin/hubs", icon: "warehouse" },
     ],
   },
   {

@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   Store,
@@ -17,19 +18,19 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api, getAuthToken, getStoredProfile } from "@/lib/api";
 
 interface VendorNavItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  badge?: string;
 }
 
 const VENDOR_NAVIGATION: VendorNavItem[] = [
   { name: "Dashboard", href: "/vendor/dashboard", icon: LayoutDashboard },
   { name: "Profile", href: "/vendor/profile", icon: Store },
   { name: "Products", href: "/vendor/products", icon: Package },
-  { name: "Orders", href: "/vendor/orders", icon: ShoppingCart, badge: "4" },
+  { name: "Orders", href: "/vendor/orders", icon: ShoppingCart },
   { name: "Reviews", href: "/vendor/reviews", icon: Star },
   { name: "Reports", href: "/vendor/reports", icon: BarChart3 },
   { name: "Settings", href: "/vendor/settings", icon: Settings },
@@ -51,6 +52,48 @@ export function VendorSidebar({
   const pathname = usePathname();
   const [hoveredNav, setHoveredNav] = useState<string | null>(null);
   const [isHoveringBrand, setIsHoveringBrand] = useState(false);
+  const [hasToken, setHasToken] = useState(false);
+  const [profileName, setProfileName] = useState<string>("");
+
+  useEffect(() => {
+    setHasToken(Boolean(getAuthToken()));
+    const stored = getStoredProfile();
+    if (stored?.name) {
+      setProfileName(String(stored.name));
+    }
+  }, []);
+
+  const vendorAuthQuery = useQuery({
+    queryKey: ["vendor-auth-profile"],
+    queryFn: () => api.vendorAuth.getProfile(),
+    enabled: hasToken,
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  const vendorMetaQuery = useQuery({
+    queryKey: ["vendor-header-meta"],
+    queryFn: () => api.vendorOrders.list(),
+    enabled: hasToken,
+    staleTime: 60_000,
+    retry: 1,
+  });
+
+  const storeName =
+    String(vendorAuthQuery.data?.vendor?.storeName || "").trim() ||
+    vendorMetaQuery.data?.storeName ||
+    profileName ||
+    "Vendor Store";
+  const vendorId =
+    vendorAuthQuery.data?.vendor?.id ||
+    vendorAuthQuery.data?.user?.vendorId ||
+    vendorMetaQuery.data?.vendorId ||
+    null;
+  const newOrdersCount = Array.isArray(vendorMetaQuery.data?.orders)
+    ? vendorMetaQuery.data.orders.filter(
+        (o: { status?: string }) => o.status === "PLACED"
+      ).length
+    : 0;
 
   return (
     <>
@@ -145,16 +188,20 @@ export function VendorSidebar({
           {/* Boutique Identity Card (Expanded mode only) */}
           {!isCollapsed && (
             <div className="p-3 border border-[#E4E0DB] bg-white mx-3 my-3 rounded-[8px] shadow-2xs">
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between gap-2 mb-1">
                 <span className="text-xs font-semibold text-[#111111] truncate">
-                  Maison Lagos Atelier
+                  {storeName}
                 </span>
                 <span className="inline-flex items-center px-1.5 py-0.2 rounded-[4px] text-[10px] font-medium bg-[#ECFDF5] text-[#20885A] shrink-0">
-                  Certified
+                  {vendorId ? "Verified" : "Active"}
                 </span>
               </div>
-              <div className="text-[11px] text-[#6B6667]">
-                Bandra West Node • Tier 1
+              <div className="text-[11px] text-[#6B6667] truncate">
+                {vendorMetaQuery.isLoading
+                  ? "Loading store profile..."
+                  : vendorId
+                  ? "Partner Store • Linked"
+                  : "Authenticated Vendor Portal"}
               </div>
             </div>
           )}
@@ -166,6 +213,10 @@ export function VendorSidebar({
                 pathname === item.href ||
                 (item.href !== "/vendor/dashboard" && pathname?.startsWith(item.href));
               const Icon = item.icon;
+              const dynamicBadge =
+                item.name === "Orders" && newOrdersCount > 0
+                  ? String(newOrdersCount)
+                  : undefined;
 
               return (
                 <div
@@ -201,7 +252,7 @@ export function VendorSidebar({
                       {!isCollapsed && <span>{item.name}</span>}
                     </div>
 
-                    {!isCollapsed && item.badge && (
+                    {!isCollapsed && dynamicBadge && (
                       <span
                         className={cn(
                           "inline-flex items-center justify-center px-1.5 py-0.2 rounded-full text-[10px] font-semibold",
@@ -210,7 +261,7 @@ export function VendorSidebar({
                             : "bg-[#FFF0E8] text-[#D94B17]"
                         )}
                       >
-                        {item.badge}
+                        {dynamicBadge}
                       </span>
                     )}
                   </Link>
@@ -222,7 +273,7 @@ export function VendorSidebar({
                       className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-2 px-2.5 py-1 bg-[#111111] text-white text-[11px] font-medium rounded-[6px] whitespace-nowrap shadow-md z-50 hidden lg:block"
                     >
                       {item.name}
-                      {item.badge && ` (${item.badge})`}
+                      {dynamicBadge && ` (${dynamicBadge})`}
                     </div>
                   )}
                 </div>
@@ -250,7 +301,7 @@ export function VendorSidebar({
                 <span>Fulfillment Link Active</span>
               </div>
               <p className="font-mono text-[10px] text-[#6B6667] mt-0.5 truncate">
-                Store ID: VND-0492
+                {vendorId ? `Store ID: ${vendorId}` : "Store ID: Session Linked"}
               </p>
             </div>
           )}

@@ -22,7 +22,9 @@ export default function VendorSettingsPage() {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem("kudicart_vendor_prefs");
+      const stored =
+        localStorage.getItem("affordz_vendor_prefs") ||
+        localStorage.getItem("kudicart_vendor_prefs");
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed.soundAlerts !== undefined) setSoundAlerts(parsed.soundAlerts);
@@ -41,8 +43,8 @@ export default function VendorSettingsPage() {
       tamperProofTagEnforced: key === "tamperProofTagEnforced" ? value : tamperProofTagEnforced,
     };
     try {
-      localStorage.setItem("kudicart_vendor_prefs", JSON.stringify(updated));
-      setFeedback("Boutique preference saved.");
+      localStorage.setItem("affordz_vendor_prefs", JSON.stringify(updated));
+      setFeedback("Store preference saved in this browser.");
       setTimeout(() => setFeedback(null), 3000);
     } catch {
       // Ignore
@@ -177,7 +179,7 @@ export default function VendorSettingsPage() {
                 </span>
               </h3>
               <p className="text-xs text-[#5B4038] leading-relaxed">
-                Vendor accounts are strictly scoped to their certified store catalog and orders. Fleet assignment, delivery routing, and marketplace commission terms are governed centrally by KudiCart Operations.
+                Vendor accounts are strictly scoped to their certified store catalog and orders. Fleet assignment, delivery routing, and marketplace commission terms are governed centrally by Affordz Operations.
               </p>
             </div>
           </div>

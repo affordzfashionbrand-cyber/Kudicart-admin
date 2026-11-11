@@ -19,7 +19,6 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { DeliveryPartner } from "@/types/drivers";
-import { getDemoDeliveryPartners } from "@/demo-data/drivers";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -28,6 +27,7 @@ import { api } from "@/lib/api";
 export default function AdminDeliveryPartnersPage() {
   const [partners, setPartners] = useState<DeliveryPartner[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [apiError, setApiError] = useState<string | null>(null);
 
   // Filters & Search
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -42,16 +42,16 @@ export default function AdminDeliveryPartnersPage() {
 
   const loadData = () => {
     setLoading(true);
+    setApiError(null);
     api.deliveryPartners.list({ limit: 100 })
       .then((res) => {
-        if (res?.data && res.data.length > 0) {
-          setPartners(res.data);
-        } else {
-          setPartners(getDemoDeliveryPartners());
-        }
+        setPartners(Array.isArray(res?.data) ? res.data : []);
       })
-      .catch(() => {
-        setPartners(getDemoDeliveryPartners());
+      .catch((err: unknown) => {
+        const message =
+          err instanceof Error ? err.message : "Unable to load delivery partners from the backend.";
+        setPartners([]);
+        setApiError(message);
       })
       .finally(() => {
         setLoading(false);
@@ -162,10 +162,12 @@ export default function AdminDeliveryPartnersPage() {
               const url = URL.createObjectURL(blob);
               const a = document.createElement("a");
               a.href = url;
-              a.download = `kudicart_fleet_export_${new Date().toISOString().split("T")[0]}.csv`;
+              a.download = `affordz_fleet_export_${new Date().toISOString().split("T")[0]}.csv`;
               a.click();
+              URL.revokeObjectURL(url);
             }}
-            className="h-9 px-3.5 rounded-[8px] border border-[#E4E0DB] bg-white text-[#111111] text-xs font-medium hover:bg-[#F7F7F5] transition-colors flex items-center gap-1.5 shadow-xs"
+            disabled={partners.length === 0}
+            className="h-9 px-3.5 rounded-[8px] border border-[#E4E0DB] bg-white text-[#111111] text-xs font-medium hover:bg-[#F7F7F5] transition-colors flex items-center gap-1.5 shadow-xs disabled:opacity-50"
             title="Export filtered fleet data to CSV"
           >
             <Download className="w-3.5 h-3.5 text-[#6B6667]" />
@@ -182,6 +184,18 @@ export default function AdminDeliveryPartnersPage() {
           </button>
         </div>
       </section>
+
+      {apiError && (
+        <div className="bg-[#FEF2F2] border border-[#ffdad6] text-[#DA1E28] rounded-[10px] px-4 py-3 text-xs flex items-center justify-between gap-3">
+          <span>{apiError}</span>
+          <button
+            onClick={loadData}
+            className="px-2.5 py-1 rounded-[6px] bg-white border border-[#ffdad6] font-medium hover:bg-[#fff5f5] shrink-0"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* ================= OPERATIONAL KPI SUMMARY CARDS ================= */}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
