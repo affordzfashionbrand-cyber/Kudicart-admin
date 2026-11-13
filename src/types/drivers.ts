@@ -64,8 +64,13 @@ export interface AuditTrailEvent {
 
 export interface DeliveryPartnerDetail extends DeliveryPartner {
   email?: string;
+  employmentType?: string;
   registeredAddress: string;
   dob?: string;
+  aadhaarNumber?: string;
+  panNumber?: string;
+  licenseNumber?: string;
+  rcNumber?: string;
   submissionDate: string;
   assignedReviewer: string;
   terminalHub: string;
