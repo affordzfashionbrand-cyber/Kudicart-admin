@@ -1,4 +1,4 @@
-export type KycStatus = 'APPROVED' | 'PENDING' | 'REJECTED';
+export type KycStatus = 'APPROVED' | 'PENDING' | 'REJECTED' | 'UNDER_REVIEW' | 'NOT_SUBMITTED';
 
 export type DriverWorkPreference = 'FULL_TIME' | 'PART_TIME';
 

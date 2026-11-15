@@ -73,7 +73,7 @@ export default function AdminOrderDetailPage() {
     queryKey: ["admin-order-group", order?.checkoutGroupId],
     enabled: Boolean(order?.checkoutGroupId),
     queryFn: async () => {
-      const res = await api.orders.list({ limit: 200 });
+      const res = await api.orders.list({ limit: 100 });
       const raw = Array.isArray(res?.data) ? res.data : [];
       return raw
         .map(mapBackendOrderToWebOrder)

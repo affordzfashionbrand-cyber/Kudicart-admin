@@ -672,7 +672,14 @@ export const api = {
 
   orders: {
     list: async (params: Record<string, any> = {}) => {
-      const qs = new URLSearchParams(params).toString();
+      const sanitized = { ...params };
+      if (sanitized.limit !== undefined) {
+        const num = Number(sanitized.limit);
+        if (Number.isFinite(num)) {
+          sanitized.limit = Math.min(Math.max(1, num), 100);
+        }
+      }
+      const qs = new URLSearchParams(sanitized).toString();
       return request<{ data: any[]; total: number; page: number; limit: number }>(
         `/admin/orders${qs ? `?${qs}` : ""}`
       );

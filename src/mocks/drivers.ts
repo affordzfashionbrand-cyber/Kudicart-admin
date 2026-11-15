@@ -437,6 +437,13 @@ export function getDeliveryPartnerDetail(id: string): DeliveryPartnerDetail | un
   if (!partner) return undefined;
 
   // Generate dynamic detail matching the partner record
+  const docStatus: "PENDING" | "VERIFIED" | "REJECTED" =
+    partner.kycStatus === "APPROVED"
+      ? "VERIFIED"
+      : partner.kycStatus === "REJECTED"
+      ? "REJECTED"
+      : "PENDING";
+
   return {
     ...partner,
     email: `${partner.fullName.toLowerCase().replace(/\s+/g, ".")}@example.com`,
@@ -457,23 +464,23 @@ export function getDeliveryPartnerDetail(id: string): DeliveryPartnerDetail | un
     documents: {
       selfie: {
         ...MOCK_PARTNER_DETAIL_SURAJ.documents.selfie,
-        status: partner.kycStatus === "APPROVED" ? "VERIFIED" : partner.kycStatus,
+        status: docStatus,
       },
       aadhaar: {
         ...MOCK_PARTNER_DETAIL_SURAJ.documents.aadhaar,
-        status: partner.kycStatus === "APPROVED" ? "VERIFIED" : partner.kycStatus,
+        status: docStatus,
       },
       pan: {
         ...MOCK_PARTNER_DETAIL_SURAJ.documents.pan,
-        status: partner.kycStatus === "APPROVED" ? "VERIFIED" : partner.kycStatus,
+        status: docStatus,
       },
       drivingLicence: {
         ...MOCK_PARTNER_DETAIL_SURAJ.documents.drivingLicence,
-        status: partner.kycStatus === "APPROVED" ? "VERIFIED" : partner.kycStatus,
+        status: docStatus,
       },
       vehicleRc: {
         ...MOCK_PARTNER_DETAIL_SURAJ.documents.vehicleRc,
-        status: partner.kycStatus === "APPROVED" ? "VERIFIED" : partner.kycStatus,
+        status: docStatus,
       },
     },
     auditTrail: [
