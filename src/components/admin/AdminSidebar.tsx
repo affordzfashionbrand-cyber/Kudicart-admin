@@ -29,6 +29,14 @@ const ADMIN_NAVIGATION: NavSection[] = [
     ],
   },
   {
+    title: "Marketing & CMS",
+    items: [
+      { name: "Banners Studio", href: "/admin/marketing/banners", icon: "view_carousel" },
+      { name: "Bank Offers", href: "/admin/marketing/offers", icon: "local_offer" },
+      { name: "Layout Builder", href: "/admin/marketing/layout-builder", icon: "dashboard_customize" },
+    ],
+  },
+  {
     title: "Logistics & Fulfillment",
     items: [
       { name: "Orders", href: "/admin/orders", icon: "shopping_cart" },

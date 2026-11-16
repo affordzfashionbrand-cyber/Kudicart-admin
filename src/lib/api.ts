@@ -14,6 +14,19 @@ import type {
   CreateCouponInput,
   UpdateCouponInput,
 } from "../types/coupons";
+import type {
+  HomeBanner,
+  CreateBannerInput,
+  UpdateBannerInput,
+  BankOffer,
+  CreateBankOfferInput,
+  UpdateBankOfferInput,
+  HomeSectionConfig,
+  UpdateSectionConfigInput,
+  HomeSectionItem,
+  CreateSectionItemInput,
+  UpdateSectionItemInput,
+} from "../types/marketing";
 import {
   getFreshFirebaseIdToken,
   signOutFirebase,
@@ -1021,6 +1034,117 @@ export const api = {
       return request<any>(`/vendor/orders/${id}/reject`, {
         method: "POST",
         body: JSON.stringify({ reason, expectedVersion }),
+      });
+    },
+  },
+  marketing: {
+    // Banners
+    getBanners: async (params?: { placement?: string; targetGender?: string; isActive?: boolean | string }) => {
+      const q = new URLSearchParams();
+      if (params?.placement) q.set("placement", params.placement);
+      if (params?.targetGender) q.set("targetGender", params.targetGender);
+      if (params?.isActive !== undefined) q.set("isActive", String(params.isActive));
+      const qs = q.toString() ? `?${q.toString()}` : "";
+      return request<HomeBanner[]>(`/admin/home/banners${qs}`);
+    },
+    getBannerById: async (id: string) => {
+      return request<HomeBanner>(`/admin/home/banners/${id}`);
+    },
+    createBanner: async (data: CreateBannerInput) => {
+      return request<HomeBanner>("/admin/home/banners", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+    updateBanner: async (id: string, data: UpdateBannerInput) => {
+      return request<HomeBanner>(`/admin/home/banners/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
+    },
+    deleteBanner: async (id: string) => {
+      return request<{ success: boolean; message: string }>(`/admin/home/banners/${id}`, {
+        method: "DELETE",
+      });
+    },
+    reorderBanners: async (items: { id: string; displayOrder: number; isActive?: boolean }[]) => {
+      return request<{ success: boolean; count: number }>("/admin/home/banners/reorder", {
+        method: "PATCH",
+        body: JSON.stringify({ items }),
+      });
+    },
+
+    // Bank Offers
+    getBankOffers: async (params?: { isActive?: boolean | string }) => {
+      const q = new URLSearchParams();
+      if (params?.isActive !== undefined) q.set("isActive", String(params.isActive));
+      const qs = q.toString() ? `?${q.toString()}` : "";
+      return request<BankOffer[]>(`/admin/home/bank-offers${qs}`);
+    },
+    getBankOfferById: async (id: string) => {
+      return request<BankOffer>(`/admin/home/bank-offers/${id}`);
+    },
+    createBankOffer: async (data: CreateBankOfferInput) => {
+      return request<BankOffer>("/admin/home/bank-offers", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+    updateBankOffer: async (id: string, data: UpdateBankOfferInput) => {
+      return request<BankOffer>(`/admin/home/bank-offers/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
+    },
+    deleteBankOffer: async (id: string) => {
+      return request<{ success: boolean; message: string }>(`/admin/home/bank-offers/${id}`, {
+        method: "DELETE",
+      });
+    },
+    reorderBankOffers: async (items: { id: string; displayOrder: number; isActive?: boolean }[]) => {
+      return request<{ success: boolean; count: number }>("/admin/home/bank-offers/reorder", {
+        method: "PATCH",
+        body: JSON.stringify({ items }),
+      });
+    },
+
+    // Sections & Curated Items
+    getSections: async () => {
+      return request<HomeSectionConfig[]>("/admin/home/sections");
+    },
+    updateSection: async (sectionKey: string, data: UpdateSectionConfigInput) => {
+      return request<HomeSectionConfig>(`/admin/home/sections/${sectionKey}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
+    },
+    reorderSections: async (sections: { sectionKey: string; displayOrder: number; isEnabled?: boolean }[]) => {
+      return request<{ success: boolean; count: number }>("/admin/home/sections/reorder", {
+        method: "PATCH",
+        body: JSON.stringify({ sections }),
+      });
+    },
+    addSectionItem: async (sectionKey: string, data: CreateSectionItemInput) => {
+      return request<HomeSectionItem>(`/admin/home/sections/${sectionKey}/items`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+    updateSectionItem: async (itemId: string, data: UpdateSectionItemInput) => {
+      return request<HomeSectionItem>(`/admin/home/sections/items/${itemId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
+    },
+    deleteSectionItem: async (itemId: string) => {
+      return request<{ success: boolean; message: string }>(`/admin/home/sections/items/${itemId}`, {
+        method: "DELETE",
+      });
+    },
+    reorderSectionItems: async (items: { id: string; displayOrder: number; isActive?: boolean }[]) => {
+      return request<{ success: boolean; count: number }>("/admin/home/sections/items/reorder", {
+        method: "PATCH",
+        body: JSON.stringify({ items }),
       });
     },
   },
