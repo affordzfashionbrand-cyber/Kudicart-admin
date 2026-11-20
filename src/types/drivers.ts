@@ -7,6 +7,7 @@ export type DriverVehicleType =
   | 'EV / Electric'
   | 'Bike'
   | 'Scooty'
+  | 'EV Scooter'
   | 'EV Bike'
   | 'EV Scooty';
 
@@ -105,4 +106,78 @@ export interface KycReviewResponse {
   driverId: string;
   kycStatus: KycStatus;
   rejectionReason?: string | null;
+}
+
+export interface DriverDeliveryStats {
+  totalDeliveries: number;
+  completedDeliveries: number;
+  cancelledDeliveries: number;
+  failedDeliveries: number;
+  assignedDeliveries: number;
+  successfulDeliveries: number;
+}
+
+export interface DriverDeliveryRecord {
+  id: string;
+  deliveryId: string;
+  orderId: string;
+  orderUuid: string;
+  customer: {
+    id?: string | null;
+    name: string;
+    phone?: string | null;
+  };
+  pickupLocation: string;
+  dropLocation: string;
+  assignedAt: string;
+  completedAt?: string | null;
+  status: string;
+  deliveryFee: number;
+  earnings: number;
+  grandTotal: number;
+  itemTotal: number;
+  cancellationReason?: string | null;
+  createdAt: string;
+}
+
+export interface DeliveryTimelineEvent {
+  id: string;
+  status: string;
+  note?: string | null;
+  actorRole?: string | null;
+  timestamp: string;
+}
+
+export interface DeliveryItemDetail {
+  id: string;
+  title: string;
+  brand: string;
+  size: string;
+  price: number;
+  quantity: number;
+  image?: string;
+}
+
+export interface DeliveryDetailResponse extends DriverDeliveryRecord {
+  customer: {
+    id?: string | null;
+    name: string;
+    phone?: string | null;
+    email?: string | null;
+  };
+  partner: {
+    id: string;
+    fullName: string;
+    driverCode: string;
+    phone: string;
+  };
+  pickedUpAt?: string | null;
+  paymentMethod: string;
+  paymentStatus: string;
+  cancelledAt?: string | null;
+  deliveryInstructions?: string | null;
+  verificationPhotos: string[];
+  items: DeliveryItemDetail[];
+  timeline: DeliveryTimelineEvent[];
+  updatedAt: string;
 }

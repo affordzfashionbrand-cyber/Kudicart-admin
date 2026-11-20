@@ -15,6 +15,11 @@ import type {
   UpdateCouponInput,
 } from "../types/coupons";
 import type {
+  DriverDeliveryStats,
+  DriverDeliveryRecord,
+  DeliveryDetailResponse,
+} from "../types/drivers";
+import type {
   HomeBanner,
   CreateBannerInput,
   UpdateBannerInput,
@@ -744,7 +749,7 @@ export const api = {
     },
     reviewKyc: async (
       id: string,
-      payload: { status: "APPROVED" | "REJECTED"; rejectionReason?: string }
+      payload: { status: "APPROVED" | "REJECTED"; rejectionReason?: string; rejectedDocuments?: string[] }
     ) => {
       return request<{ success: boolean; partner?: any; driverId?: string; kycStatus?: string }>(
         `/admin/delivery-partners/${id}/kyc-review`,
@@ -761,6 +766,26 @@ export const api = {
           method: "PATCH",
           body: JSON.stringify({ status }),
         }
+      );
+    },
+    getDeliveryStats: async (id: string) => {
+      return request<DriverDeliveryStats>(
+        `/admin/delivery-partners/${id}/delivery-stats`
+      );
+    },
+    getDeliveries: async (id: string, params: Record<string, any> = {}) => {
+      const qs = new URLSearchParams(params).toString();
+      return request<{
+        data: DriverDeliveryRecord[];
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+      }>(`/admin/delivery-partners/${id}/deliveries${qs ? `?${qs}` : ""}`);
+    },
+    getDeliveryDetail: async (id: string, deliveryId: string) => {
+      return request<DeliveryDetailResponse>(
+        `/admin/delivery-partners/${id}/deliveries/${deliveryId}`
       );
     },
   },

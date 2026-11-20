@@ -24,13 +24,13 @@ import {
   Edit2,
   FileCheck,
 } from "lucide-react";
-import { DeliveryPartnerDetail } from "@/types/drivers";
+import { DeliveryPartnerDetail, AuditTrailEvent } from "@/types/drivers";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { api } from "@/lib/api";
 
-type VerificationStatus = "VERIFIED" | "FLAGGED";
+type VerificationStatus = "VERIFIED" | "FLAGGED" | "PENDING" | "UNSUBMITTED";
 
 interface FieldVerificationState {
   status: VerificationStatus;
@@ -151,36 +151,42 @@ const PREDEFINED_ISSUES: Record<string, string[]> = {
 function normalizePartnerDetail(raw: any): DeliveryPartnerDetail {
   if (!raw) return raw;
 
+  const rawType = (raw.vehicleDetails?.vehicleType || raw.vehicleType || "").trim();
+  const rawModel = (raw.vehicleDetails?.model || raw.vehicleModel || "").trim();
+  const rawMake = (raw.vehicleDetails?.make || raw.vehicleMake || "").trim();
+  const rawReg = (raw.vehicleDetails?.registrationNumber || raw.vehicleRegistration || raw.rcNumber || "").trim();
+
+  const hasValidReg = rawReg !== "" && rawReg.toLowerCase() !== "unregistered";
+  const hasVehicle = Boolean(rawType || rawModel || rawMake || hasValidReg);
+
   const isElectric = Boolean(
     raw.vehicleDetails?.isElectric ??
-      ((raw.vehicleType && String(raw.vehicleType).toLowerCase().includes("ev")) ||
-        (raw.vehicleModel && String(raw.vehicleModel).toLowerCase().includes("electric")) ||
-        (raw.vehicleType && String(raw.vehicleType).toLowerCase().includes("electric")))
+      ((rawType && rawType.toLowerCase().includes("ev")) ||
+        (rawModel && rawModel.toLowerCase().includes("electric")) ||
+        (rawType && rawType.toLowerCase().includes("electric")))
   );
 
-  const vehicleType =
-    raw.vehicleDetails?.vehicleType || raw.vehicleType || (isElectric ? "EV Scooty" : "Bike");
-  const make =
-    raw.vehicleDetails?.make || raw.vehicleMake || (isElectric ? "Ather Energy" : "Hero");
-  const model =
-    raw.vehicleDetails?.model || raw.vehicleModel || (isElectric ? "450X" : "Splendor+");
-  const registrationNumber =
-    raw.vehicleDetails?.registrationNumber ||
-    raw.vehicleRegistration ||
-    raw.rcNumber ||
-    "Unregistered";
-  const rcStatus =
-    raw.vehicleDetails?.rcStatus || raw.rcStatus || (registrationNumber !== "Unregistered" ? "Verified" : "Under review");
+  const vehicleType = rawType || null;
+  const make = rawMake || null;
+  const model = rawModel || null;
+  const registrationNumber = hasValidReg ? rawReg : (hasVehicle ? "Unregistered" : null);
+  const rcStatus = hasVehicle
+    ? (raw.vehicleDetails?.rcStatus || raw.rcStatus || (hasValidReg ? "Verified" : "Under review"))
+    : "Not submitted";
 
-  const vehicleDetails = {
-    vehicleType,
-    make,
-    model,
-    registrationNumber,
-    isElectric,
-    color: raw.vehicleDetails?.color || "Standard",
-    rcStatus,
-  };
+  const vehicleDetails = hasVehicle
+    ? {
+        vehicleType: vehicleType || null,
+        make: make || null,
+        model: model || null,
+        registrationNumber: hasValidReg ? rawReg : null,
+        isElectric,
+        color: raw.vehicleDetails?.color || null,
+        rcStatus: hasValidReg
+          ? (raw.vehicleDetails?.rcStatus || raw.rcStatus || "Verified")
+          : "Under review",
+      }
+    : null;
 
   const rawDocs: any[] = Array.isArray(raw.documents) ? raw.documents : [];
   const findDoc = (type: string, side: string = "front") =>
@@ -201,17 +207,15 @@ function normalizePartnerDetail(raw: any): DeliveryPartnerDetail {
   const rcFront = findDoc("vehicleRc", "front") || findDoc("rc", "front");
   const rcBack = findDoc("vehicleRc", "back") || findDoc("rc", "back");
 
-  const placeholderSelfie =
-    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400";
-  const selfieUrl = raw.selfieUrl || selfieDoc?.fileUrl || placeholderSelfie;
+  const selfieUrl = raw.selfieUrl || selfieDoc?.fileUrl || undefined;
 
-  const defaultAadhaarFrontUrl = aadhaarFront?.fileUrl || "";
-  const defaultAadhaarBackUrl = aadhaarBack?.fileUrl || "";
-  const defaultPanUrl = panFront?.fileUrl || "";
-  const defaultDlFrontUrl = dlFront?.fileUrl || "";
-  const defaultDlBackUrl = dlBack?.fileUrl || "";
-  const defaultRcFrontUrl = rcFront?.fileUrl || "";
-  const defaultRcBackUrl = rcBack?.fileUrl || "";
+  const defaultAadhaarFrontUrl = aadhaarFront?.fileUrl || undefined;
+  const defaultAadhaarBackUrl = aadhaarBack?.fileUrl || undefined;
+  const defaultPanUrl = panFront?.fileUrl || undefined;
+  const defaultDlFrontUrl = dlFront?.fileUrl || undefined;
+  const defaultDlBackUrl = dlBack?.fileUrl || undefined;
+  const defaultRcFrontUrl = rcFront?.fileUrl || undefined;
+  const defaultRcBackUrl = rcBack?.fileUrl || undefined;
 
   const structuredDocuments = {
     selfie: {
@@ -219,26 +223,32 @@ function normalizePartnerDetail(raw: any): DeliveryPartnerDetail {
       key: "selfie" as const,
       title: "Driver Portrait / Selfie",
       code: "A",
-      status: (selfieDoc?.status || (raw.selfieUrl ? "VERIFIED" : "PENDING")) as any,
-      statusLabel: "Captured via Mobile App",
+      status: (selfieDoc?.status || (selfieUrl ? "VERIFIED" : "PENDING")) as any,
+      statusLabel: selfieUrl ? "Captured via Mobile App" : "Not uploaded",
       isSingleSided: true,
-      metadata: `Uploaded: ${new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN")}`,
+      metadata: selfieUrl
+        ? `Uploaded: ${new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN")}`
+        : "Awaiting capture",
       front: {
         label: "Live Camera Portrait",
         url: selfieUrl,
-        fileRecord: {
-          name: selfieDoc?.fileName || "selfie_portrait.png",
-          size: selfieDoc?.fileSize || "2.9 MB",
-          type: selfieDoc?.mimeType || "image/png",
-          uploadedAt: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN"),
-        },
+        fileRecord: selfieDoc
+          ? {
+              name: selfieDoc.fileName || "selfie_portrait.png",
+              size: selfieDoc.fileSize || "2.9 MB",
+              type: selfieDoc.mimeType || "image/png",
+              uploadedAt: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN"),
+            }
+          : undefined,
         description: "Front-facing live portrait submitted during driver mobile onboarding.",
         status: (selfieDoc?.status || "PENDING") as any,
-        dataFields: [
-          { label: "Capture Mode", value: "Driver Front Camera" },
-          { label: "Live Verification", value: "Match Passed" },
-          { label: "Uploaded On", value: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN") },
-        ],
+        dataFields: selfieUrl
+          ? [
+              { label: "Capture Mode", value: "Driver Front Camera" },
+              { label: "Live Verification", value: "Match Passed" },
+              { label: "Uploaded On", value: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN") },
+            ]
+          : [{ label: "Status", value: "Not captured yet" }],
       },
     },
     aadhaar: {
@@ -247,42 +257,46 @@ function normalizePartnerDetail(raw: any): DeliveryPartnerDetail {
       title: "Aadhaar Card (UIDAI Masked)",
       code: "B",
       status: (aadhaarFront?.status || "PENDING") as any,
-      statusLabel: aadhaarFront?.status === "VERIFIED" ? "Verified" : "Pending Review",
+      statusLabel: aadhaarFront?.status === "VERIFIED" ? "Verified" : defaultAadhaarFrontUrl ? "Pending Review" : "Not uploaded",
       isSingleSided: false,
-      metadata: "Front and back views submitted",
+      metadata: defaultAadhaarFrontUrl ? "Front and back views submitted" : "Awaiting document upload",
       front: {
         label: "Front View (Identity & Photo)",
         url: defaultAadhaarFrontUrl,
-        fileRecord: {
-          name: aadhaarFront?.fileName || "aadhaar_front.png",
-          size: aadhaarFront?.fileSize || "2.9 MB",
-          type: aadhaarFront?.mimeType || "image/png",
-          uploadedAt: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN"),
-        },
+        fileRecord: aadhaarFront
+          ? {
+              name: aadhaarFront.fileName || "aadhaar_front.png",
+              size: aadhaarFront.fileSize || "2.9 MB",
+              type: aadhaarFront.mimeType || "image/png",
+              uploadedAt: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN"),
+            }
+          : undefined,
         description: "Aadhaar card front displaying name, photo, and government emblem.",
         status: (aadhaarFront?.status || "PENDING") as any,
         dataFields: [
-          { label: "Name on Card", value: raw.fullName || "Nitraj" },
-          { label: "Date of Birth", value: raw.dob || "09/01/2006" },
+          { label: "Name on Card", value: raw.fullName || "Not provided" },
+          { label: "Date of Birth", value: raw.dob || "Not provided" },
           {
             label: "Aadhaar UID",
-            value: raw.aadhaarNumber ? String(raw.aadhaarNumber) : "1234 5678 9001",
+            value: raw.aadhaarNumber ? String(raw.aadhaarNumber) : "Not provided",
           },
         ],
       },
       back: {
         label: "Back View (Address & QR)",
         url: defaultAadhaarBackUrl,
-        fileRecord: {
-          name: aadhaarBack?.fileName || "aadhaar_back.png",
-          size: aadhaarBack?.fileSize || "2.9 MB",
-          type: aadhaarBack?.mimeType || "image/png",
-          uploadedAt: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN"),
-        },
+        fileRecord: aadhaarBack
+          ? {
+              name: aadhaarBack.fileName || "aadhaar_back.png",
+              size: aadhaarBack.fileSize || "2.9 MB",
+              type: aadhaarBack.mimeType || "image/png",
+              uploadedAt: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN"),
+            }
+          : undefined,
         description: "Aadhaar card reverse view with address record.",
         status: (aadhaarBack?.status || "PENDING") as any,
         dataFields: [
-          { label: "Address", value: raw.registeredAddress || "Bangalore Central Hub, Karnataka" },
+          { label: "Address", value: raw.registeredAddress || "Not provided" },
           { label: "Format", value: "UIDAI Government Card" },
         ],
       },
@@ -293,23 +307,25 @@ function normalizePartnerDetail(raw: any): DeliveryPartnerDetail {
       title: "PAN Card (Income Tax Dept)",
       code: "C",
       status: (panFront?.status || "PENDING") as any,
-      statusLabel: panFront?.status === "VERIFIED" ? "Verified" : "Pending Review",
+      statusLabel: panFront?.status === "VERIFIED" ? "Verified" : defaultPanUrl ? "Pending Review" : "Not uploaded",
       isSingleSided: true,
-      metadata: "Permanent Account Number record",
+      metadata: defaultPanUrl ? "Permanent Account Number record" : "Awaiting document upload",
       front: {
         label: "Front View (Tax ID & Name)",
         url: defaultPanUrl,
-        fileRecord: {
-          name: panFront?.fileName || "pan_front.png",
-          size: panFront?.fileSize || "2.9 MB",
-          type: panFront?.mimeType || "image/png",
-          uploadedAt: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN"),
-        },
+        fileRecord: panFront
+          ? {
+              name: panFront.fileName || "pan_front.png",
+              size: panFront.fileSize || "2.9 MB",
+              type: panFront.mimeType || "image/png",
+              uploadedAt: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN"),
+            }
+          : undefined,
         description: "Government-issued PAN Card for identity and tax verification.",
         status: (panFront?.status || "PENDING") as any,
         dataFields: [
-          { label: "PAN Number", value: raw.panNumber || "WKWKW2222J" },
-          { label: "Name on Card", value: raw.fullName || "Nitraj" },
+          { label: "PAN Number", value: raw.panNumber || "Not provided" },
+          { label: "Name on Card", value: raw.fullName || "Not provided" },
         ],
       },
     },
@@ -319,37 +335,41 @@ function normalizePartnerDetail(raw: any): DeliveryPartnerDetail {
       title: "Driving Licence (Transport Dept)",
       code: "D",
       status: (dlFront?.status || "PENDING") as any,
-      statusLabel: dlFront?.status === "VERIFIED" ? "Verified" : "Pending Review",
+      statusLabel: dlFront?.status === "VERIFIED" ? "Verified" : defaultDlFrontUrl ? "Pending Review" : "Not uploaded",
       isSingleSided: false,
-      metadata: "Commercial two-wheeler motor vehicle licence",
+      metadata: defaultDlFrontUrl ? "Commercial two-wheeler motor vehicle licence" : "Awaiting document upload",
       front: {
         label: "Front View (Licence No & Photo)",
         url: defaultDlFrontUrl,
-        fileRecord: {
-          name: dlFront?.fileName || "driving_licence_front.png",
-          size: dlFront?.fileSize || "2.9 MB",
-          type: dlFront?.mimeType || "image/png",
-          uploadedAt: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN"),
-        },
+        fileRecord: dlFront
+          ? {
+              name: dlFront.fileName || "driving_licence_front.png",
+              size: dlFront.fileSize || "2.9 MB",
+              type: dlFront.mimeType || "image/png",
+              uploadedAt: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN"),
+            }
+          : undefined,
         description: "Valid Indian Driving Licence issued by RTO.",
         status: (dlFront?.status || "PENDING") as any,
         dataFields: [
-          { label: "Licence Number", value: raw.licenseNumber || "TN 1929388282828" },
-          { label: "Vehicle Class", value: "MCWG / Commercial 2W" },
+          { label: "Licence Number", value: raw.licenseNumber || "Not provided" },
+          { label: "Vehicle Class", value: hasVehicle ? (vehicleDetails?.vehicleType || "Commercial 2W") : "Not provided" },
         ],
       },
       back: {
         label: "Back View (Endorsements)",
         url: defaultDlBackUrl,
-        fileRecord: {
-          name: dlBack?.fileName || "driving_licence_back.png",
-          size: dlBack?.fileSize || "2.9 MB",
-          type: dlBack?.mimeType || "image/png",
-          uploadedAt: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN"),
-        },
+        fileRecord: dlBack
+          ? {
+              name: dlBack.fileName || "driving_licence_back.png",
+              size: dlBack.fileSize || "2.9 MB",
+              type: dlBack.mimeType || "image/png",
+              uploadedAt: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN"),
+            }
+          : undefined,
         description: "Licence reverse view showing validity and endorsements.",
         status: (dlBack?.status || "PENDING") as any,
-        dataFields: [{ label: "Endorsements", value: "Commercial Valid" }],
+        dataFields: [{ label: "Endorsements", value: defaultDlBackUrl ? "Commercial Valid" : "Not submitted" }],
       },
     },
     vehicleRc: {
@@ -358,38 +378,48 @@ function normalizePartnerDetail(raw: any): DeliveryPartnerDetail {
       title: "Vehicle Registration Certificate (RC)",
       code: "E",
       status: (rcFront?.status || "PENDING") as any,
-      statusLabel: rcFront?.status === "VERIFIED" ? "Verified" : "Pending Review",
+      statusLabel: rcFront?.status === "VERIFIED" ? "Verified" : defaultRcFrontUrl ? "Pending Review" : "Not uploaded",
       isSingleSided: false,
-      metadata: "VAHAN Registry Registration Certificate",
+      metadata: defaultRcFrontUrl ? "VAHAN Registry Registration Certificate" : "Awaiting document upload",
       front: {
         label: "Front View (Plate & Specs)",
         url: defaultRcFrontUrl,
-        fileRecord: {
-          name: rcFront?.fileName || "vehicle_rc_front.png",
-          size: rcFront?.fileSize || "2.9 MB",
-          type: rcFront?.mimeType || "image/png",
-          uploadedAt: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN"),
-        },
+        fileRecord: rcFront
+          ? {
+              name: rcFront.fileName || "vehicle_rc_front.png",
+              size: rcFront.fileSize || "2.9 MB",
+              type: rcFront.mimeType || "image/png",
+              uploadedAt: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN"),
+            }
+          : undefined,
         description: "RC issued by Regional Transport Authority.",
         status: (rcFront?.status || "PENDING") as any,
         dataFields: [
-          { label: "Registration Plate", value: vehicleDetails.registrationNumber },
-          { label: "Vehicle Class", value: vehicleDetails.vehicleType },
-          { label: "Maker / Model", value: `${vehicleDetails.make} ${vehicleDetails.model}` },
+          { label: "Registration Plate", value: vehicleDetails?.registrationNumber || "Not provided" },
+          { label: "Vehicle Class", value: vehicleDetails?.vehicleType || "Not provided" },
+          {
+            label: "Maker / Model",
+            value:
+              vehicleDetails?.make || vehicleDetails?.model
+                ? `${vehicleDetails.make || ""} ${vehicleDetails.model || ""}`.trim()
+                : "Not provided",
+          },
         ],
       },
       back: {
         label: "Back View (Tax & Validity)",
         url: defaultRcBackUrl,
-        fileRecord: {
-          name: rcBack?.fileName || "vehicle_rc_back.png",
-          size: rcBack?.fileSize || "2.9 MB",
-          type: rcBack?.mimeType || "image/png",
-          uploadedAt: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN"),
-        },
+        fileRecord: rcBack
+          ? {
+              name: rcBack.fileName || "vehicle_rc_back.png",
+              size: rcBack.fileSize || "2.9 MB",
+              type: rcBack.mimeType || "image/png",
+              uploadedAt: new Date(raw.createdAt || Date.now()).toLocaleDateString("en-IN"),
+            }
+          : undefined,
         description: "RC reverse view showing tax and chassis validity.",
         status: (rcBack?.status || "PENDING") as any,
-        dataFields: [{ label: "Chassis Validity", value: "Compliant" }],
+        dataFields: [{ label: "Chassis Validity", value: defaultRcBackUrl ? "Compliant" : "Not submitted" }],
       },
     },
   };
@@ -405,29 +435,239 @@ function normalizePartnerDetail(raw: any): DeliveryPartnerDetail {
 
   return {
     ...raw,
-    name: raw.fullName || raw.name || "Nitraj",
-    fullName: raw.fullName || raw.name || "Nitraj",
-    dob: raw.dob || "09/01/2006",
-    aadhaarNumber: raw.aadhaarNumber || "123456789001",
-    panNumber: raw.panNumber || "WKWKW2222J",
-    licenseNumber: raw.licenseNumber || "TN 1929388282828",
-    rcNumber: raw.rcNumber || raw.vehicleRegistration || "WK 22 SS 2222",
+    name: raw.fullName || raw.name || "Delivery Partner",
+    fullName: raw.fullName || raw.name || "Delivery Partner",
+    dob: raw.dob || null,
+    aadhaarNumber: raw.aadhaarNumber || null,
+    panNumber: raw.panNumber || null,
+    licenseNumber: raw.licenseNumber || null,
+    rcNumber: raw.rcNumber || raw.vehicleRegistration || null,
     employmentType,
     workPreference: raw.workPreference || "FULL_TIME",
-    driverCode: raw.driverCode || `#DRV-${String(raw.id || "64A8").slice(0, 4).toUpperCase()}`,
-    registeredAddress: raw.registeredAddress || "Bangalore Central Hub, Karnataka",
+    driverCode: raw.driverCode || `#DRV-${String(raw.id || "").slice(0, 4).toUpperCase()}`,
+    registeredAddress: raw.registeredAddress || null,
     submissionDate:
-      raw.submissionDate ||
-      new Date(raw.createdAt || Date.now()).toLocaleString("en-IN", {
-        dateStyle: "medium",
-        timeStyle: "short",
-      }),
-    assignedReviewer: raw.assignedReviewer || "Operations Admin",
-    terminalHub: raw.terminalHub || "Central Distribution Hub / Terminal 01",
+      raw.kycStatus === "NOT_SUBMITTED"
+        ? "Not submitted yet"
+        : raw.submissionDate ||
+          (raw.createdAt
+            ? new Date(raw.createdAt).toLocaleString("en-IN", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })
+            : "Awaiting submission"),
+    assignedReviewer: raw.assignedReviewer || "Unassigned",
+    terminalHub: raw.terminalHub || "Central Operations Hub",
     vehicleDetails,
     documents: structuredDocuments,
-    auditTrail: Array.isArray(raw.auditTrail) ? raw.auditTrail : [],
+    auditTrail: (() => {
+      const rawAudit = Array.isArray(raw.auditTrail) ? raw.auditTrail : [];
+      const trail: AuditTrailEvent[] = rawAudit.map((log: any, idx: number) => {
+        if (log.description && log.timestamp && log.title) {
+          return {
+            id: log.id || `audit-${idx}`,
+            title: log.title,
+            description: log.description,
+            timestamp:
+              typeof log.timestamp === "string" && log.timestamp.includes("T")
+                ? new Date(log.timestamp).toLocaleString("en-IN", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })
+                : log.timestamp,
+            type: log.type || "neutral",
+          };
+        }
+
+        let parsedDetails: any = null;
+        if (typeof log.details === "string") {
+          try {
+            parsedDetails = JSON.parse(log.details);
+          } catch {
+            parsedDetails = { message: log.details };
+          }
+        } else if (log.details && typeof log.details === "object") {
+          parsedDetails = log.details;
+        }
+
+        const action = log.action || "";
+        let title = "System Update";
+        let type: "primary" | "success" | "neutral" = "neutral";
+        let description = "";
+
+        if (action === "DRIVER_KYC_APPROVED") {
+          title = "KYC Approved";
+          type = "success";
+          description = parsedDetails?.actorName
+            ? `Approved by ${parsedDetails.actorName}. All credentials verified.`
+            : "KYC verified and approved for fleet dispatch.";
+        } else if (action === "DRIVER_KYC_REJECTED") {
+          title = "KYC Application Rejected";
+          type = "neutral";
+          description = parsedDetails?.rejectionReason
+            ? `Issues flagged: ${parsedDetails.rejectionReason.replace(/^[•\-\*]\s*/, "")}`
+            : "Application rejected during administrative verification.";
+        } else if (action === "DRIVER_KYC_SUBMITTED" || action === "KYC_SUBMITTED") {
+          title = "Application Submitted";
+          type = "primary";
+          description = "Partner completed onboarding and submitted KYC documents for review.";
+        } else if (action === "DRIVER_REGISTERED") {
+          title = "Partner Registered";
+          type = "primary";
+          description = "Driver registered via Kudicart mobile app.";
+        } else if (action === "DRIVER_STATUS_UPDATED") {
+          title = "Status Changed";
+          type = "neutral";
+          description = parsedDetails?.status
+            ? `Availability changed to ${parsedDetails.status}`
+            : "Driver availability status updated.";
+        } else {
+          title =
+            action.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c: string) => c.toUpperCase()) ||
+            "Audit Event";
+          description =
+            parsedDetails?.message ||
+            parsedDetails?.rejectionReason ||
+            log.details ||
+            "Administrative activity recorded.";
+        }
+
+        const date = log.createdAt || log.timestamp || Date.now();
+        const formattedTimestamp = new Date(date).toLocaleString("en-IN", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        });
+
+        return {
+          id: log.id || `audit-${idx}`,
+          title,
+          description,
+          timestamp: formattedTimestamp,
+          type,
+        };
+      });
+
+      // Include foundational milestone events if not explicitly logged
+      const hasRegistered = trail.some((ev) => ev.title.toLowerCase().includes("registered"));
+      if (!hasRegistered && raw.createdAt) {
+        trail.push({
+          id: `milestone-reg-${raw.id}`,
+          title: "Partner Registered",
+          description: `Driver account registered with phone ${raw.phone || "provided during onboarding"}.`,
+          timestamp: new Date(raw.createdAt).toLocaleString("en-IN", {
+            dateStyle: "medium",
+            timeStyle: "short",
+          }),
+          type: "primary",
+        });
+      }
+
+      const hasSubmitted = trail.some((ev) => ev.title.toLowerCase().includes("submitted"));
+      if (!hasSubmitted && raw.kycStatus && raw.kycStatus !== "NOT_SUBMITTED") {
+        trail.unshift({
+          id: `milestone-sub-${raw.id}`,
+          title: "KYC Documents Submitted",
+          description: "Partner completed mobile onboarding and submitted identity and vehicle documents for review.",
+          timestamp:
+            raw.submissionDate && raw.submissionDate !== "Awaiting submission"
+              ? raw.submissionDate
+              : new Date(raw.createdAt || Date.now()).toLocaleString("en-IN", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                }),
+          type: "primary",
+        });
+      }
+
+      return trail;
+    })(),
   };
+}
+
+function buildInitialVerificationMap(
+  partner: DeliveryPartnerDetail
+): Record<string, FieldVerificationState> {
+  const isApproved = partner.kycStatus === "APPROVED";
+  const newMap: Record<string, FieldVerificationState> = {};
+
+  const hasValue = (fieldId: string): boolean => {
+    switch (fieldId) {
+      case "name":
+        return Boolean(partner.fullName && partner.fullName !== "Delivery Partner");
+      case "phone":
+        return Boolean(partner.phone);
+      case "dob":
+        return Boolean(partner.dob);
+      case "workPreference":
+        return Boolean(partner.workPreference);
+      case "aadhaarNumber":
+        return Boolean(partner.aadhaarNumber);
+      case "panNumber":
+        return Boolean(partner.panNumber);
+      case "licenseNumber":
+        return Boolean(partner.licenseNumber);
+      case "vehicleType":
+        return Boolean(partner.vehicleDetails?.vehicleType);
+      case "vehicleMakeModel":
+        return Boolean(partner.vehicleDetails?.make || partner.vehicleDetails?.model);
+      case "vehicleReg":
+        return Boolean(
+          partner.vehicleDetails?.registrationNumber &&
+            partner.vehicleDetails.registrationNumber !== "Unregistered"
+        );
+      case "docSelfie":
+        return Boolean(partner.documents?.selfie?.front?.url);
+      case "docAadhaar":
+        return Boolean(
+          partner.documents?.aadhaar?.front?.url || partner.documents?.aadhaar?.back?.url
+        );
+      case "docPan":
+        return Boolean(partner.documents?.pan?.front?.url);
+      case "docDL":
+        return Boolean(
+          partner.documents?.drivingLicence?.front?.url || partner.documents?.drivingLicence?.back?.url
+        );
+      case "docRC":
+        return Boolean(
+          partner.documents?.vehicleRc?.front?.url || partner.documents?.vehicleRc?.back?.url
+        );
+      default:
+        return false;
+    }
+  };
+
+  for (const field of VERIFIABLE_FIELDS) {
+    if (!hasValue(field.id)) {
+      newMap[field.id] = { status: "UNSUBMITTED" };
+    } else if (isApproved) {
+      newMap[field.id] = { status: "VERIFIED" };
+    } else {
+      newMap[field.id] = { status: "PENDING" };
+    }
+  }
+
+  // If partner already has a rejection reason recorded, parse and reflect flagged items
+  if (partner.rejectionReason) {
+    const lines = partner.rejectionReason.split("\n");
+    for (const line of lines) {
+      const cleaned = line.replace(/^[•\-\*]\s*/, "");
+      const [prefix, ...rest] = cleaned.split(":");
+      const reasonText = rest.join(":").trim() || cleaned;
+
+      if (prefix) {
+        const matchField = VERIFIABLE_FIELDS.find(
+          (f) =>
+            f.label.toLowerCase().includes(prefix.trim().toLowerCase()) ||
+            prefix.trim().toLowerCase().includes(f.label.toLowerCase())
+        );
+        if (matchField) {
+          newMap[matchField.id] = { status: "FLAGGED", issue: reasonText };
+        }
+      }
+    }
+  }
+
+  return newMap;
 }
 
 export default function AdminDeliveryPartnerDetailPage() {
@@ -440,23 +680,7 @@ export default function AdminDeliveryPartnerDetailPage() {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Field-level verification state for all 15 data items
-  const [verificationMap, setVerificationMap] = useState<Record<string, FieldVerificationState>>({
-    name: { status: "VERIFIED" },
-    phone: { status: "VERIFIED" },
-    dob: { status: "VERIFIED" },
-    workPreference: { status: "VERIFIED" },
-    aadhaarNumber: { status: "VERIFIED" },
-    panNumber: { status: "VERIFIED" },
-    licenseNumber: { status: "VERIFIED" },
-    vehicleType: { status: "VERIFIED" },
-    vehicleMakeModel: { status: "VERIFIED" },
-    vehicleReg: { status: "VERIFIED" },
-    docSelfie: { status: "VERIFIED" },
-    docAadhaar: { status: "VERIFIED" },
-    docPan: { status: "VERIFIED" },
-    docDL: { status: "VERIFIED" },
-    docRC: { status: "VERIFIED" },
-  });
+  const [verificationMap, setVerificationMap] = useState<Record<string, FieldVerificationState>>({});
 
   // Flag Issue Modal State
   const [activeIssueModal, setActiveIssueModal] = useState<{
@@ -499,46 +723,7 @@ export default function AdminDeliveryPartnerDetailPage() {
         if (res && res.id) {
           const normalized = normalizePartnerDetail(res);
           setPartner(normalized);
-
-          // If partner already has a rejection reason recorded, parse and reflect flagged items
-          if (normalized.rejectionReason) {
-            const lines = normalized.rejectionReason.split("\n");
-            const newMap: Record<string, FieldVerificationState> = {
-              name: { status: "VERIFIED" },
-              phone: { status: "VERIFIED" },
-              dob: { status: "VERIFIED" },
-              workPreference: { status: "VERIFIED" },
-              aadhaarNumber: { status: "VERIFIED" },
-              panNumber: { status: "VERIFIED" },
-              licenseNumber: { status: "VERIFIED" },
-              vehicleType: { status: "VERIFIED" },
-              vehicleMakeModel: { status: "VERIFIED" },
-              vehicleReg: { status: "VERIFIED" },
-              docSelfie: { status: "VERIFIED" },
-              docAadhaar: { status: "VERIFIED" },
-              docPan: { status: "VERIFIED" },
-              docDL: { status: "VERIFIED" },
-              docRC: { status: "VERIFIED" },
-            };
-
-            for (const line of lines) {
-              const cleaned = line.replace(/^[•\-\*]\s*/, "");
-              const [prefix, ...rest] = cleaned.split(":");
-              const reasonText = rest.join(":").trim() || cleaned;
-
-              if (prefix) {
-                const matchField = VERIFIABLE_FIELDS.find(
-                  (f) =>
-                    f.label.toLowerCase().includes(prefix.trim().toLowerCase()) ||
-                    prefix.trim().toLowerCase().includes(f.label.toLowerCase())
-                );
-                if (matchField) {
-                  newMap[matchField.id] = { status: "FLAGGED", issue: reasonText };
-                }
-              }
-            }
-            setVerificationMap(newMap);
-          }
+          setVerificationMap(buildInitialVerificationMap(normalized));
         } else {
           setPartner(null);
           setFetchError(`Delivery partner "${driverId}" was not found.`);
@@ -555,6 +740,10 @@ export default function AdminDeliveryPartnerDetailPage() {
       });
   }, [driverId]);
 
+  const isFieldEntered = (fieldId: string) => {
+    return verificationMap[fieldId]?.status !== "UNSUBMITTED";
+  };
+
   // Compute Flagged Issues
   const flaggedItems = useMemo(() => {
     return Object.entries(verificationMap)
@@ -564,6 +753,7 @@ export default function AdminDeliveryPartnerDetailPage() {
         return {
           id,
           label: def?.label || id,
+          category: def?.category || id,
           issue: v.issue || "Requires correction",
         };
       });
@@ -572,12 +762,19 @@ export default function AdminDeliveryPartnerDetailPage() {
   const flaggedCount = flaggedItems.length;
   const hasAnyWrong = flaggedCount > 0;
   const verifiedCount = Object.values(verificationMap).filter((v) => v.status === "VERIFIED").length;
+  const allVerified = verifiedCount === VERIFIABLE_FIELDS.length && !hasAnyWrong;
 
   const handleVerify = (fieldId: string) => {
-    setVerificationMap((prev) => ({
-      ...prev,
-      [fieldId]: { status: "VERIFIED", issue: undefined },
-    }));
+    setVerificationMap((prev) => {
+      const isCurrentlyVerified = prev[fieldId]?.status === "VERIFIED";
+      return {
+        ...prev,
+        [fieldId]: {
+          status: isCurrentlyVerified ? "PENDING" : "VERIFIED",
+          issue: undefined,
+        },
+      };
+    });
   };
 
   const handleOpenIssueModal = (fieldId: string, fieldLabel: string, category: string) => {
@@ -603,11 +800,19 @@ export default function AdminDeliveryPartnerDetailPage() {
   };
 
   const handleClearIssue = (fieldId: string) => {
-    handleVerify(fieldId);
+    setVerificationMap((prev) => ({
+      ...prev,
+      [fieldId]: { status: "PENDING", issue: undefined },
+    }));
   };
 
   const handleApprove = async () => {
     if (!partner) return;
+    if (!allVerified) {
+      setActionError("All 15 verification items must be cleared before approving KYC.");
+      setShowApprovalModal(false);
+      return;
+    }
     try {
       await api.deliveryPartners.reviewKyc(driverId, { status: "APPROVED" });
       setPartner((prev) =>
@@ -619,7 +824,10 @@ export default function AdminDeliveryPartnerDetailPage() {
               auditTrail: [
                 {
                   id: `vh-${Date.now()}`,
-                  timestamp: new Date().toISOString(),
+                  timestamp: new Date().toLocaleString("en-IN", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  }),
                   title: "KYC Verified & Approved",
                   description: "All identity credentials, vehicle records, and photos verified.",
                   type: "success",
@@ -654,30 +862,56 @@ export default function AdminDeliveryPartnerDetailPage() {
       setRejectionError("Please specify a reason for KYC rejection.");
       return;
     }
+    const rejectedDocTypes = new Set<string>();
+    for (const item of flaggedItems) {
+      if (item.category === "drivingLicence" || item.id === "licenseNumber" || item.id === "docDL") {
+        rejectedDocTypes.add("drivingLicence");
+      } else if (item.category === "vehicleRc" || item.id === "docRC" || item.id === "vehicleReg" || item.id === "vehicleType" || item.id === "vehicleMakeModel") {
+        rejectedDocTypes.add("vehicleRc");
+      } else if (item.category === "aadhaar" || item.id === "aadhaarNumber" || item.id === "docAadhaar") {
+        rejectedDocTypes.add("aadhaar");
+      } else if (item.category === "pan" || item.id === "panNumber" || item.id === "docPan") {
+        rejectedDocTypes.add("pan");
+      } else if (item.category === "selfie" || item.id === "docSelfie") {
+        rejectedDocTypes.add("selfie");
+      }
+    }
+
     try {
       await api.deliveryPartners.reviewKyc(driverId, {
         status: "REJECTED",
         rejectionReason: rejectionReason.trim(),
+        rejectedDocuments: Array.from(rejectedDocTypes),
       });
-      setPartner((prev) =>
-        prev
-          ? {
-              ...prev,
-              kycStatus: "REJECTED",
-              rejectionReason: rejectionReason.trim(),
-              auditTrail: [
-                {
-                  id: `vh-${Date.now()}`,
-                  timestamp: new Date().toISOString(),
-                  title: "KYC Rejected",
-                  description: rejectionReason.trim(),
-                  type: "neutral",
-                },
-                ...(prev.auditTrail || []),
-              ],
-            }
-          : null
-      );
+      setPartner((prev) => {
+        if (!prev) return null;
+        const updatedDocuments = { ...prev.documents };
+        for (const [key, group] of Object.entries(updatedDocuments) as [string, any][]) {
+          if (group && typeof group === "object") {
+            const isDocFlagged = rejectedDocTypes.has(key);
+            group.status = isDocFlagged ? "REJECTED" : (group.status === "REJECTED" ? "VERIFIED" : group.status);
+          }
+        }
+        return {
+          ...prev,
+          kycStatus: "REJECTED",
+          rejectionReason: rejectionReason.trim(),
+          documents: updatedDocuments,
+          auditTrail: [
+            {
+              id: `vh-${Date.now()}`,
+              timestamp: new Date().toLocaleString("en-IN", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              }),
+              title: "KYC Rejected",
+              description: rejectionReason.trim(),
+              type: "neutral",
+            },
+            ...(prev.auditTrail || []),
+          ],
+        };
+      });
       setShowRejectionModal(false);
       setActionError(null);
     } catch (err: any) {
@@ -688,8 +922,15 @@ export default function AdminDeliveryPartnerDetailPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6 max-w-[1440px] mx-auto p-4">
-        <Skeleton className="w-64 h-8 rounded-[8px]" />
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1440px] mx-auto">
+        <div className="flex items-center gap-2 text-xs text-[#6B6667]">
+          <Link href="/admin/delivery-partners" className="hover:text-[#111111] flex items-center gap-1.5 font-medium">
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Delivery Partners</span>
+          </Link>
+          <span className="text-[#E4E0DB]">/</span>
+          <span className="font-mono">Loading...</span>
+        </div>
         <Skeleton className="w-full h-32 rounded-[10px]" />
         <div className="grid grid-cols-12 gap-6">
           <div className="col-span-12 lg:col-span-8 space-y-6">
@@ -727,18 +968,25 @@ export default function AdminDeliveryPartnerDetailPage() {
   const isPending = partner.kycStatus === "PENDING" || partner.kycStatus === "UNDER_REVIEW";
 
   return (
-    <div className="space-y-5 max-w-[1440px] mx-auto pb-16">
-      {/* ================= BREADCRUMBS & NAVIGATION ================= */}
-      <div className="flex items-center justify-between">
-        <Link
-          href="/admin/delivery-partners"
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-[#6B6667] hover:text-[#111111] transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Delivery Partners</span>
-        </Link>
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1440px] mx-auto pb-16">
+      {/* ================= 1. BREADCRUMBS & TOP NAVIGATION ================= */}
+      <div className="flex items-center justify-between pb-1">
+        <div className="flex items-center gap-2 text-xs font-medium text-[#6B6667]">
+          <Link
+            href="/admin/delivery-partners"
+            className="hover:text-[#111111] transition-colors flex items-center gap-1.5 font-medium"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Back to Delivery Partners</span>
+          </Link>
+          <span className="text-[#E4E0DB]">/</span>
+          <span className="font-mono text-[#111111] font-semibold">{partner.driverCode}</span>
+        </div>
+
         <div className="flex items-center gap-2">
-          <span className="font-mono text-xs text-[#6B6667]">ID: {partner.id}</span>
+          <span className="text-xs font-mono text-[#6B6667]">
+            ID: <strong className="text-[#111111] font-medium">{partner.id}</strong>
+          </span>
         </div>
       </div>
 
@@ -798,10 +1046,20 @@ export default function AdminDeliveryPartnerDetailPage() {
               <AlertTriangle className="w-3.5 h-3.5" />
               <span>{flaggedCount} Flagged</span>
             </span>
-          ) : (
+          ) : partner.kycStatus === "NOT_SUBMITTED" ? (
+            <span className="text-xs px-2.5 py-1 rounded-[6px] bg-[#F4F1EA] text-[#6B6667] border border-[#E4E0DB] font-semibold flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5 text-[#9E9B98]" />
+              <span>Awaiting Submission</span>
+            </span>
+          ) : verifiedCount === VERIFIABLE_FIELDS.length ? (
             <span className="text-xs px-2.5 py-1 rounded-[6px] bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0] font-semibold flex items-center gap-1">
               <Check className="w-3.5 h-3.5" />
               <span>All Cleared</span>
+            </span>
+          ) : (
+            <span className="text-xs px-2.5 py-1 rounded-[6px] bg-[#FFFBEB] text-[#C9822E] border border-[#FDE68A] font-semibold flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" />
+              <span>In Review</span>
             </span>
           )}
         </div>
@@ -940,34 +1198,44 @@ export default function AdminDeliveryPartnerDetailPage() {
               >
                 <div className="flex items-center justify-between gap-1 mb-1">
                   <span className="text-[11px] text-[#6B6667] font-medium">Date of Birth (DOB)</span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => handleVerify("dob")}
-                      title="Verify Date of Birth"
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        verificationMap.dob?.status === "VERIFIED"
-                          ? "bg-[#20885A] text-white shadow-xs"
-                          : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#20885A] hover:text-[#20885A]"
-                      }`}
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleOpenIssueModal("dob", "Date of Birth", "dob")}
-                      title="Flag DOB Issue"
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        verificationMap.dob?.status === "FLAGGED"
-                          ? "bg-[#DA1E28] text-white shadow-xs"
-                          : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#DA1E28] hover:text-[#DA1E28]"
-                      }`}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {isFieldEntered("dob") ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleVerify("dob")}
+                        title="Verify Date of Birth"
+                        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                          verificationMap.dob?.status === "VERIFIED"
+                            ? "bg-[#20885A] text-white shadow-xs"
+                            : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#20885A] hover:text-[#20885A]"
+                        }`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleOpenIssueModal("dob", "Date of Birth", "dob")}
+                        title="Flag DOB Issue"
+                        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                          verificationMap.dob?.status === "FLAGGED"
+                            ? "bg-[#DA1E28] text-white shadow-xs"
+                            : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#DA1E28] hover:text-[#DA1E28]"
+                        }`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-[#9E9B98] bg-[#F4F1EA] px-2 py-0.5 rounded-[4px] border border-[#E4E0DB] font-medium">
+                      Not submitted
+                    </span>
+                  )}
                 </div>
-                <strong className="text-xs font-semibold text-[#111111] block">
-                  {partner.dob || "09/01/2006"}
-                </strong>
+                {partner.dob ? (
+                  <strong className="text-xs font-semibold text-[#111111] block">
+                    {partner.dob}
+                  </strong>
+                ) : (
+                  <div className="text-xs text-[#9E9B98] italic py-0.5">Not entered yet</div>
+                )}
                 {verificationMap.dob?.status === "FLAGGED" && verificationMap.dob?.issue && (
                   <div className="mt-2 pt-1.5 border-t border-[#FCA5A5] flex items-start gap-1 text-[11px] text-[#DA1E28]">
                     <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
@@ -986,36 +1254,46 @@ export default function AdminDeliveryPartnerDetailPage() {
               >
                 <div className="flex items-center justify-between gap-1 mb-1">
                   <span className="text-[11px] text-[#6B6667] font-medium">Work Preference</span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => handleVerify("workPreference")}
-                      title="Verify Work Preference"
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        verificationMap.workPreference?.status === "VERIFIED"
-                          ? "bg-[#20885A] text-white shadow-xs"
-                          : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#20885A] hover:text-[#20885A]"
-                      }`}
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() =>
-                        handleOpenIssueModal("workPreference", "Work Preference", "workPreference")
-                      }
-                      title="Flag Work Preference Issue"
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        verificationMap.workPreference?.status === "FLAGGED"
-                          ? "bg-[#DA1E28] text-white shadow-xs"
-                          : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#DA1E28] hover:text-[#DA1E28]"
-                      }`}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {isFieldEntered("workPreference") ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleVerify("workPreference")}
+                        title="Verify Work Preference"
+                        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                          verificationMap.workPreference?.status === "VERIFIED"
+                            ? "bg-[#20885A] text-white shadow-xs"
+                            : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#20885A] hover:text-[#20885A]"
+                        }`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleOpenIssueModal("workPreference", "Work Preference", "workPreference")
+                        }
+                        title="Flag Work Preference Issue"
+                        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                          verificationMap.workPreference?.status === "FLAGGED"
+                            ? "bg-[#DA1E28] text-white shadow-xs"
+                            : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#DA1E28] hover:text-[#DA1E28]"
+                        }`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-[#9E9B98] bg-[#F4F1EA] px-2 py-0.5 rounded-[4px] border border-[#E4E0DB] font-medium">
+                      Not submitted
+                    </span>
+                  )}
                 </div>
-                <strong className="text-xs font-semibold text-[#111111] block">
-                  {partner.employmentType || "Full-Time"}
-                </strong>
+                {partner.employmentType ? (
+                  <strong className="text-xs font-semibold text-[#111111] block">
+                    {partner.employmentType}
+                  </strong>
+                ) : (
+                  <div className="text-xs text-[#9E9B98] italic py-0.5">Not entered yet</div>
+                )}
                 {verificationMap.workPreference?.status === "FLAGGED" &&
                   verificationMap.workPreference?.issue && (
                     <div className="mt-2 pt-1.5 border-t border-[#FCA5A5] flex items-start gap-1 text-[11px] text-[#DA1E28]">
@@ -1035,36 +1313,46 @@ export default function AdminDeliveryPartnerDetailPage() {
               >
                 <div className="flex items-center justify-between gap-1 mb-1">
                   <span className="text-[11px] text-[#6B6667] font-medium">Aadhaar Card UID</span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => handleVerify("aadhaarNumber")}
-                      title="Verify Aadhaar Number"
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        verificationMap.aadhaarNumber?.status === "VERIFIED"
-                          ? "bg-[#20885A] text-white shadow-xs"
-                          : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#20885A] hover:text-[#20885A]"
-                      }`}
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() =>
-                        handleOpenIssueModal("aadhaarNumber", "Aadhaar Card Number", "aadhaarNumber")
-                      }
-                      title="Flag Aadhaar Number Issue"
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        verificationMap.aadhaarNumber?.status === "FLAGGED"
-                          ? "bg-[#DA1E28] text-white shadow-xs"
-                          : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#DA1E28] hover:text-[#DA1E28]"
-                      }`}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {isFieldEntered("aadhaarNumber") ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleVerify("aadhaarNumber")}
+                        title="Verify Aadhaar Number"
+                        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                          verificationMap.aadhaarNumber?.status === "VERIFIED"
+                            ? "bg-[#20885A] text-white shadow-xs"
+                            : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#20885A] hover:text-[#20885A]"
+                        }`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleOpenIssueModal("aadhaarNumber", "Aadhaar Card Number", "aadhaarNumber")
+                        }
+                        title="Flag Aadhaar Number Issue"
+                        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                          verificationMap.aadhaarNumber?.status === "FLAGGED"
+                            ? "bg-[#DA1E28] text-white shadow-xs"
+                            : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#DA1E28] hover:text-[#DA1E28]"
+                        }`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-[#9E9B98] bg-[#F4F1EA] px-2 py-0.5 rounded-[4px] border border-[#E4E0DB] font-medium">
+                      Not submitted
+                    </span>
+                  )}
                 </div>
-                <strong className="font-mono text-xs font-semibold text-[#111111] block">
-                  {partner.aadhaarNumber || "1234 5678 9001"}
-                </strong>
+                {partner.aadhaarNumber ? (
+                  <strong className="font-mono text-xs font-semibold text-[#111111] block">
+                    {partner.aadhaarNumber}
+                  </strong>
+                ) : (
+                  <div className="text-xs text-[#9E9B98] italic py-0.5">Not entered yet</div>
+                )}
                 {verificationMap.aadhaarNumber?.status === "FLAGGED" &&
                   verificationMap.aadhaarNumber?.issue && (
                     <div className="mt-2 pt-1.5 border-t border-[#FCA5A5] flex items-start gap-1 text-[11px] text-[#DA1E28]">
@@ -1084,34 +1372,44 @@ export default function AdminDeliveryPartnerDetailPage() {
               >
                 <div className="flex items-center justify-between gap-1 mb-1">
                   <span className="text-[11px] text-[#6B6667] font-medium">PAN Number</span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => handleVerify("panNumber")}
-                      title="Verify PAN Number"
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        verificationMap.panNumber?.status === "VERIFIED"
-                          ? "bg-[#20885A] text-white shadow-xs"
-                          : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#20885A] hover:text-[#20885A]"
-                      }`}
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleOpenIssueModal("panNumber", "PAN Card Number", "panNumber")}
-                      title="Flag PAN Issue"
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        verificationMap.panNumber?.status === "FLAGGED"
-                          ? "bg-[#DA1E28] text-white shadow-xs"
-                          : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#DA1E28] hover:text-[#DA1E28]"
-                      }`}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {isFieldEntered("panNumber") ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleVerify("panNumber")}
+                        title="Verify PAN Number"
+                        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                          verificationMap.panNumber?.status === "VERIFIED"
+                            ? "bg-[#20885A] text-white shadow-xs"
+                            : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#20885A] hover:text-[#20885A]"
+                        }`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleOpenIssueModal("panNumber", "PAN Card Number", "panNumber")}
+                        title="Flag PAN Issue"
+                        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                          verificationMap.panNumber?.status === "FLAGGED"
+                            ? "bg-[#DA1E28] text-white shadow-xs"
+                            : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#DA1E28] hover:text-[#DA1E28]"
+                        }`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-[#9E9B98] bg-[#F4F1EA] px-2 py-0.5 rounded-[4px] border border-[#E4E0DB] font-medium">
+                      Not submitted
+                    </span>
+                  )}
                 </div>
-                <strong className="font-mono text-xs font-semibold text-[#111111] block">
-                  {partner.panNumber || "WKWKW2222J"}
-                </strong>
+                {partner.panNumber ? (
+                  <strong className="font-mono text-xs font-semibold text-[#111111] block">
+                    {partner.panNumber}
+                  </strong>
+                ) : (
+                  <div className="text-xs text-[#9E9B98] italic py-0.5">Not entered yet</div>
+                )}
                 {verificationMap.panNumber?.status === "FLAGGED" &&
                   verificationMap.panNumber?.issue && (
                     <div className="mt-2 pt-1.5 border-t border-[#FCA5A5] flex items-start gap-1 text-[11px] text-[#DA1E28]">
@@ -1131,36 +1429,46 @@ export default function AdminDeliveryPartnerDetailPage() {
               >
                 <div className="flex items-center justify-between gap-1 mb-1">
                   <span className="text-[11px] text-[#6B6667] font-medium">Driving Licence Number</span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => handleVerify("licenseNumber")}
-                      title="Verify Licence Number"
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        verificationMap.licenseNumber?.status === "VERIFIED"
-                          ? "bg-[#20885A] text-white shadow-xs"
-                          : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#20885A] hover:text-[#20885A]"
-                      }`}
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() =>
-                        handleOpenIssueModal("licenseNumber", "Driving Licence Number", "licenseNumber")
-                      }
-                      title="Flag Licence Issue"
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        verificationMap.licenseNumber?.status === "FLAGGED"
-                          ? "bg-[#DA1E28] text-white shadow-xs"
-                          : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#DA1E28] hover:text-[#DA1E28]"
-                      }`}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {isFieldEntered("licenseNumber") ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleVerify("licenseNumber")}
+                        title="Verify Licence Number"
+                        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                          verificationMap.licenseNumber?.status === "VERIFIED"
+                            ? "bg-[#20885A] text-white shadow-xs"
+                            : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#20885A] hover:text-[#20885A]"
+                        }`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleOpenIssueModal("licenseNumber", "Driving Licence Number", "licenseNumber")
+                        }
+                        title="Flag Licence Issue"
+                        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                          verificationMap.licenseNumber?.status === "FLAGGED"
+                            ? "bg-[#DA1E28] text-white shadow-xs"
+                            : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#DA1E28] hover:text-[#DA1E28]"
+                        }`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-[#9E9B98] bg-[#F4F1EA] px-2 py-0.5 rounded-[4px] border border-[#E4E0DB] font-medium">
+                      Not submitted
+                    </span>
+                  )}
                 </div>
-                <strong className="font-mono text-xs font-semibold text-[#111111] block">
-                  {partner.licenseNumber || "TN 1929388282828"}
-                </strong>
+                {partner.licenseNumber ? (
+                  <strong className="font-mono text-xs font-semibold text-[#111111] block">
+                    {partner.licenseNumber}
+                  </strong>
+                ) : (
+                  <div className="text-xs text-[#9E9B98] italic py-0.5">Not entered yet</div>
+                )}
                 {verificationMap.licenseNumber?.status === "FLAGGED" &&
                   verificationMap.licenseNumber?.issue && (
                     <div className="mt-2 pt-1.5 border-t border-[#FCA5A5] flex items-start gap-1 text-[11px] text-[#DA1E28]">
@@ -1209,37 +1517,49 @@ export default function AdminDeliveryPartnerDetailPage() {
               >
                 <div className="flex items-center justify-between gap-1 mb-1">
                   <span className="text-[11px] text-[#6B6667] font-medium">Vehicle Class / Type</span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => handleVerify("vehicleType")}
-                      title="Verify Vehicle Type"
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        verificationMap.vehicleType?.status === "VERIFIED"
-                          ? "bg-[#20885A] text-white shadow-xs"
-                          : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#20885A] hover:text-[#20885A]"
-                      }`}
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() =>
-                        handleOpenIssueModal("vehicleType", "Vehicle Class / Type", "vehicleType")
-                      }
-                      title="Flag Vehicle Type Issue"
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        verificationMap.vehicleType?.status === "FLAGGED"
-                          ? "bg-[#DA1E28] text-white shadow-xs"
-                          : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#DA1E28] hover:text-[#DA1E28]"
-                      }`}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
+                  {isFieldEntered("vehicleType") ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleVerify("vehicleType")}
+                        title="Verify Vehicle Type"
+                        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                          verificationMap.vehicleType?.status === "VERIFIED"
+                            ? "bg-[#20885A] text-white shadow-xs"
+                            : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#20885A] hover:text-[#20885A]"
+                        }`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleOpenIssueModal("vehicleType", "Vehicle Class / Type", "vehicleType")
+                        }
+                        title="Flag Vehicle Type Issue"
+                        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                          verificationMap.vehicleType?.status === "FLAGGED"
+                            ? "bg-[#DA1E28] text-white shadow-xs"
+                            : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#DA1E28] hover:text-[#DA1E28]"
+                        }`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-[#9E9B98] bg-[#F4F1EA] px-2 py-0.5 rounded-[4px] border border-[#E4E0DB] font-medium">
+                      Not submitted
+                    </span>
+                  )}
+                </div>
+                {partner.vehicleDetails?.vehicleType ? (
+                  <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-[4px] bg-white border border-[#E4E0DB] text-[#111111] text-xs font-semibold">
+                    <Bike className="w-3.5 h-3.5 text-[#FF5A1F]" />
+                    <span>{partner.vehicleDetails.vehicleType}</span>
                   </div>
-                </div>
-                <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-[4px] bg-white border border-[#E4E0DB] text-[#111111] text-xs font-semibold">
-                  <Bike className="w-3.5 h-3.5 text-[#FF5A1F]" />
-                  <span>{partner.vehicleDetails?.vehicleType || "Bike"}</span>
-                </div>
+                ) : (
+                  <div className="text-xs text-[#9E9B98] italic py-1">
+                    Not entered yet
+                  </div>
+                )}
                 {verificationMap.vehicleType?.status === "FLAGGED" &&
                   verificationMap.vehicleType?.issue && (
                     <div className="mt-2 pt-1.5 border-t border-[#FCA5A5] flex items-start gap-1 text-[11px] text-[#DA1E28]">
@@ -1259,36 +1579,48 @@ export default function AdminDeliveryPartnerDetailPage() {
               >
                 <div className="flex items-center justify-between gap-1 mb-1">
                   <span className="text-[11px] text-[#6B6667] font-medium">Make &amp; Model</span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => handleVerify("vehicleMakeModel")}
-                      title="Verify Make & Model"
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        verificationMap.vehicleMakeModel?.status === "VERIFIED"
-                          ? "bg-[#20885A] text-white shadow-xs"
-                          : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#20885A] hover:text-[#20885A]"
-                      }`}
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() =>
-                        handleOpenIssueModal("vehicleMakeModel", "Vehicle Make & Model", "vehicleMakeModel")
-                      }
-                      title="Flag Make/Model Issue"
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        verificationMap.vehicleMakeModel?.status === "FLAGGED"
-                          ? "bg-[#DA1E28] text-white shadow-xs"
-                          : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#DA1E28] hover:text-[#DA1E28]"
-                      }`}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {isFieldEntered("vehicleMakeModel") ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleVerify("vehicleMakeModel")}
+                        title="Verify Make & Model"
+                        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                          verificationMap.vehicleMakeModel?.status === "VERIFIED"
+                            ? "bg-[#20885A] text-white shadow-xs"
+                            : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#20885A] hover:text-[#20885A]"
+                        }`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleOpenIssueModal("vehicleMakeModel", "Vehicle Make & Model", "vehicleMakeModel")
+                        }
+                        title="Flag Make/Model Issue"
+                        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                          verificationMap.vehicleMakeModel?.status === "FLAGGED"
+                            ? "bg-[#DA1E28] text-white shadow-xs"
+                            : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#DA1E28] hover:text-[#DA1E28]"
+                        }`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-[#9E9B98] bg-[#F4F1EA] px-2 py-0.5 rounded-[4px] border border-[#E4E0DB] font-medium">
+                      Not submitted
+                    </span>
+                  )}
                 </div>
-                <strong className="text-xs font-semibold text-[#111111] block">
-                  {partner.vehicleDetails?.make} {partner.vehicleDetails?.model}
-                </strong>
+                {partner.vehicleDetails?.make || partner.vehicleDetails?.model ? (
+                  <strong className="text-xs font-semibold text-[#111111] block">
+                    {[partner.vehicleDetails?.make, partner.vehicleDetails?.model].filter(Boolean).join(" ")}
+                  </strong>
+                ) : (
+                  <div className="text-xs text-[#9E9B98] italic py-1">
+                    Not entered yet
+                  </div>
+                )}
                 {verificationMap.vehicleMakeModel?.status === "FLAGGED" &&
                   verificationMap.vehicleMakeModel?.issue && (
                     <div className="mt-2 pt-1.5 border-t border-[#FCA5A5] flex items-start gap-1 text-[11px] text-[#DA1E28]">
@@ -1308,36 +1640,48 @@ export default function AdminDeliveryPartnerDetailPage() {
               >
                 <div className="flex items-center justify-between gap-1 mb-1">
                   <span className="text-[11px] text-[#6B6667] font-medium">Registration Plate</span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => handleVerify("vehicleReg")}
-                      title="Verify Registration Plate"
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        verificationMap.vehicleReg?.status === "VERIFIED"
-                          ? "bg-[#20885A] text-white shadow-xs"
-                          : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#20885A] hover:text-[#20885A]"
-                      }`}
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() =>
-                        handleOpenIssueModal("vehicleReg", "Registration Plate Number", "vehicleReg")
-                      }
-                      title="Flag Plate Issue"
-                      className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
-                        verificationMap.vehicleReg?.status === "FLAGGED"
-                          ? "bg-[#DA1E28] text-white shadow-xs"
-                          : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#DA1E28] hover:text-[#DA1E28]"
-                      }`}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                  {isFieldEntered("vehicleReg") ? (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleVerify("vehicleReg")}
+                        title="Verify Registration Plate"
+                        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                          verificationMap.vehicleReg?.status === "VERIFIED"
+                            ? "bg-[#20885A] text-white shadow-xs"
+                            : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#20885A] hover:text-[#20885A]"
+                        }`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleOpenIssueModal("vehicleReg", "Registration Plate Number", "vehicleReg")
+                        }
+                        title="Flag Plate Issue"
+                        className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${
+                          verificationMap.vehicleReg?.status === "FLAGGED"
+                            ? "bg-[#DA1E28] text-white shadow-xs"
+                            : "bg-white border border-[#E4E0DB] text-[#6B6667] hover:border-[#DA1E28] hover:text-[#DA1E28]"
+                        }`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-[#9E9B98] bg-[#F4F1EA] px-2 py-0.5 rounded-[4px] border border-[#E4E0DB] font-medium">
+                      Not submitted
+                    </span>
+                  )}
                 </div>
-                <strong className="font-mono text-xs font-semibold text-[#111111] bg-white px-2 py-0.5 rounded-[4px] border border-[#E4E0DB] inline-block">
-                  {partner.vehicleDetails?.registrationNumber}
-                </strong>
+                {partner.vehicleDetails?.registrationNumber && partner.vehicleDetails.registrationNumber !== "Unregistered" ? (
+                  <strong className="font-mono text-xs font-semibold text-[#111111] bg-white px-2 py-0.5 rounded-[4px] border border-[#E4E0DB] inline-block">
+                    {partner.vehicleDetails.registrationNumber}
+                  </strong>
+                ) : (
+                  <div className="text-xs text-[#9E9B98] italic py-1 font-mono">
+                    Not registered
+                  </div>
+                )}
                 {verificationMap.vehicleReg?.status === "FLAGGED" &&
                   verificationMap.vehicleReg?.issue && (
                     <div className="mt-2 pt-1.5 border-t border-[#FCA5A5] flex items-start gap-1 text-[11px] text-[#DA1E28]">
@@ -1385,32 +1729,38 @@ export default function AdminDeliveryPartnerDetailPage() {
                 </div>
 
                 {/* Individual Tick / Wrong Controls */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleVerify("docSelfie")}
-                    className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
-                      verificationMap.docSelfie?.status === "VERIFIED"
-                        ? "bg-[#20885A] text-white shadow-xs"
-                        : "bg-white border border-[#E4E0DB] text-[#20885A] hover:bg-[#ECFDF5]"
-                    }`}
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Valid</span>
-                  </button>
-                  <button
-                    onClick={() =>
-                      handleOpenIssueModal("docSelfie", "Driver Portrait / Selfie", "selfie")
-                    }
-                    className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
-                      verificationMap.docSelfie?.status === "FLAGGED"
-                        ? "bg-[#DA1E28] text-white shadow-xs"
-                        : "bg-white border border-[#E4E0DB] text-[#DA1E28] hover:bg-[#FEF2F2]"
-                    }`}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    <span>Issue</span>
-                  </button>
-                </div>
+                {isFieldEntered("docSelfie") ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleVerify("docSelfie")}
+                      className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
+                        verificationMap.docSelfie?.status === "VERIFIED"
+                          ? "bg-[#20885A] text-white shadow-xs"
+                          : "bg-white border border-[#E4E0DB] text-[#20885A] hover:bg-[#ECFDF5]"
+                      }`}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Valid</span>
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleOpenIssueModal("docSelfie", "Driver Portrait / Selfie", "selfie")
+                      }
+                      className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
+                        verificationMap.docSelfie?.status === "FLAGGED"
+                          ? "bg-[#DA1E28] text-white shadow-xs"
+                          : "bg-white border border-[#E4E0DB] text-[#DA1E28] hover:bg-[#FEF2F2]"
+                      }`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Issue</span>
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-[#9E9B98] bg-[#F4F1EA] px-2.5 py-1 rounded-[6px] border border-[#E4E0DB] font-medium">
+                    Awaiting upload
+                  </span>
+                )}
               </div>
 
               {verificationMap.docSelfie?.status === "FLAGGED" && verificationMap.docSelfie?.issue && (
@@ -1419,47 +1769,63 @@ export default function AdminDeliveryPartnerDetailPage() {
                     <AlertTriangle className="w-4 h-4 shrink-0" />
                     <span><strong>Reason:</strong> {verificationMap.docSelfie.issue}</span>
                   </div>
-                  <button
-                    onClick={() =>
-                      handleOpenIssueModal("docSelfie", "Driver Portrait / Selfie", "selfie")
-                    }
-                    className="text-[11px] underline font-medium hover:text-[#991B1B]"
-                  >
-                    Edit
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() =>
+                        handleOpenIssueModal("docSelfie", "Driver Portrait / Selfie", "selfie")
+                      }
+                      className="text-[11px] underline font-medium hover:text-[#991B1B]"
+                    >
+                      Edit
+                    </button>
+                    <span className="text-[#FCA5A5]">•</span>
+                    <button
+                      onClick={() => handleClearIssue("docSelfie")}
+                      className="text-[11px] font-semibold text-[#991B1B] hover:underline"
+                    >
+                      Clear
+                    </button>
+                  </div>
                 </div>
               )}
 
               {/* Photo & Details View */}
               <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-3.5 rounded-[8px] border border-[#E4E0DB]">
-                <div
-                  onClick={() =>
-                    setInspectDoc({
-                      title: "Driver Portrait / Selfie",
-                      sideLabel: "Live Camera Portrait",
-                      description: partner.documents.selfie.front.description,
-                      dataFields: partner.documents.selfie.front.dataFields,
-                      url: partner.documents.selfie.front.url,
-                    })
-                  }
-                  className="w-[140px] h-[140px] rounded-[6px] border border-[#E4E0DB] bg-neutral-900 overflow-hidden shrink-0 relative group cursor-pointer shadow-xs"
-                >
-                  <img
-                    src={partner.documents.selfie.front.url}
-                    alt="Driver Live Selfie"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                  />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity text-white text-[10px] gap-1">
-                    <ZoomIn className="w-5 h-5 text-white" />
-                    <span>Inspect Photo</span>
+                {partner.documents.selfie.front.url ? (
+                  <div
+                    onClick={() =>
+                      setInspectDoc({
+                        title: "Driver Portrait / Selfie",
+                        sideLabel: "Live Camera Portrait",
+                        description: partner.documents.selfie.front.description,
+                        dataFields: partner.documents.selfie.front.dataFields,
+                        url: partner.documents.selfie.front.url,
+                      })
+                    }
+                    className="w-[140px] h-[140px] rounded-[6px] border border-[#E4E0DB] bg-neutral-900 overflow-hidden shrink-0 relative group cursor-pointer shadow-xs"
+                  >
+                    <img
+                      src={partner.documents.selfie.front.url}
+                      alt="Driver Live Selfie"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity text-white text-[10px] gap-1">
+                      <ZoomIn className="w-5 h-5 text-white" />
+                      <span>Inspect Photo</span>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="w-[140px] h-[140px] rounded-[6px] border border-dashed border-[#E4E0DB] bg-[#F7F7F5] flex flex-col items-center justify-center text-[#6B6667] text-[11px] gap-1 shrink-0">
+                    <User className="w-6 h-6 text-[#9E9B98]" />
+                    <span>Not uploaded</span>
+                  </div>
+                )}
 
                 <div className="flex-1 space-y-2.5 w-full">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold text-[#111111]">Live Selfie Capture</p>
                     <span className="text-[11px] text-[#6B6667]">
-                      {partner.documents.selfie.front.fileRecord?.name}
+                      {partner.documents.selfie.front.fileRecord?.name || "Not uploaded"}
                     </span>
                   </div>
                   <p className="text-xs text-[#6B6667] leading-relaxed">
@@ -1468,11 +1834,15 @@ export default function AdminDeliveryPartnerDetailPage() {
                   <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#E4E0DB] text-xs">
                     <div>
                       <span className="text-[#6B6667] text-[11px]">Capture Mode:</span>{" "}
-                      <strong className="text-[#111111]">Front Camera</strong>
+                      <strong className="text-[#111111]">
+                        {partner.documents.selfie.front.url ? "Front Camera" : "Not captured"}
+                      </strong>
                     </div>
                     <div>
                       <span className="text-[#6B6667] text-[11px]">File Size:</span>{" "}
-                      <strong className="text-[#111111]">{partner.documents.selfie.front.fileRecord?.size}</strong>
+                      <strong className="text-[#111111]">
+                        {partner.documents.selfie.front.fileRecord?.size || "—"}
+                      </strong>
                     </div>
                   </div>
                 </div>
@@ -1497,32 +1867,38 @@ export default function AdminDeliveryPartnerDetailPage() {
                 </div>
 
                 {/* Individual Tick / Wrong Controls */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleVerify("docAadhaar")}
-                    className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
-                      verificationMap.docAadhaar?.status === "VERIFIED"
-                        ? "bg-[#20885A] text-white shadow-xs"
-                        : "bg-white border border-[#E4E0DB] text-[#20885A] hover:bg-[#ECFDF5]"
-                    }`}
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Valid</span>
-                  </button>
-                  <button
-                    onClick={() =>
-                      handleOpenIssueModal("docAadhaar", "Aadhaar Card (Front & Back)", "aadhaar")
-                    }
-                    className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
-                      verificationMap.docAadhaar?.status === "FLAGGED"
-                        ? "bg-[#DA1E28] text-white shadow-xs"
-                        : "bg-white border border-[#E4E0DB] text-[#DA1E28] hover:bg-[#FEF2F2]"
-                    }`}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    <span>Issue</span>
-                  </button>
-                </div>
+                {isFieldEntered("docAadhaar") ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleVerify("docAadhaar")}
+                      className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
+                        verificationMap.docAadhaar?.status === "VERIFIED"
+                          ? "bg-[#20885A] text-white shadow-xs"
+                          : "bg-white border border-[#E4E0DB] text-[#20885A] hover:bg-[#ECFDF5]"
+                      }`}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Valid</span>
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleOpenIssueModal("docAadhaar", "Aadhaar Card (Front & Back)", "aadhaar")
+                      }
+                      className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
+                        verificationMap.docAadhaar?.status === "FLAGGED"
+                          ? "bg-[#DA1E28] text-white shadow-xs"
+                          : "bg-white border border-[#E4E0DB] text-[#DA1E28] hover:bg-[#FEF2F2]"
+                      }`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Issue</span>
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-[#9E9B98] bg-[#F4F1EA] px-2.5 py-1 rounded-[6px] border border-[#E4E0DB] font-medium">
+                    Awaiting upload
+                  </span>
+                )}
               </div>
 
               {verificationMap.docAadhaar?.status === "FLAGGED" && verificationMap.docAadhaar?.issue && (
@@ -1531,14 +1907,23 @@ export default function AdminDeliveryPartnerDetailPage() {
                     <AlertTriangle className="w-4 h-4 shrink-0" />
                     <span><strong>Reason:</strong> {verificationMap.docAadhaar.issue}</span>
                   </div>
-                  <button
-                    onClick={() =>
-                      handleOpenIssueModal("docAadhaar", "Aadhaar Card (Front & Back)", "aadhaar")
-                    }
-                    className="text-[11px] underline font-medium hover:text-[#991B1B]"
-                  >
-                    Edit
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() =>
+                        handleOpenIssueModal("docAadhaar", "Aadhaar Card (Front & Back)", "aadhaar")
+                      }
+                      className="text-[11px] underline font-medium hover:text-[#991B1B]"
+                    >
+                      Edit
+                    </button>
+                    <span className="text-[#FCA5A5]">•</span>
+                    <button
+                      onClick={() => handleClearIssue("docAadhaar")}
+                      className="text-[11px] font-semibold text-[#991B1B] hover:underline"
+                    >
+                      Clear
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1602,6 +1987,13 @@ export default function AdminDeliveryPartnerDetailPage() {
                     </div>
                   )}
 
+                  {!partner.documents.aadhaar.front.url && !partner.documents.aadhaar.back?.url && (
+                    <div className="w-[160px] h-[105px] rounded-[6px] border border-dashed border-[#E4E0DB] bg-[#F7F7F5] flex flex-col items-center justify-center text-[#6B6667] text-[11px] gap-1 shrink-0">
+                      <FileText className="w-5 h-5 text-[#9E9B98]" />
+                      <span>Not uploaded</span>
+                    </div>
+                  )}
+
                   <div className="flex-1 min-w-[200px] text-xs space-y-1.5 pl-1">
                     <p className="font-semibold text-[#111111]">Aadhaar Card Information</p>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1 border-t border-[#E4E0DB]">
@@ -1611,15 +2003,19 @@ export default function AdminDeliveryPartnerDetailPage() {
                       </div>
                       <div>
                         <span className="text-[#6B6667] text-[11px] block">DOB on Card:</span>
-                        <strong className="text-[#111111] font-medium">{partner.dob || "09/01/2006"}</strong>
+                        <strong className="text-[#111111] font-medium">{partner.dob || "Not entered"}</strong>
                       </div>
                       <div>
                         <span className="text-[#6B6667] text-[11px] block">Aadhaar Number:</span>
-                        <strong className="text-[#111111] font-mono">{partner.aadhaarNumber || "1234 5678 9001"}</strong>
+                        <strong className="text-[#111111] font-mono">{partner.aadhaarNumber || "Not entered"}</strong>
                       </div>
                       <div>
                         <span className="text-[#6B6667] text-[11px] block">Document Status:</span>
-                        <strong className="text-[#20885A] font-medium">Uploaded (Front &amp; Back)</strong>
+                        {isFieldEntered("docAadhaar") ? (
+                          <strong className="text-[#20885A] font-medium">Uploaded (Front &amp; Back)</strong>
+                        ) : (
+                          <strong className="text-[#9E9B98] font-medium italic">Not uploaded</strong>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1645,30 +2041,36 @@ export default function AdminDeliveryPartnerDetailPage() {
                 </div>
 
                 {/* Individual Tick / Wrong Controls */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleVerify("docPan")}
-                    className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
-                      verificationMap.docPan?.status === "VERIFIED"
-                        ? "bg-[#20885A] text-white shadow-xs"
-                        : "bg-white border border-[#E4E0DB] text-[#20885A] hover:bg-[#ECFDF5]"
-                    }`}
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Valid</span>
-                  </button>
-                  <button
-                    onClick={() => handleOpenIssueModal("docPan", "PAN Card (Front)", "pan")}
-                    className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
-                      verificationMap.docPan?.status === "FLAGGED"
-                        ? "bg-[#DA1E28] text-white shadow-xs"
-                        : "bg-white border border-[#E4E0DB] text-[#DA1E28] hover:bg-[#FEF2F2]"
-                    }`}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    <span>Issue</span>
-                  </button>
-                </div>
+                {isFieldEntered("docPan") ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleVerify("docPan")}
+                      className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
+                        verificationMap.docPan?.status === "VERIFIED"
+                          ? "bg-[#20885A] text-white shadow-xs"
+                          : "bg-white border border-[#E4E0DB] text-[#20885A] hover:bg-[#ECFDF5]"
+                      }`}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Valid</span>
+                    </button>
+                    <button
+                      onClick={() => handleOpenIssueModal("docPan", "PAN Card (Front)", "pan")}
+                      className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
+                        verificationMap.docPan?.status === "FLAGGED"
+                          ? "bg-[#DA1E28] text-white shadow-xs"
+                          : "bg-white border border-[#E4E0DB] text-[#DA1E28] hover:bg-[#FEF2F2]"
+                      }`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Issue</span>
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-[#9E9B98] bg-[#F4F1EA] px-2.5 py-1 rounded-[6px] border border-[#E4E0DB] font-medium">
+                    Awaiting upload
+                  </span>
+                )}
               </div>
 
               {verificationMap.docPan?.status === "FLAGGED" && verificationMap.docPan?.issue && (
@@ -1677,60 +2079,76 @@ export default function AdminDeliveryPartnerDetailPage() {
                     <AlertTriangle className="w-4 h-4 shrink-0" />
                     <span><strong>Reason:</strong> {verificationMap.docPan.issue}</span>
                   </div>
-                  <button
-                    onClick={() => handleOpenIssueModal("docPan", "PAN Card (Front)", "pan")}
-                    className="text-[11px] underline font-medium hover:text-[#991B1B]"
-                  >
-                    Edit
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleOpenIssueModal("docPan", "PAN Card (Front)", "pan")}
+                      className="text-[11px] underline font-medium hover:text-[#991B1B]"
+                    >
+                      Edit
+                    </button>
+                    <span className="text-[#FCA5A5]">•</span>
+                    <button
+                      onClick={() => handleClearIssue("docPan")}
+                      className="text-[11px] font-semibold text-[#991B1B] hover:underline"
+                    >
+                      Clear
+                    </button>
+                  </div>
                 </div>
               )}
 
               {/* Photo & Details View */}
               <div className="flex flex-col sm:flex-row items-center gap-4 bg-white p-3.5 rounded-[8px] border border-[#E4E0DB]">
-                <div
-                  onClick={() =>
-                    setInspectDoc({
-                      title: "PAN Card",
-                      sideLabel: "Front View (Tax ID & Name)",
-                      description: partner.documents.pan.front.description,
-                      dataFields: partner.documents.pan.front.dataFields,
-                      url: partner.documents.pan.front.url,
-                    })
-                  }
-                  className="w-[160px] h-[105px] rounded-[6px] border border-[#E4E0DB] bg-neutral-900 overflow-hidden shrink-0 relative group cursor-pointer shadow-xs"
-                >
-                  <img
-                    src={partner.documents.pan.front.url}
-                    alt="PAN Front View"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                  />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity text-white text-[10px] gap-1">
-                    <ZoomIn className="w-4 h-4 text-white" />
-                    <span>Inspect Photo</span>
+                {partner.documents.pan.front.url ? (
+                  <div
+                    onClick={() =>
+                      setInspectDoc({
+                        title: "PAN Card",
+                        sideLabel: "Front View (Tax ID & Name)",
+                        description: partner.documents.pan.front.description,
+                        dataFields: partner.documents.pan.front.dataFields,
+                        url: partner.documents.pan.front.url,
+                      })
+                    }
+                    className="w-[160px] h-[105px] rounded-[6px] border border-[#E4E0DB] bg-neutral-900 overflow-hidden shrink-0 relative group cursor-pointer shadow-xs"
+                  >
+                    <img
+                      src={partner.documents.pan.front.url}
+                      alt="PAN Front View"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity text-white text-[10px] gap-1">
+                      <ZoomIn className="w-4 h-4 text-white" />
+                      <span>Inspect Photo</span>
+                    </div>
+                    <span className="absolute bottom-1 left-1 text-[9px] bg-black/70 text-white px-1.5 py-0.5 rounded">
+                      Front View
+                    </span>
                   </div>
-                  <span className="absolute bottom-1 left-1 text-[9px] bg-black/70 text-white px-1.5 py-0.5 rounded">
-                    Front View
-                  </span>
-                </div>
+                ) : (
+                  <div className="w-[160px] h-[105px] rounded-[6px] border border-dashed border-[#E4E0DB] bg-[#F7F7F5] flex flex-col items-center justify-center text-[#6B6667] text-[11px] gap-1 shrink-0">
+                    <FileText className="w-5 h-5 text-[#9E9B98]" />
+                    <span>Not uploaded</span>
+                  </div>
+                )}
 
                 <div className="flex-1 space-y-2 w-full text-xs">
                   <div className="flex items-center justify-between">
                     <p className="font-semibold text-[#111111]">Permanent Account Number (PAN)</p>
                     <span className="text-[11px] text-[#6B6667]">
-                      {partner.documents.pan.front.fileRecord?.name}
+                      {partner.documents.pan.front.fileRecord?.name || "Not uploaded"}
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 pt-2 border-t border-[#E4E0DB]">
                     <div>
                       <span className="text-[#6B6667] text-[11px] block">PAN Number:</span>
                       <strong className="text-[#111111] font-mono font-semibold">
-                        {partner.panNumber || "WKWKW2222J"}
+                        {partner.panNumber || "Not entered"}
                       </strong>
                     </div>
                     <div>
                       <span className="text-[#6B6667] text-[11px] block">Name on Card:</span>
-                      <strong className="text-[#111111] font-medium">{partner.fullName}</strong>
+                      <strong className="text-[#111111] font-medium">{partner.fullName || "—"}</strong>
                     </div>
                   </div>
                 </div>
@@ -1755,32 +2173,38 @@ export default function AdminDeliveryPartnerDetailPage() {
                 </div>
 
                 {/* Individual Tick / Wrong Controls */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleVerify("docDL")}
-                    className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
-                      verificationMap.docDL?.status === "VERIFIED"
-                        ? "bg-[#20885A] text-white shadow-xs"
-                        : "bg-white border border-[#E4E0DB] text-[#20885A] hover:bg-[#ECFDF5]"
-                    }`}
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Valid</span>
-                  </button>
-                  <button
-                    onClick={() =>
-                      handleOpenIssueModal("docDL", "Driving Licence (Front & Back)", "drivingLicence")
-                    }
-                    className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
-                      verificationMap.docDL?.status === "FLAGGED"
-                        ? "bg-[#DA1E28] text-white shadow-xs"
-                        : "bg-white border border-[#E4E0DB] text-[#DA1E28] hover:bg-[#FEF2F2]"
-                    }`}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    <span>Issue</span>
-                  </button>
-                </div>
+                {isFieldEntered("docDL") ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleVerify("docDL")}
+                      className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
+                        verificationMap.docDL?.status === "VERIFIED"
+                          ? "bg-[#20885A] text-white shadow-xs"
+                          : "bg-white border border-[#E4E0DB] text-[#20885A] hover:bg-[#ECFDF5]"
+                      }`}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Valid</span>
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleOpenIssueModal("docDL", "Driving Licence (Front & Back)", "drivingLicence")
+                      }
+                      className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
+                        verificationMap.docDL?.status === "FLAGGED"
+                          ? "bg-[#DA1E28] text-white shadow-xs"
+                          : "bg-white border border-[#E4E0DB] text-[#DA1E28] hover:bg-[#FEF2F2]"
+                      }`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Issue</span>
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-[#9E9B98] bg-[#F4F1EA] px-2.5 py-1 rounded-[6px] border border-[#E4E0DB] font-medium">
+                    Awaiting upload
+                  </span>
+                )}
               </div>
 
               {verificationMap.docDL?.status === "FLAGGED" && verificationMap.docDL?.issue && (
@@ -1789,14 +2213,23 @@ export default function AdminDeliveryPartnerDetailPage() {
                     <AlertTriangle className="w-4 h-4 shrink-0" />
                     <span><strong>Reason:</strong> {verificationMap.docDL.issue}</span>
                   </div>
-                  <button
-                    onClick={() =>
-                      handleOpenIssueModal("docDL", "Driving Licence (Front & Back)", "drivingLicence")
-                    }
-                    className="text-[11px] underline font-medium hover:text-[#991B1B]"
-                  >
-                    Edit
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() =>
+                        handleOpenIssueModal("docDL", "Driving Licence (Front & Back)", "drivingLicence")
+                      }
+                      className="text-[11px] underline font-medium hover:text-[#991B1B]"
+                    >
+                      Edit
+                    </button>
+                    <span className="text-[#FCA5A5]">•</span>
+                    <button
+                      onClick={() => handleClearIssue("docDL")}
+                      className="text-[11px] font-semibold text-[#991B1B] hover:underline"
+                    >
+                      Clear
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1859,22 +2292,35 @@ export default function AdminDeliveryPartnerDetailPage() {
                     </div>
                   )}
 
+                  {!partner.documents.drivingLicence.front.url && !partner.documents.drivingLicence.back?.url && (
+                    <div className="w-[160px] h-[105px] rounded-[6px] border border-dashed border-[#E4E0DB] bg-[#F7F7F5] flex flex-col items-center justify-center text-[#6B6667] text-[11px] gap-1 shrink-0">
+                      <FileText className="w-5 h-5 text-[#9E9B98]" />
+                      <span>Not uploaded</span>
+                    </div>
+                  )}
+
                   <div className="flex-1 min-w-[200px] text-xs space-y-1.5 pl-1">
                     <p className="font-semibold text-[#111111]">Licence Information</p>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1 border-t border-[#E4E0DB]">
                       <div>
                         <span className="text-[#6B6667] text-[11px] block">Licence Number:</span>
                         <strong className="text-[#111111] font-mono font-medium">
-                          {partner.licenseNumber || "TN 1929388282828"}
+                          {partner.licenseNumber || "Not entered"}
                         </strong>
                       </div>
                       <div>
                         <span className="text-[#6B6667] text-[11px] block">Vehicle Authorisation:</span>
-                        <strong className="text-[#111111] font-medium">MCWG / 2-Wheeler</strong>
+                        <strong className="text-[#111111] font-medium">
+                          {partner.licenseNumber ? "MCWG / 2-Wheeler" : "Not specified"}
+                        </strong>
                       </div>
                       <div>
                         <span className="text-[#6B6667] text-[11px] block">Document Validity:</span>
-                        <strong className="text-[#20885A] font-medium">Front &amp; Back Submitted</strong>
+                        {isFieldEntered("docDL") ? (
+                          <strong className="text-[#20885A] font-medium">Front &amp; Back Submitted</strong>
+                        ) : (
+                          <strong className="text-[#9E9B98] font-medium italic">Not uploaded</strong>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1900,32 +2346,38 @@ export default function AdminDeliveryPartnerDetailPage() {
                 </div>
 
                 {/* Individual Tick / Wrong Controls */}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => handleVerify("docRC")}
-                    className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
-                      verificationMap.docRC?.status === "VERIFIED"
-                        ? "bg-[#20885A] text-white shadow-xs"
-                        : "bg-white border border-[#E4E0DB] text-[#20885A] hover:bg-[#ECFDF5]"
-                    }`}
-                  >
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Valid</span>
-                  </button>
-                  <button
-                    onClick={() =>
-                      handleOpenIssueModal("docRC", "Vehicle RC (Front & Back)", "vehicleRc")
-                    }
-                    className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
-                      verificationMap.docRC?.status === "FLAGGED"
-                        ? "bg-[#DA1E28] text-white shadow-xs"
-                        : "bg-white border border-[#E4E0DB] text-[#DA1E28] hover:bg-[#FEF2F2]"
-                    }`}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                    <span>Issue</span>
-                  </button>
-                </div>
+                {isFieldEntered("docRC") ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleVerify("docRC")}
+                      className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
+                        verificationMap.docRC?.status === "VERIFIED"
+                          ? "bg-[#20885A] text-white shadow-xs"
+                          : "bg-white border border-[#E4E0DB] text-[#20885A] hover:bg-[#ECFDF5]"
+                      }`}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Valid</span>
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleOpenIssueModal("docRC", "Vehicle RC (Front & Back)", "vehicleRc")
+                      }
+                      className={`px-2.5 py-1 rounded-[6px] text-xs font-semibold flex items-center gap-1 transition-colors ${
+                        verificationMap.docRC?.status === "FLAGGED"
+                          ? "bg-[#DA1E28] text-white shadow-xs"
+                          : "bg-white border border-[#E4E0DB] text-[#DA1E28] hover:bg-[#FEF2F2]"
+                      }`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Issue</span>
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-[11px] text-[#9E9B98] bg-[#F4F1EA] px-2.5 py-1 rounded-[6px] border border-[#E4E0DB] font-medium">
+                    Awaiting upload
+                  </span>
+                )}
               </div>
 
               {verificationMap.docRC?.status === "FLAGGED" && verificationMap.docRC?.issue && (
@@ -1934,14 +2386,23 @@ export default function AdminDeliveryPartnerDetailPage() {
                     <AlertTriangle className="w-4 h-4 shrink-0" />
                     <span><strong>Reason:</strong> {verificationMap.docRC.issue}</span>
                   </div>
-                  <button
-                    onClick={() =>
-                      handleOpenIssueModal("docRC", "Vehicle RC (Front & Back)", "vehicleRc")
-                    }
-                    className="text-[11px] underline font-medium hover:text-[#991B1B]"
-                  >
-                    Edit
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() =>
+                        handleOpenIssueModal("docRC", "Vehicle RC (Front & Back)", "vehicleRc")
+                      }
+                      className="text-[11px] underline font-medium hover:text-[#991B1B]"
+                    >
+                      Edit
+                    </button>
+                    <span className="text-[#FCA5A5]">•</span>
+                    <button
+                      onClick={() => handleClearIssue("docRC")}
+                      className="text-[11px] font-semibold text-[#991B1B] hover:underline"
+                    >
+                      Clear
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -2004,26 +2465,41 @@ export default function AdminDeliveryPartnerDetailPage() {
                     </div>
                   )}
 
+                  {!partner.documents.vehicleRc.front.url && !partner.documents.vehicleRc.back?.url && (
+                    <div className="w-[160px] h-[105px] rounded-[6px] border border-dashed border-[#E4E0DB] bg-[#F7F7F5] flex flex-col items-center justify-center text-[#6B6667] text-[11px] gap-1 shrink-0">
+                      <FileText className="w-5 h-5 text-[#9E9B98]" />
+                      <span>Not uploaded</span>
+                    </div>
+                  )}
+
                   <div className="flex-1 min-w-[200px] text-xs space-y-1.5 pl-1">
                     <p className="font-semibold text-[#111111]">Registration Certificate Information</p>
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1 border-t border-[#E4E0DB]">
                       <div>
                         <span className="text-[#6B6667] text-[11px] block">Plate Number:</span>
                         <strong className="text-[#111111] font-mono font-medium">
-                          {partner.vehicleDetails?.registrationNumber}
+                          {partner.vehicleDetails?.registrationNumber || "Not registered"}
                         </strong>
                       </div>
                       <div>
                         <span className="text-[#6B6667] text-[11px] block">Make &amp; Model:</span>
-                        <strong className="text-[#111111] font-medium">
-                          {partner.vehicleDetails?.make} {partner.vehicleDetails?.model}
-                        </strong>
+                        {partner.vehicleDetails?.make || partner.vehicleDetails?.model ? (
+                          <strong className="text-[#111111] font-medium">
+                            {partner.vehicleDetails?.make} {partner.vehicleDetails?.model}
+                          </strong>
+                        ) : (
+                          <span className="text-[#9E9B98] italic font-medium">Not provided</span>
+                        )}
                       </div>
                       <div>
                         <span className="text-[#6B6667] text-[11px] block">RC Status:</span>
-                        <strong className="text-[#20885A] font-medium">
-                          {partner.vehicleDetails?.rcStatus || "Verified"}
-                        </strong>
+                        {isFieldEntered("docRC") ? (
+                          <strong className="text-[#20885A] font-medium">
+                            {partner.vehicleDetails?.rcStatus || "Submitted"}
+                          </strong>
+                        ) : (
+                          <span className="text-[#9E9B98] italic font-medium">Not uploaded</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2034,9 +2510,10 @@ export default function AdminDeliveryPartnerDetailPage() {
         </div>
 
         {/* ================= RIGHT COLUMN: ADMIN DECISION (~35%) ================= */}
-        <div className="col-span-12 lg:col-span-4 space-y-5">
-          {/* 1. Administrative Decision Card */}
-          <div className="bg-white border border-[#E4E0DB] rounded-[10px] p-5 shadow-xs space-y-4 sticky top-4">
+        <div className="col-span-12 lg:col-span-4">
+          <div className="lg:sticky lg:top-20 space-y-5 max-h-[calc(100vh-6rem)] overflow-y-auto pr-0.5">
+            {/* 1. Administrative Decision Card */}
+            <div className="bg-white border border-[#E4E0DB] rounded-[10px] p-5 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-[#E4E0DB] pb-3">
               <h3 className="text-sm font-semibold text-[#111111]">Administrative Decision</h3>
               <span
@@ -2045,10 +2522,16 @@ export default function AdminDeliveryPartnerDetailPage() {
                     ? "bg-[#FFFBEB] text-[#C9822E] border-[#FDE68A]"
                     : partner.kycStatus === "APPROVED"
                     ? "bg-[#ECFDF5] text-[#20885A] border-[#A7F3D0]"
+                    : partner.kycStatus === "NOT_SUBMITTED"
+                    ? "bg-[#F4F1EA] text-[#6B6667] border-[#E4E0DB]"
                     : "bg-[#FEF2F2] text-[#DA1E28] border-[#ffdad6]"
                 }`}
               >
-                {isPending ? "Under Review" : partner.kycStatus}
+                {isPending
+                  ? "Under Review"
+                  : partner.kycStatus === "NOT_SUBMITTED"
+                  ? "Not Submitted"
+                  : partner.kycStatus}
               </span>
             </div>
 
@@ -2058,18 +2541,28 @@ export default function AdminDeliveryPartnerDetailPage() {
                 <span className="text-[#6B6667] font-medium">Verification Status:</span>
                 <strong
                   className={`font-semibold ${
-                    hasAnyWrong ? "text-[#DA1E28]" : "text-[#20885A]"
+                    hasAnyWrong
+                      ? "text-[#DA1E28]"
+                      : partner.kycStatus === "NOT_SUBMITTED"
+                      ? "text-[#6B6667]"
+                      : "text-[#20885A]"
                   }`}
                 >
                   {hasAnyWrong
                     ? `${flaggedCount} Item${flaggedCount === 1 ? "" : "s"} Flagged`
+                    : partner.kycStatus === "NOT_SUBMITTED"
+                    ? `${verifiedCount} / ${VERIFIABLE_FIELDS.length} Cleared (Awaiting Submission)`
                     : `${verifiedCount} / ${VERIFIABLE_FIELDS.length} Cleared`}
                 </strong>
               </div>
               <div className="w-full bg-[#E4E0DB] h-1.5 rounded-full overflow-hidden">
                 <div
                   className={`h-full transition-all duration-300 ${
-                    hasAnyWrong ? "bg-[#DA1E28]" : "bg-[#20885A]"
+                    hasAnyWrong
+                      ? "bg-[#DA1E28]"
+                      : partner.kycStatus === "NOT_SUBMITTED"
+                      ? "bg-[#9E9B98]"
+                      : "bg-[#20885A]"
                   }`}
                   style={{
                     width: `${Math.round((verifiedCount / VERIFIABLE_FIELDS.length) * 100)}%`,
@@ -2108,29 +2601,76 @@ export default function AdminDeliveryPartnerDetailPage() {
             )}
 
             {/* Decision Action Buttons */}
-            {isPending ? (
-              <div className="space-y-2 pt-2">
-                {/* 
-                  CRITICAL RULE:
-                  "Even If One Wrong Then The KYC Approved Button Must Not Be Displayed And The KYC Rejected Button Must Be Highlighted."
-                */}
+            {partner.kycStatus === "NOT_SUBMITTED" ? (
+              <div className="p-3.5 bg-[#F7F7F5] rounded-[8px] border border-[#E4E0DB] text-left space-y-1.5">
+                <div className="flex items-center gap-2 text-xs font-semibold text-[#6B6667]">
+                  <Clock className="w-4 h-4 shrink-0 text-[#9E9B98]" />
+                  <span>Application Incomplete</span>
+                </div>
+                <p className="text-[11px] text-[#6B6667] leading-relaxed">
+                  The delivery partner has not completed their onboarding and KYC document submission yet. Administrative review will unlock once the partner submits their application.
+                </p>
+              </div>
+            ) : partner.kycStatus === "APPROVED" && !hasAnyWrong ? (
+              <div className="p-3.5 bg-[#ECFDF5] rounded-[8px] border border-[#A7F3D0] text-center space-y-1">
+                <CheckCircle2 className="w-6 h-6 text-[#20885A] mx-auto mb-1" />
+                <p className="font-semibold text-xs text-[#20885A]">KYC Approved</p>
+                <p className="text-[11px] text-[#6B6667]">Partner is fully verified for dispatch operations.</p>
+              </div>
+            ) : (
+              <div className="space-y-3 pt-1">
+                {/* Previous Rejection Banner (shown when KYC was rejected) */}
+                {partner.kycStatus === "REJECTED" && (
+                  <div className="p-3 bg-[#FEF2F2] rounded-[8px] border border-[#FCA5A5] text-left space-y-1.5">
+                    <div className="flex items-center gap-2 text-xs font-semibold text-[#DA1E28]">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>KYC Application Rejected</span>
+                    </div>
+                    <div className="p-2 bg-white rounded border border-[#FECACA] text-xs text-[#991B1B] whitespace-pre-line leading-relaxed font-mono text-[11px]">
+                      {partner.rejectionReason || "Verification issues identified."}
+                    </div>
+                  </div>
+                )}
+
+                {/* Interactive Action Controls */}
                 {!hasAnyWrong ? (
-                  <>
-                    <button
-                      onClick={() => setShowApprovalModal(true)}
-                      className="w-full h-10 bg-[#FF5A1F] text-white text-xs font-semibold rounded-[8px] hover:bg-[#D94B17] transition-colors flex items-center justify-center gap-1.5 shadow-sm"
-                    >
-                      <Check className="w-4 h-4" />
-                      <span>Approve Partner KYC</span>
-                    </button>
-                    <button
-                      onClick={handleOpenRejectModal}
-                      className="w-full h-8 border border-[#DA1E28] text-[#DA1E28] hover:bg-[#FEF2F2] text-xs font-medium rounded-[8px] transition-colors flex items-center justify-center gap-1.5"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      <span>Reject KYC</span>
-                    </button>
-                  </>
+                  allVerified ? (
+                    <>
+                      <button
+                        onClick={() => setShowApprovalModal(true)}
+                        className="w-full h-10 bg-[#FF5A1F] text-white text-xs font-semibold rounded-[8px] hover:bg-[#D94B17] transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>Approve Partner KYC</span>
+                      </button>
+                      <button
+                        onClick={handleOpenRejectModal}
+                        className="w-full h-8 border border-[#DA1E28] text-[#DA1E28] hover:bg-[#FEF2F2] text-xs font-medium rounded-[8px] transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Reject KYC</span>
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="p-3 bg-[#F7F7F5] rounded-[8px] border border-[#E4E0DB] text-center space-y-1">
+                        <div className="flex items-center justify-center gap-1.5 text-xs font-semibold text-[#6B6667]">
+                          <Clock className="w-3.5 h-3.5 text-[#9E9B98]" />
+                          <span>Verification in Progress</span>
+                        </div>
+                        <p className="text-[11px] text-[#6B6667] leading-relaxed">
+                          Verify all {VERIFIABLE_FIELDS.length} items to unlock KYC approval ({VERIFIABLE_FIELDS.length - verifiedCount} remaining).
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleOpenRejectModal}
+                        className="w-full h-8 border border-[#DA1E28] text-[#DA1E28] hover:bg-[#FEF2F2] text-xs font-medium rounded-[8px] transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Reject KYC</span>
+                      </button>
+                    </>
+                  )
                 ) : (
                   <button
                     onClick={handleOpenRejectModal}
@@ -2142,22 +2682,6 @@ export default function AdminDeliveryPartnerDetailPage() {
                     </span>
                   </button>
                 )}
-              </div>
-            ) : partner.kycStatus === "APPROVED" ? (
-              <div className="p-3.5 bg-[#ECFDF5] rounded-[8px] border border-[#A7F3D0] text-center space-y-1">
-                <CheckCircle2 className="w-6 h-6 text-[#20885A] mx-auto mb-1" />
-                <p className="font-semibold text-xs text-[#20885A]">KYC Approved</p>
-                <p className="text-[11px] text-[#6B6667]">Partner is fully verified for dispatch operations.</p>
-              </div>
-            ) : (
-              <div className="p-3.5 bg-[#FEF2F2] rounded-[8px] border border-[#FCA5A5] text-left space-y-2">
-                <div className="flex items-center gap-2 text-xs font-semibold text-[#DA1E28]">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>KYC Application Rejected</span>
-                </div>
-                <div className="p-2.5 bg-white rounded border border-[#FECACA] text-xs text-[#991B1B] whitespace-pre-line leading-relaxed font-mono text-[11px]">
-                  {partner.rejectionReason || "Verification issues identified."}
-                </div>
               </div>
             )}
           </div>
@@ -2171,31 +2695,45 @@ export default function AdminDeliveryPartnerDetailPage() {
               </h3>
             </div>
 
-            <div className="relative pl-5 space-y-3.5 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-[2px] before:bg-[#E4E0DB]">
-              {partner.auditTrail.map((ev) => {
-                const isPrimary = ev.type === "primary";
-                const isSuccess = ev.type === "success";
+            {partner.auditTrail.length === 0 ? (
+              <p className="text-xs text-[#6B6667] italic py-2">No timeline events recorded yet.</p>
+            ) : (
+              <div className="relative space-y-4">
+                {/* Continuous Timeline Connector Line */}
+                <div className="absolute left-[9px] top-2 bottom-2 w-0.5 bg-[#E4E0DB]" />
+                {partner.auditTrail.map((ev) => {
+                  const isPrimary = ev.type === "primary";
+                  const isSuccess = ev.type === "success";
 
-                return (
-                  <div key={ev.id} className="relative">
-                    <span
-                      className={`absolute -left-5 top-1 w-2 h-2 rounded-full border border-white ${
-                        isPrimary
-                          ? "bg-[#FF5A1F]"
-                          : isSuccess
-                          ? "bg-[#20885A]"
-                          : "bg-[#6B6667]"
-                      }`}
-                    />
-                    <p className="text-[11px] font-medium text-[#111111]">{ev.timestamp}</p>
-                    <p className="text-xs text-[#6B6667] leading-snug">{ev.description}</p>
-                  </div>
-                );
-              })}
-            </div>
+                  return (
+                    <div key={ev.id} className="relative flex items-start gap-3">
+                      <div className="relative flex items-center justify-center shrink-0 w-5 pt-1">
+                        <span
+                          className={`w-2.5 h-2.5 rounded-full ring-4 ring-white shrink-0 ${
+                            isPrimary
+                              ? "bg-[#FF5A1F]"
+                              : isSuccess
+                              ? "bg-[#20885A]"
+                              : "bg-[#DA1E28]"
+                          }`}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-semibold text-[#111111] truncate">{ev.title || "Audit Record"}</p>
+                          <p className="text-[10px] text-[#6B6667] font-mono shrink-0">{ev.timestamp}</p>
+                        </div>
+                        <p className="text-xs text-[#6B6667] leading-snug mt-0.5">{ev.description}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
+    </div>
 
       {/* ========================================================================= */}
       {/* FLAG ISSUE MODAL (PREDEFINED & CUSTOM COMMENTS)                           */}
@@ -2257,20 +2795,38 @@ export default function AdminDeliveryPartnerDetailPage() {
             </div>
 
             {/* Modal Actions */}
-            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-[#E4E0DB]">
-              <button
-                onClick={() => setActiveIssueModal(null)}
-                className="h-8 px-3.5 border border-[#E4E0DB] rounded-[8px] text-xs font-medium text-[#111111] hover:bg-[#F7F7F5] transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveIssue}
-                className="h-8 px-4 bg-[#DA1E28] text-white rounded-[8px] text-xs font-semibold hover:bg-[#B91C1C] transition-colors flex items-center gap-1.5 shadow-xs"
-              >
-                <X className="w-3.5 h-3.5" />
-                <span>Flag Issue</span>
-              </button>
+            <div className="flex items-center justify-between gap-2.5 pt-3 border-t border-[#E4E0DB]">
+              <div>
+                {activeIssueModal.currentIssue && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleClearIssue(activeIssueModal.fieldId);
+                      setActiveIssueModal(null);
+                    }}
+                    className="h-8 px-3 text-xs font-semibold text-[#DA1E28] hover:bg-[#FEF2F2] rounded-[8px] border border-[#FCA5A5] transition-colors"
+                  >
+                    Clear Flag
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setActiveIssueModal(null)}
+                  className="h-8 px-3.5 border border-[#E4E0DB] rounded-[8px] text-xs font-medium text-[#111111] hover:bg-[#F7F7F5] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveIssue}
+                  className="h-8 px-4 bg-[#DA1E28] text-white rounded-[8px] text-xs font-semibold hover:bg-[#B91C1C] transition-colors flex items-center gap-1.5 shadow-xs"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Flag Issue</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
