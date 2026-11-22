@@ -17,6 +17,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldAlert,
+  MoreVertical,
+  History,
+  ShieldCheck,
 } from "lucide-react";
 import { DeliveryPartner } from "@/types/drivers";
 import { StatusBadge } from "@/components/ui/StatusBadge";
@@ -39,6 +42,58 @@ export default function AdminDeliveryPartnersPage() {
   // Pagination
   const [currentPage, setCurrentPage] = useState<number>(1);
   const pageSize = 10;
+
+  // Actions Dropdown Menu state
+  const [openMenu, setOpenMenu] = useState<{
+    partnerId: string;
+    top: number;
+    left: number;
+  } | null>(null);
+  const menuRef = React.useRef<HTMLDivElement | null>(null);
+
+  const handleToggleMenu = (partnerId: string, e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (openMenu?.partnerId === partnerId) {
+      setOpenMenu(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuWidth = 176;
+    const menuHeight = 84;
+    let top = rect.bottom + 4;
+    if (top + menuHeight > window.innerHeight) {
+      top = rect.top - menuHeight - 4;
+    }
+    let left = rect.right - menuWidth;
+    if (left < 10) left = 10;
+
+    setOpenMenu({ partnerId, top, left });
+  };
+
+  useEffect(() => {
+    if (!openMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenu(null);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpenMenu(null);
+      }
+    };
+    const handleScroll = () => {
+      setOpenMenu(null);
+    };
+    window.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", handleScroll, true);
+    return () => {
+      window.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", handleScroll, true);
+    };
+  }, [openMenu]);
 
   const loadData = () => {
     setLoading(true);
@@ -93,9 +148,10 @@ export default function AdminDeliveryPartnersPage() {
 
       // Vehicle filter
       if (vehicleFilter !== "ALL") {
+        if (!p.vehicleType) return false;
         const vType = p.vehicleType.toLowerCase();
         if (vehicleFilter === "BIKE" && !vType.includes("bike")) return false;
-        if (vehicleFilter === "SCOOTY" && !vType.includes("scooty")) return false;
+        if (vehicleFilter === "SCOOTY" && !vType.includes("scooty") && !vType.includes("scooter")) return false;
         if (vehicleFilter === "EV" && !vType.includes("ev") && !vType.includes("electric")) return false;
       }
 
@@ -133,7 +189,7 @@ export default function AdminDeliveryPartnersPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-[1440px] mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1440px] mx-auto">
       {/* ================= PAGE HEADER ================= */}
       <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -374,7 +430,7 @@ export default function AdminDeliveryPartnersPage() {
 
       {/* ================= DATA TABLE CONTAINER ================= */}
       <section className="bg-white border border-[#E4E0DB] rounded-[10px] overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto custom-scrollbar">
           <table className="w-full text-left border-collapse min-w-[1000px]">
             {/* Table Head */}
             <thead>
@@ -488,24 +544,38 @@ export default function AdminDeliveryPartnersPage() {
 
                       {/* Vehicle */}
                       <td className="py-2 px-3">
-                        <div className="flex items-center gap-1.5 text-xs">
-                          <Bike className="w-3.5 h-3.5 text-[#6B6667] shrink-0" />
-                          <div className="flex flex-col">
-                            <span className="font-medium text-xs leading-tight text-[#111111]">
-                              {partner.vehicleType}
-                            </span>
-                            <span className="text-[10px] text-[#6B6667] leading-tight">
-                              {partner.vehicleModel}
-                            </span>
+                        {partner.vehicleType ? (
+                          <div className="flex items-center gap-1.5 text-xs">
+                            <Bike className="w-3.5 h-3.5 text-[#6B6667] shrink-0" />
+                            <div className="flex flex-col">
+                              <span className="font-medium text-xs leading-tight text-[#111111]">
+                                {partner.vehicleType}
+                              </span>
+                              {partner.vehicleModel && (
+                                <span className="text-[10px] text-[#6B6667] leading-tight">
+                                  {partner.vehicleModel}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          <span className="text-[#6B6667] italic text-xs">
+                            Not specified
+                          </span>
+                        )}
                       </td>
 
                       {/* Registration Plate */}
                       <td className="py-2 px-3">
-                        <span className="font-mono text-xs text-[#111111] font-medium bg-[#F7F7F5] px-1.5 py-0.5 rounded-[4px] border border-[#E4E0DB]">
-                          {partner.vehicleRegistration}
-                        </span>
+                        {partner.vehicleRegistration ? (
+                          <span className="font-mono text-xs text-[#111111] font-medium bg-[#F7F7F5] px-1.5 py-0.5 rounded-[4px] border border-[#E4E0DB]">
+                            {partner.vehicleRegistration}
+                          </span>
+                        ) : (
+                          <span className="text-[#6B6667] italic text-xs">
+                            Not registered
+                          </span>
+                        )}
                       </td>
 
                       {/* Online Status */}
@@ -530,21 +600,20 @@ export default function AdminDeliveryPartnersPage() {
 
                       {/* Actions */}
                       <td className="py-2 px-4 text-right">
-                        {isPending ? (
-                          <Link
-                            href={`/admin/delivery-partners/${partner.id}`}
-                            className="inline-flex items-center h-7 px-2.5 rounded-[8px] bg-[#FF5A1F] text-white text-xs font-medium hover:bg-[#D94B17] transition-colors shadow-xs"
-                          >
-                            Review KYC
-                          </Link>
-                        ) : (
-                          <Link
-                            href={`/admin/delivery-partners/${partner.id}`}
-                            className="inline-flex items-center h-7 px-2.5 rounded-[8px] border border-[#E4E0DB] bg-white text-[#111111] text-xs font-medium hover:bg-[#F7F7F5] transition-colors"
-                          >
-                            View
-                          </Link>
-                        )}
+                        <button
+                          type="button"
+                          aria-label={`Actions for ${partner.fullName}`}
+                          aria-haspopup="true"
+                          aria-expanded={openMenu?.partnerId === partner.id}
+                          onClick={(e) => handleToggleMenu(partner.id, e)}
+                          className={`inline-flex items-center justify-center w-8 h-8 rounded-[8px] border transition-colors focus:outline-none focus:ring-2 focus:ring-[#FF5A1F] ${
+                            openMenu?.partnerId === partner.id
+                              ? "border-[#FF5A1F] bg-[#FF5A1F]/10 text-[#FF5A1F]"
+                              : "border-[#E4E0DB] bg-white text-[#6B6667] hover:text-[#111111] hover:bg-[#F7F7F5]"
+                          }`}
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   );
@@ -595,6 +664,36 @@ export default function AdminDeliveryPartnersPage() {
           </div>
         )}
       </section>
+
+      {/* Floating Three-Dot Action Dropdown Menu */}
+      {openMenu && (
+        <div
+          ref={menuRef}
+          style={{ top: openMenu.top, left: openMenu.left }}
+          className="fixed z-50 w-44 rounded-lg bg-white border border-[#E4E0DB] shadow-lg py-1 text-xs text-[#111111] animate-in fade-in zoom-in-95 duration-100"
+          role="menu"
+          aria-orientation="vertical"
+        >
+          <Link
+            href={`/admin/delivery-partners/${openMenu.partnerId}/delivery-history`}
+            onClick={() => setOpenMenu(null)}
+            className="group flex items-center gap-2.5 px-3 py-2 text-[#111111] hover:bg-[#F7F7F5] hover:text-[#FF5A1F] transition-colors font-medium"
+            role="menuitem"
+          >
+            <History className="w-4 h-4 text-[#6B6667] group-hover:text-[#FF5A1F] transition-colors" />
+            <span>Delivery History</span>
+          </Link>
+          <Link
+            href={`/admin/delivery-partners/${openMenu.partnerId}`}
+            onClick={() => setOpenMenu(null)}
+            className="group flex items-center gap-2.5 px-3 py-2 text-[#111111] hover:bg-[#F7F7F5] hover:text-[#FF5A1F] transition-colors font-medium"
+            role="menuitem"
+          >
+            <ShieldCheck className="w-4 h-4 text-[#6B6667] group-hover:text-[#FF5A1F] transition-colors" />
+            <span>KYC Details</span>
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
