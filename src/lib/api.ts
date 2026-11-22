@@ -496,6 +496,17 @@ export const api = {
         `/admin/vendors${qs ? `?${qs}` : ""}`
       );
     },
+    onboard: async (data: any) => {
+      return request<{
+        success: boolean;
+        message: string;
+        vendor: any;
+        credentials: { email: string; temporaryPassword: string; loginUrl: string };
+      }>("/admin/vendors/onboard", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
     getById: async (id: string) => {
       return request<any>(`/admin/vendors/${id}`);
     },
@@ -520,6 +531,23 @@ export const api = {
         {
           method: "PATCH",
           body: JSON.stringify({ reason }),
+        }
+      );
+    },
+    delete: async (id: string) => {
+      return request<{ success: boolean; message: string }>(
+        `/admin/vendors/${id}`,
+        {
+          method: "DELETE",
+        }
+      );
+    },
+    resetPassword: async (id: string, password: string) => {
+      return request<{ success: boolean; message: string }>(
+        `/admin/vendors/${id}/reset-password`,
+        {
+          method: "POST",
+          body: JSON.stringify({ password }),
         }
       );
     },
@@ -1145,6 +1173,74 @@ export const api = {
       return request<{ success: boolean; count: number }>("/admin/home/sections/items/reorder", {
         method: "PATCH",
         body: JSON.stringify({ items }),
+      });
+    },
+  },
+
+  vendorPortal: {
+    getStoreStatus: async () => {
+      return request<{
+        vendorId: string;
+        storeName: string;
+        isOnline: boolean;
+        isCurrentlyOpen: boolean;
+        autoScheduleEnabled: boolean;
+        operatingHours: any;
+        notificationEmail?: string;
+        categoryCommissions: { id: string; categoryId: string; categoryName: string; commissionRate: number }[];
+      }>("/vendor/store/status");
+    },
+    toggleStoreStatus: async (isOnline: boolean) => {
+      return request<{ success: boolean; isOnline: boolean; message: string }>("/vendor/store/status", {
+        method: "PATCH",
+        body: JSON.stringify({ isOnline }),
+      });
+    },
+    updateOperatingHours: async (data: { operatingHours: any; autoScheduleEnabled?: boolean }) => {
+      return request<{ success: boolean; operatingHours: any; message: string }>("/vendor/store/operating-hours", {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      });
+    },
+    getFinanceOverview: async () => {
+      return request<{
+        vendorId: string;
+        storeName: string;
+        grossRevenue: number;
+        commissionClaimed: number;
+        netEarnings: number;
+        settledPayouts: number;
+        pendingBalance: number;
+        bankDetails?: any;
+        categoryCommissions: { categoryId: string; categoryName: string; commissionRate: number }[];
+        recentTransactions: any[];
+      }>("/vendor/finance/overview");
+    },
+    getProducts: async (params: Record<string, any> = {}) => {
+      const qs = new URLSearchParams(params).toString();
+      return request<{
+        vendorId: string;
+        storeName: string;
+        total: number;
+        products: any[];
+      }>(`/vendor/products${qs ? `?${qs}` : ""}`);
+    },
+    createProduct: async (data: any) => {
+      return request<{ success: boolean; product: any; message: string }>("/vendor/products", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+    updateProductStatus: async (id: string, status: string) => {
+      return request<{ success: boolean; product: any }>(`/vendor/products/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+    },
+    updateProductStock: async (id: string, stock: number) => {
+      return request<{ success: boolean; product: any }>(`/vendor/products/${id}/stock`, {
+        method: "PATCH",
+        body: JSON.stringify({ stock }),
       });
     },
   },

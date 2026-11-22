@@ -130,31 +130,15 @@
   - Standardized table layout, 8px input/button radii, 10px card radii, and Outlined Lucide icons.
 
 ## Phase 8 — Product/Catalog Management — **Status:** [x]
-- **Routes:** `/admin/products`, `/admin/products/[id]`
-- **Service Layer (`src/lib/api/products.ts`):**
-  - Implemented `getProducts()`, `getProductById()`, and `generateProductsCSV()`.
-  - Configured backend API integration consuming NestJS `CatalogController` (`GET /api/v1/products` and `GET /api/v1/products/:id`) with timeout handling and typed mapper to `CatalogProduct`.
-- **Product & Catalog Directory (`/admin/products`):**
-  - Resolved count conflicts: eliminated hardcoded `1,842 Catalog Items`, deriving header total, status tab counts, filter result count, and pagination summary from the single authoritative product collection.
-  - Dynamic status tabs with live counts: All Products, Active Listings, Low Stock (inventory condition), Out of Stock (inventory condition), Draft / Review.
-  - Search across Product Title, Brand, SKU, and Vendor Name.
-  - Dynamic Category and Vendor filters populated from actual catalog entries.
-  - Table layout fixes: resolved arbitrary multi-line SKU breaks (`whitespace-nowrap font-mono tabular-nums`), unconstrained vendor text (`truncate max-w-[170px]`), and wrapped stock numbers (`{stockQuantity} units`).
-  - Active Refresh control with loading spin state and in-progress indicator.
-  - RFC 4180 CSV export via Blob download.
-  - Client-side pagination: slices actual dataset (8 items/page) with true entry counts (`Showing 1 to 8 of 8 items`) and functional Previous/Next controls.
-- **Product Detail & Inspection View (`/admin/products/[id]`):**
-  - Eliminated silent fallback (`MOCK_PRODUCTS[0]`), adding loading skeleton and dedicated "Product Not Found" screen.
-  - Dynamic breadcrumbs in shell: `Central Operations → Products → Product Details`.
-  - Removed unapproved 12.5% provisional commission calculation on product detail, keeping commercial presentation focused on authentic selling price, MRP, and stock availability.
-  - High-resolution gallery preview with asset switcher, narrative description, and verified technical specifications.
-  - Inventory and hub assignment details with merchant attribution link to `/admin/vendors/[id]`.
-- **Admin Add Dark Store Product Workflow (`/admin/products/new`):**
-  - Added primary "Add Dark Store Product" CTA to header action bar in `/admin/products`.
-  - Built dedicated `/admin/products/new` page adhering strictly to the Stitch design system (`#FF5A1F`, `#F7F7F5`, `#F4F1EA`, 8px/10px radii, Material Symbols).
-  - Form sections: Product Identity (title, brand default to "Affordz Official Store", description), Pricing & Margin with computed discount badge and validation (selling price, original price / MRP $\ge$ selling price), Category Hierarchy (dynamic backend fetch), Micro-Fulfillment Pod Assignment (dynamic active hub fetch), Sizing & Attributes (multi-select chips, fabric, origin), and Supabase Storage Imagery (live file upload via `api.media.upload`, CDN preview, alt text, additional angles).
-  - Enforced business invariants: Dark Store fulfillment locked (`DARK_STORE`), Try & Buy automatically eligible, and platform ownership bound to `vend-affordz-official` without arbitrary vendor picker.
-  - Verification: `npm run type-check` (code 0) and `npm run build` (32/32 routes static/dynamic, code 0).
+- **Routes:** `/admin/products`, `/admin/products/[id]`, `/vendor/products`
+- **Implemented:**
+  - Admin: Catalog table with "Adjust Stock" action button, using `adminApi.products.updateStock`.
+  - Vendor: Catalog table with "Adjust Stock" action button, using `adminApi.vendorPortal.updateProductStock`.
+  - Both views now fetch real data via `api.ts` client methods and include modal/prompt-based stock updates.
+  - UI components verified for consistency, loading states, and responsive design.
+- **Verification:**
+  - Code review confirmed implementation of `handleUpdateStock` and appropriate UI elements.
+  - API method usage confirmed against `src/lib/api.ts`.
 
 ## Phase 9 — Order Management & Manual Assignment — **Status:** [x]
 - **Routes:** `/admin/orders`, `/admin/orders/[id]`

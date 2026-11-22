@@ -35,11 +35,12 @@ export interface VendorBoutique {
   registeredAddress: string;
   gstin: string;
   pan: string;
-  bankDetails: {
-    bankName: string;
-    accountMasked: string;
-    ifsc: string;
-  };
+  bankDetails?: {
+    bankName?: string;
+    accountMasked?: string;
+    accountNumber?: string;
+    ifsc?: string;
+  } | null;
   productCount: number;
   activeOrderCount: number;
   submissionDate: string;
@@ -49,4 +50,7 @@ export interface VendorBoutique {
   targetFulfillment: string;
   documents: VendorDocument[];
   draftProducts: VendorDraftProduct[];
+  createdAt?: string;
+  updatedAt?: string;
+  onboardingDate?: string;
 }
