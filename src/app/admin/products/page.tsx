@@ -9,7 +9,7 @@ import {
   StockStatus,
   ProductListingStatus,
 } from "@/types/products";
-import { api } from "@/lib/api";
+import { api, adminApi } from "@/lib/api";
 
 const PAGE_SIZE = 8;
 
@@ -96,6 +96,29 @@ export default function AdminProductsPage() {
   useEffect(() => {
     loadData();
   }, []);
+
+  const handleUpdateStock = async (id: string, currentStock: number) => {
+    const newStock = prompt("Enter new stock quantity:", String(currentStock));
+    if (newStock === null) return;
+    
+    const stockNumber = Number(newStock);
+    if (isNaN(stockNumber) || stockNumber < 0) {
+      setToastMessage("Invalid stock quantity.");
+      setTimeout(() => setToastMessage(null), 3000);
+      return;
+    }
+
+    try {
+      await adminApi.products.updateStock(id, stockNumber);
+      setToastMessage("Stock updated successfully.");
+      setTimeout(() => setToastMessage(null), 3000);
+      loadData();
+    } catch (error) {
+      console.error("Failed to update stock:", error);
+      setToastMessage("Failed to update stock.");
+      setTimeout(() => setToastMessage(null), 3000);
+    }
+  };
 
   // Consistent dynamic counts
   const counts = useMemo(() => {
@@ -543,6 +566,12 @@ export default function AdminProductsPage() {
                       <span className="ml-1.5">
                         <StatusBadge status={product.stockStatus} variant="stock" />
                       </span>
+                      <button
+                        onClick={() => handleUpdateStock(product.id, product.stockQuantity)}
+                        className="ml-2 text-[10px] text-[#6B6667] hover:text-[#FF5A1F]"
+                      >
+                        (Adjust)
+                      </button>
                     </td>
 
                     {/* Fulfillment */}

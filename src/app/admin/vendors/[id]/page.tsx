@@ -20,6 +20,11 @@ export default function AdminVendorDetailPage() {
   const [isApproveModalOpen, setIsApproveModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [isSuspendModalOpen, setIsSuspendModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isResetPasswordModalOpen, setIsResetPasswordModalOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [previewDoc, setPreviewDoc] = useState<VendorDocument | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -118,6 +123,40 @@ export default function AdminVendorDetailPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
+  const handleResetPassword = async () => {
+    if (!newPassword || newPassword.trim().length < 6) {
+      setToastMessage("Password must be at least 6 characters.");
+      setTimeout(() => setToastMessage(null), 3000);
+      return;
+    }
+    setIsResettingPassword(true);
+    try {
+      await api.vendors.resetPassword(vendorId, newPassword.trim());
+      setIsResetPasswordModalOpen(false);
+      setNewPassword("");
+      setToastMessage(`Password for ${vendor?.storeName || "vendor"} has been successfully updated.`);
+    } catch (err: any) {
+      setToastMessage(err?.message || "Failed to update vendor password.");
+    } finally {
+      setIsResettingPassword(false);
+      setTimeout(() => setToastMessage(null), 4000);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!vendorId) return;
+    setIsDeleting(true);
+    try {
+      await api.vendors.delete(vendorId);
+      router.push("/admin/vendors");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to delete vendor";
+      setToastMessage(msg);
+      setIsDeleting(false);
+      setIsDeleteModalOpen(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="w-full max-w-[1400px] mx-auto box-border min-w-0 px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 pb-8 space-y-4">
@@ -157,6 +196,12 @@ export default function AdminVendorDetailPage() {
     vendor.status === "DOCS_SUBMITTED" ||
     vendor.status === "KYC_PENDING";
 
+  const docs = Array.isArray(vendor.documents) ? vendor.documents : [];
+  const draftProducts = Array.isArray(vendor.draftProducts) ? vendor.draftProducts : [];
+  const submissionFormatted =
+    vendor.submissionDate ||
+    (vendor.createdAt ? new Date(vendor.createdAt).toLocaleDateString() : "N/A");
+
   return (
     <div className="w-full max-w-[1400px] mx-auto box-border min-w-0 px-4 sm:px-5 lg:px-6 pt-3.5 sm:pt-4 pb-8 space-y-4">
       {/* Toast Notification */}
@@ -187,14 +232,14 @@ export default function AdminVendorDetailPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3 mt-1.5 text-xs text-[#6B6667]">
-            <span>Submitted: <strong className="text-[#111111] font-medium">{vendor.submissionDate}</strong></span>
+            <span>Submitted: <strong className="text-[#111111] font-medium">{submissionFormatted}</strong></span>
             <span>•</span>
             <span>Operating Hub: <strong className="text-[#111111] font-medium">{vendor.operatingHub || "Bandra West Node"}</strong></span>
-            {vendor.documents.length > 0 && (
+            {docs.length > 0 && (
               <>
                 <span>•</span>
                 <span className="text-[#20885A] font-medium">
-                  {vendor.documents.filter((d) => d.verified).length} of {vendor.documents.length} Documents On File
+                  {docs.filter((d) => d.verified).length} of {docs.length} Documents On File
                 </span>
               </>
             )}
@@ -210,6 +255,15 @@ export default function AdminVendorDetailPage() {
           >
             <span className="material-symbols-outlined text-[18px] text-[#6B6667]">download</span>
             <span>Export Record</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsResetPasswordModalOpen(true)}
+            className="h-9 px-3 rounded-[8px] bg-white text-[#111111] border border-[#E4E0DB] hover:bg-[#F7F7F5] text-xs font-medium flex items-center gap-1.5 shadow-xs transition-colors"
+          >
+            <span className="material-symbols-outlined text-[18px] text-[#6B6667]">lock_reset</span>
+            <span>Reset Password</span>
           </button>
 
           {isPending && (
@@ -247,6 +301,15 @@ export default function AdminVendorDetailPage() {
               <span>Reactivate Boutique</span>
             </button>
           )}
+
+          <button
+            type="button"
+            onClick={() => setIsDeleteModalOpen(true)}
+            className="h-9 px-3 rounded-[8px] bg-white text-[#DC2626] border border-[#FECACA] hover:bg-[#FEE2E2] text-xs font-medium transition-colors flex items-center gap-1 shadow-xs"
+          >
+            <span className="material-symbols-outlined text-[16px]">delete</span>
+            <span>Delete Boutique</span>
+          </button>
         </div>
       </div>
 
@@ -354,14 +417,20 @@ export default function AdminVendorDetailPage() {
 
               <div className="md:col-span-2 pt-2 border-t border-[#E4E0DB]">
                 <dt className="text-xs text-[#6B6667]">Bank Account / Payout Destination</dt>
-                <dd className="mt-0.5 text-[#111111] flex items-center gap-3">
-                  <span className="font-medium">
-                    {vendor.bankDetails.bankName} {vendor.bankDetails.accountMasked}
-                  </span>
-                  <span className="font-mono text-[#6B6667] bg-[#F4F1EA] px-1.5 py-0.5 rounded border border-[#E4E0DB]">
-                    IFSC: {vendor.bankDetails.ifsc}
-                  </span>
-                </dd>
+                {vendor.bankDetails ? (
+                  <dd className="mt-0.5 text-[#111111] flex items-center gap-3">
+                    <span className="font-medium">
+                      {vendor.bankDetails.bankName || "Bank"} {vendor.bankDetails.accountMasked || vendor.bankDetails.accountNumber || "N/A"}
+                    </span>
+                    {vendor.bankDetails.ifsc && (
+                      <span className="font-mono text-[#6B6667] bg-[#F4F1EA] px-1.5 py-0.5 rounded border border-[#E4E0DB]">
+                        IFSC: {vendor.bankDetails.ifsc}
+                      </span>
+                    )}
+                  </dd>
+                ) : (
+                  <dd className="mt-0.5 text-[#6B6667] italic">No bank or payout coordinates registered</dd>
+                )}
               </div>
             </div>
           </div>
@@ -373,17 +442,17 @@ export default function AdminVendorDetailPage() {
                 Compliance Documents
               </h3>
               <span className="text-xs text-[#6B6667]">
-                {vendor.documents.length} Files Uploaded
+                {docs.length} Files Uploaded
               </span>
             </div>
 
             <div className="divide-y divide-[#E4E0DB]">
-              {vendor.documents.length === 0 ? (
+              {docs.length === 0 ? (
                 <div className="p-6 text-center text-[#6B6667] text-xs">
                   No compliance documents submitted for this vendor.
                 </div>
               ) : (
-                vendor.documents.map((doc) => (
+                docs.map((doc) => (
                   <div
                     key={doc.id}
                     className="px-4 py-3 flex items-center justify-between hover:bg-[#F7F7F5]/50 transition-colors"
@@ -419,7 +488,7 @@ export default function AdminVendorDetailPage() {
           <div className="bg-white rounded-[10px] border border-[#E4E0DB] overflow-hidden shadow-xs">
             <div className="px-4 py-3 border-b border-[#E4E0DB] bg-[#F7F7F5] flex items-center justify-between">
               <h3 className="text-xs font-medium text-[#111111]">
-                Initial Catalog Submission ({vendor.draftProducts.length} Draft Items)
+                Initial Catalog Submission ({draftProducts.length} Draft Items)
               </h3>
               <Link
                 href="/admin/products"
@@ -429,7 +498,7 @@ export default function AdminVendorDetailPage() {
               </Link>
             </div>
 
-            {vendor.draftProducts.length === 0 ? (
+            {draftProducts.length === 0 ? (
               <div className="p-6 text-center text-[#6B6667] text-xs">
                 No draft products registered in initial catalog submission.
               </div>
@@ -447,7 +516,7 @@ export default function AdminVendorDetailPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E4E0DB] text-[13px] text-[#111111]">
-                    {vendor.draftProducts.map((p) => (
+                    {draftProducts.map((p) => (
                       <tr key={p.id} className="h-11 hover:bg-[#F7F7F5]/50 transition-colors">
                         <td className="px-4 py-0 font-medium text-[#111111]">{p.title}</td>
                         <td className="px-4 py-0 font-mono text-xs text-[#6B6667]">{p.sku}</td>
@@ -480,7 +549,7 @@ export default function AdminVendorDetailPage() {
               Document Checklist
             </h4>
             <div className="space-y-2 text-xs">
-              {vendor.documents.map((d) => (
+              {docs.map((d) => (
                 <div key={d.id} className="flex items-center justify-between py-1 border-b border-[#F4F1EA] last:border-0">
                   <span className="text-[#111111] font-medium truncate max-w-[210px]">{d.title}</span>
                   <span className={`text-[11px] font-medium px-2 py-0.5 rounded border ${
@@ -675,6 +744,134 @@ export default function AdminVendorDetailPage() {
                 className="px-4 py-2 rounded-[8px] bg-[#DA1E28] hover:bg-[#B91C1C] text-white text-xs font-medium"
               >
                 Confirm Suspension
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      {isDeleteModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4"
+          onClick={() => !isDeleting && setIsDeleteModalOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-[10px] border border-[#E4E0DB] max-w-md w-full p-5 shadow-xl space-y-3"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#FEE2E2] flex items-center justify-center text-[#DC2626] shrink-0">
+                <span className="material-symbols-outlined text-[20px]">warning</span>
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-[#111111]">
+                  Delete {vendor.storeName}?
+                </h3>
+                <p className="text-xs text-[#6B6667]">This action cannot be undone.</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-[#4B5563] leading-relaxed">
+              Are you sure you want to permanently delete this vendor boutique? All associated credentials and category commission records will be removed from the platform.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E4E0DB]">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="px-3.5 py-2 rounded-[8px] border border-[#E4E0DB] text-[#6B6667] hover:text-[#111111] text-xs font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleDelete}
+                className="px-4 py-2 rounded-[8px] bg-[#DC2626] hover:bg-[#B91C1C] text-white text-xs font-medium flex items-center gap-1.5"
+              >
+                {isDeleting ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                    <span>Confirm Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password Modal */}
+      {isResetPasswordModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4"
+          onClick={() => !isResettingPassword && setIsResetPasswordModalOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-[10px] border border-[#E4E0DB] max-w-md w-full p-5 shadow-xl space-y-4"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#FFF0E8] flex items-center justify-center text-[#FF5A1F] shrink-0">
+                <span className="material-symbols-outlined text-[20px]">lock_reset</span>
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-[#111111]">
+                  Reset Credentials
+                </h3>
+                <p className="text-xs text-[#6B6667]">Update login password for {vendor.storeName}</p>
+              </div>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <label className="block font-medium text-[#111111]">
+                New Password <span className="text-[#DA1E28]">*</span>
+              </label>
+              <input
+                type="text"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password (minimum 6 characters)"
+                className="w-full h-9 px-3 bg-[#F7F7F5] border border-[#E4E0DB] rounded-[8px] text-[#111111] focus:bg-white focus:outline-none focus:border-[#FF5A1F]"
+              />
+              <p className="text-[11px] text-[#6B6667]">
+                This updates the vendor&apos;s authentication credential directly in Firebase.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E4E0DB]">
+              <button
+                type="button"
+                disabled={isResettingPassword}
+                onClick={() => {
+                  setIsResetPasswordModalOpen(false);
+                  setNewPassword("");
+                }}
+                className="px-3.5 py-2 rounded-[8px] border border-[#E4E0DB] text-[#6B6667] hover:text-[#111111] text-xs font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isResettingPassword || !newPassword || newPassword.trim().length < 6}
+                onClick={handleResetPassword}
+                className="px-4 py-2 rounded-[8px] bg-[#FF5A1F] hover:bg-[#D94B17] disabled:opacity-50 text-white text-xs font-medium flex items-center gap-1.5"
+              >
+                {isResettingPassword ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    <span>Updating...</span>
+                  </>
+                ) : (
+                  <span>Update Password</span>
+                )}
               </button>
             </div>
           </div>

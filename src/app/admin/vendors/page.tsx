@@ -5,6 +5,7 @@ import Link from "next/link";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { VendorBoutique } from "@/types/vendors";
 import { api } from "@/lib/api";
+import { OnboardVendorModal } from "@/components/admin/OnboardVendorModal";
 
 const PAGE_SIZE = 8;
 
@@ -56,6 +57,8 @@ export default function AdminVendorsPage() {
 
   // Modals & Feedback
   const [isAddVendorModalOpen, setIsAddVendorModalOpen] = useState(false);
+  const [vendorToDelete, setVendorToDelete] = useState<VendorBoutique | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const loadVendors = useCallback(() => {
@@ -80,6 +83,22 @@ export default function AdminVendorsPage() {
   useEffect(() => {
     loadVendors();
   }, [loadVendors]);
+
+  const handleDeleteVendor = async () => {
+    if (!vendorToDelete) return;
+    setIsDeleting(true);
+    try {
+      await api.vendors.delete(vendorToDelete.id);
+      setToastMessage(`Vendor boutique "${vendorToDelete.storeName}" has been successfully removed.`);
+      setVendorToDelete(null);
+      loadVendors();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to delete vendor";
+      setToastMessage(msg);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Dynamic status counts
   const counts = useMemo(() => {
@@ -481,17 +500,27 @@ export default function AdminVendorsPage() {
 
                       {/* Actions */}
                       <td className="px-4 sm:px-5 py-0 text-right whitespace-nowrap">
-                        <Link
-                          href={`/admin/vendors/${vendor.id}`}
-                          className={`text-xs font-medium px-2 py-0.5 rounded transition-colors inline-flex items-center gap-0.5 ${
-                            isPending
-                              ? "text-[#FF5A1F] hover:text-[#D94B17] hover:bg-[#FFF0E8]"
-                              : "text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA]"
-                          }`}
-                        >
-                          <span>{isPending ? "Review" : "Manage"}</span>
-                          <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
-                        </Link>
+                        <div className="inline-flex items-center gap-1.5 justify-end">
+                          <Link
+                            href={`/admin/vendors/${vendor.id}`}
+                            className={`text-xs font-medium px-2 py-0.5 rounded transition-colors inline-flex items-center gap-0.5 ${
+                              isPending
+                                ? "text-[#FF5A1F] hover:text-[#D94B17] hover:bg-[#FFF0E8]"
+                                : "text-[#6B6667] hover:text-[#111111] hover:bg-[#F4F1EA]"
+                            }`}
+                          >
+                            <span>{isPending ? "Review" : "Manage"}</span>
+                            <span className="material-symbols-outlined text-[13px]">arrow_forward</span>
+                          </Link>
+                          <button
+                            type="button"
+                            title="Delete Boutique"
+                            onClick={() => setVendorToDelete(vendor)}
+                            className="text-[#9CA3AF] hover:text-[#DC2626] hover:bg-[#FEE2E2] p-1 rounded transition-colors inline-flex items-center"
+                          >
+                            <span className="material-symbols-outlined text-[15px]">delete</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -549,36 +578,62 @@ export default function AdminVendorsPage() {
         </div>
       </div>
 
-      {/* Add Vendor Modal */}
-      {isAddVendorModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4"
-          onClick={() => setIsAddVendorModalOpen(false)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-[10px] border border-[#E4E0DB] max-w-md w-full p-5 shadow-xl space-y-3"
-          >
-            <div>
-              <h3 className="text-base font-semibold text-[#111111]">
-                Add Boutique Vendor
-              </h3>
-              <p className="text-xs text-[#6B6667] mt-1 leading-normal">
-                Boutique onboarding is initiated via the Vendor Portal onboarding flow.
-              </p>
+      {/* Add / Onboard Vendor Modal */}
+      <OnboardVendorModal
+        isOpen={isAddVendorModalOpen}
+        onClose={() => setIsAddVendorModalOpen(false)}
+        onSuccess={(msg) => {
+          setToastMessage(msg);
+          loadVendors();
+        }}
+      />
+
+      {/* Delete Vendor Confirmation Modal */}
+      {vendorToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-[12px] border border-[#E4E0DB] p-6 max-w-md w-full shadow-xl space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#FEE2E2] flex items-center justify-center text-[#DC2626] shrink-0">
+                <span className="material-symbols-outlined text-[20px]">warning</span>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-[#111111]">Remove Vendor Boutique</h3>
+                <p className="text-xs text-[#6B6667]">This action will delete the boutique profile.</p>
+              </div>
             </div>
 
-            <div className="bg-[#F4F1EA] rounded-[8px] p-3 text-xs text-[#6B6667]">
-              Boutique accounts register through partner onboarding and appear in this queue for administrative KYC verification.
-            </div>
+            <p className="text-xs text-[#4B5563] leading-relaxed">
+              Are you sure you want to permanently delete{" "}
+              <strong className="text-[#111111] font-semibold">{vendorToDelete.storeName}</strong>?
+              Associated vendor login credentials and category rates will also be removed.
+            </p>
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E4E0DB]">
+            <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
                 type="button"
-                onClick={() => setIsAddVendorModalOpen(false)}
-                className="px-3.5 py-2 rounded-[8px] bg-[#111111] text-white font-medium text-xs hover:bg-[#333333] transition-colors"
+                disabled={isDeleting}
+                onClick={() => setVendorToDelete(null)}
+                className="px-3.5 py-2 text-xs font-medium text-[#4B5563] hover:text-[#111111] border border-[#E4E0DB] rounded-[8px] bg-white hover:bg-[#F7F7F5] transition-colors"
               >
-                Close
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleDeleteVendor}
+                className="px-4 py-2 text-xs font-medium text-white bg-[#DC2626] hover:bg-[#B91C1C] rounded-[8px] shadow-xs transition-colors flex items-center gap-1.5"
+              >
+                {isDeleting ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[16px]">delete</span>
+                    <span>Delete Boutique</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

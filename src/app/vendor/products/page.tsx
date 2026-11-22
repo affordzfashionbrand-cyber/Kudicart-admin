@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Package,
   Search,
@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { formatINR } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { adminApi } from "@/lib/api";
 
 interface VendorProduct {
   id: string;
@@ -25,12 +26,61 @@ interface VendorProduct {
 }
 
 export default function VendorProductsPage() {
-  const [products] = useState<VendorProduct[]>([]);
+  const [products, setProducts] = useState<VendorProduct[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("ALL");
   const [stockFilter, setStockFilter] = useState("ALL");
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const fetchProducts = async () => {
+    setLoading(true);
+    try {
+      const res = await adminApi.vendorPortal.getProducts();
+      // Mapping API response to VendorProduct
+      setProducts(res.products.map((p: any) => ({
+        id: p.id,
+        name: p.title,
+        sku: p.sku,
+        category: p.category,
+        price: p.sellingPrice,
+        stock: p.stockQuantity,
+        stockStatus: p.stockStatus,
+        listingStatus: p.listingStatus === "ACTIVE" ? "ACTIVE" : "ARCHIVED",
+        sizes: p.specifications?.find((s: any) => s.label === "Size")?.value?.split(",") || [],
+      })));
+    } catch (error) {
+      console.error("Failed to fetch products:", error);
+      handleActionNotice("Failed to load products.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const handleUpdateStock = async (id: string, currentStock: number) => {
+    const newStock = prompt("Enter new stock quantity:", String(currentStock));
+    if (newStock === null) return;
+    
+    const stockNumber = Number(newStock);
+    if (isNaN(stockNumber) || stockNumber < 0) {
+      handleActionNotice("Invalid stock quantity.");
+      return;
+    }
+
+    try {
+      await adminApi.vendorPortal.updateProductStock(id, stockNumber);
+      handleActionNotice("Stock updated successfully.");
+      await fetchProducts();
+    } catch (error) {
+      console.error("Failed to update stock:", error);
+      handleActionNotice("Failed to update stock.");
+    }
+  };
 
   const categoryOptions = useMemo(() => {
     return Array.from(new Set(products.map((p) => p.category).filter(Boolean))).sort();
@@ -175,7 +225,7 @@ export default function VendorProductsPage() {
               Garments &amp; Inventory
             </h2>
             <span className="px-2 py-0.5 rounded-[4px] text-[11px] font-mono bg-[#F4F1EA] text-[#6B6667]">
-              {filteredProducts.length} of {products.length} shown
+              {loading ? "..." : `${filteredProducts.length} of ${products.length} shown`}
             </span>
           </div>
         </div>
@@ -195,22 +245,16 @@ export default function VendorProductsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E4E0DB] text-xs text-[#111111]">
-              {filteredProducts.length === 0 ? (
+              {loading ? (
+                 <tr><td colSpan={8} className="py-8 text-center">Loading...</td></tr>
+              ) : filteredProducts.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-8 text-center">
                     <EmptyState
-                      title={
-                        products.length === 0
-                          ? "Vendor catalog feed awaiting Wave 2 integration"
-                          : "No products found"
-                      }
-                      description={
-                        products.length === 0
-                          ? "Store catalog synchronization and product attributes (O-004) require the Wave 2 vendor portal endpoints."
-                          : "Try adjusting your keyword search or active category filters."
-                      }
-                      actionLabel={products.length > 0 ? "Clear Filters" : undefined}
-                      onAction={products.length > 0 ? clearFilters : undefined}
+                      title="No products found"
+                      description="Try adjusting your keyword search or active category filters."
+                      actionLabel="Clear Filters"
+                      onAction={clearFilters}
                     />
                   </td>
                 </tr>
@@ -275,11 +319,7 @@ export default function VendorProductsPage() {
                     </td>
                     <td className="px-4 text-right whitespace-nowrap">
                       <button
-                        onClick={() =>
-                          handleActionNotice(
-                            "Vendor stock updates require Wave 2 vendor catalog API integration."
-                          )
-                        }
+                        onClick={() => handleUpdateStock(product.id, product.stock)}
                         className="h-7 px-2.5 rounded-[6px] border border-[#E4E0DB] hover:bg-[#F7F7F5] text-xs font-medium text-[#111111] transition-colors"
                       >
                         Adjust Stock

@@ -46,15 +46,21 @@ export interface ProductColor {
   productId?: string;
 }
 
+export interface ProductStockAssignment {
+  hubId: string;
+  stockQuantity: number;
+}
+
 export interface CreateDarkStoreProductInput {
   title: string;
   brand?: string;
   description: string;
   categoryId: string;
-  darkStoreHubId: string;
+  darkStoreHubId?: string;
+  stockQuantity?: number;
+  stockAssignments?: ProductStockAssignment[]; // Multi-store support
   price: number;
   originalPrice: number;
-  stockQuantity: number;
   readyToShip?: boolean;
   sizes: string[];
   fabric?: string;

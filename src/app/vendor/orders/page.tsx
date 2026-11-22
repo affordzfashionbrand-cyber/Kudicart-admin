@@ -295,7 +295,7 @@ function VendorOrdersContent() {
             <thead>
               <tr className="h-10 bg-[#F7F7F5] border-b border-[#E4E0DB] text-xs font-medium text-[#6B6667]">
                 <th className="px-4">Order ID &amp; Time</th>
-                <th className="px-4">Customer &amp; Area</th>
+                <th className="px-4">Recipient Reference &amp; Locality</th>
                 <th className="px-4">Items / Details</th>
                 <th className="px-4">Fulfillment</th>
                 <th className="px-4 text-right">Total Amount</th>
@@ -374,11 +374,22 @@ function VendorOrdersContent() {
                       </td>
                       <td className="px-4">
                         <div className="font-medium text-[#111111]">
-                          {order.customerName}
+                          {order.customerName.startsWith("Customer #")
+                            ? order.customerName
+                            : `Customer #${order.orderNumber.slice(-4)}`}
                         </div>
                         <div className="text-[11px] text-[#6B6667] mt-0.5">
-                          {areaText || order.customerAddress.line1 || "Delivery address"}
+                          {areaText || "Destination Locality"}
                         </div>
+                        {order.assignedDriver && (
+                          <div className="mt-1 inline-flex items-center gap-1 text-[10px] text-[#1D4ED8] font-medium bg-[#EFF6FF] px-1.5 py-0.5 rounded border border-[#BFDBFE]">
+                            <span className="font-semibold">Rider:</span>
+                            <span>{order.assignedDriver.fullName}</span>
+                            {order.assignedDriver.phone && (
+                              <span className="font-mono">({order.assignedDriver.phone})</span>
+                            )}
+                          </div>
+                        )}
                       </td>
                       <td className="px-4 max-w-[240px]">
                         <div className="truncate font-medium text-[#111111]">
@@ -560,23 +571,65 @@ function VendorOrdersContent() {
             <div className="space-y-3 text-xs">
               <div className="p-3 rounded-[8px] bg-[#F7F7F5] border border-[#E4E0DB] flex justify-between items-center gap-4">
                 <div>
-                  <span className="text-[#6B6667] block">Customer:</span>
+                  <span className="text-[#6B6667] block">Recipient Reference:</span>
                   <span className="font-semibold text-[#111111] mt-0.5 block">
-                    {selectedOrder.customerName}
+                    {selectedOrder.customerName.startsWith("Customer #")
+                      ? selectedOrder.customerName
+                      : `Customer #${selectedOrder.orderNumber.slice(-4)}`}
                   </span>
                 </div>
                 <div className="text-right">
-                  <span className="text-[#6B6667] block">Delivery Location:</span>
+                  <span className="text-[#6B6667] block">Delivery Locality:</span>
                   <span className="font-medium text-[#111111] mt-0.5 block">
                     {[
                       selectedOrder.customerAddress.locality,
                       selectedOrder.customerAddress.city,
                     ]
                       .filter(Boolean)
-                      .join(", ") || selectedOrder.customerAddress.line1}
+                      .join(", ") || "Local Delivery Area"}
                   </span>
                 </div>
               </div>
+
+              {/* Assigned Delivery Driver Details */}
+              {selectedOrder.assignedDriver ? (
+                <div className="p-3 rounded-[8px] bg-[#EFF6FF] border border-[#BFDBFE] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[#1D4ED8]">
+                      Assigned Delivery Rider
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-white text-[#1D4ED8] text-[10px] font-mono border border-[#BFDBFE]">
+                      {selectedOrder.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-semibold text-xs text-[#111111]">
+                        {selectedOrder.assignedDriver.fullName}
+                      </div>
+                      <div className="text-[11px] text-[#6B6667]">
+                        {selectedOrder.assignedDriver.vehicleType}
+                        {selectedOrder.assignedDriver.vehicleRegistration
+                          ? ` • ${selectedOrder.assignedDriver.vehicleRegistration}`
+                          : ""}
+                      </div>
+                    </div>
+                    {selectedOrder.assignedDriver.phone && (
+                      <a
+                        href={`tel:${selectedOrder.assignedDriver.phone}`}
+                        className="px-2.5 py-1 rounded-[6px] bg-[#1D4ED8] text-white text-xs font-medium hover:bg-[#1E40AF] transition-colors inline-flex items-center gap-1 shadow-2xs"
+                      >
+                        <span>Call:</span>
+                        <span className="font-mono">{selectedOrder.assignedDriver.phone}</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-[8px] bg-[#F7F7F5] border border-[#E4E0DB] text-[#6B6667] text-[11px]">
+                  Rider will be assigned by Central Ops once marked Ready for Pickup.
+                </div>
+              )}
 
               <div>
                 <span className="text-[11px] font-medium text-[#6B6667] uppercase tracking-wider block mb-2">

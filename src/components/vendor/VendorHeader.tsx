@@ -112,6 +112,29 @@ export function VendorHeader({ onToggleSidebar }: VendorHeaderProps) {
     retry: 1,
   });
 
+  const storeStatusQuery = useQuery({
+    queryKey: ["vendor-store-status"],
+    queryFn: () => api.vendorPortal.getStoreStatus(),
+    enabled: hasToken,
+    staleTime: 15_000,
+    retry: 1,
+  });
+
+  const [togglingStatus, setTogglingStatus] = useState(false);
+
+  const handleToggleStoreStatus = async () => {
+    const currentOnline = storeStatusQuery.data?.isOnline ?? true;
+    setTogglingStatus(true);
+    try {
+      await api.vendorPortal.toggleStoreStatus(!currentOnline);
+      queryClient.invalidateQueries({ queryKey: ["vendor-store-status"] });
+    } catch {
+      // Best-effort
+    } finally {
+      setTogglingStatus(false);
+    }
+  };
+
   const storeName =
     String(vendorAuthQuery.data?.vendor?.storeName || "").trim() ||
     vendorMetaQuery.data?.storeName ||
@@ -254,6 +277,34 @@ export function VendorHeader({ onToggleSidebar }: VendorHeaderProps) {
 
       {/* Right: Notifications & Profile Avatar */}
       <div className="flex items-center gap-2.5 sm:gap-3 shrink-0 justify-end">
+        {/* Live Store Online / Offline Toggle */}
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] border border-[#E4E0DB] bg-[#F7F7F5] text-xs">
+          <span
+            className={`w-2 h-2 rounded-full shrink-0 ${
+              storeStatusQuery.data?.isOnline ? "bg-[#10B981] animate-pulse" : "bg-[#EF4444]"
+            }`}
+          />
+          <span className="font-medium text-[#111111] hidden md:inline">
+            {storeStatusQuery.data?.isOnline ? "Store Online" : "Store Offline"}
+          </span>
+          <button
+            type="button"
+            onClick={handleToggleStoreStatus}
+            disabled={togglingStatus || storeStatusQuery.isLoading}
+            className={`text-[11px] font-semibold px-2 py-0.5 rounded transition-colors ${
+              storeStatusQuery.data?.isOnline
+                ? "bg-[#FEF2F2] text-[#B91C1C] hover:bg-[#FEE2E2]"
+                : "bg-[#ECFDF5] text-[#059669] hover:bg-[#D1FAE5]"
+            } disabled:opacity-50`}
+          >
+            {togglingStatus
+              ? "..."
+              : storeStatusQuery.data?.isOnline
+                ? "Go Offline"
+                : "Go Online"}
+          </button>
+        </div>
+
         {/* Compact Notifications Bell */}
         <div className="relative" ref={notifRef}>
           <button
