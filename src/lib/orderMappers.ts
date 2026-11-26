@@ -51,7 +51,7 @@ export function formatFulfillmentBadgeLabel(order: {
 }): string {
   if (order.isTryAndBuy) return "Try & Buy";
   if (order.fulfillmentType === "VENDOR") return "Vendor Boutique";
-  if (order.fulfillmentType === "DARK_STORE") return "Dark Store (60m)";
+  if (order.fulfillmentType === "DARK_STORE") return "Dark Store (18m)";
   return String(order.fulfillmentType || "Standard");
 }
 

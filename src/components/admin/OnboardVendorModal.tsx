@@ -69,21 +69,10 @@ export function OnboardVendorModal({
         });
         setCommissions(initialMap);
       })
-      .catch(() => {
-        // Fallback default fashion categories if API fails
-        const fallback = [
-          { id: "cat-sarees", name: "Sarees" },
-          { id: "cat-kurtis", name: "Kurtis & Tunics" },
-          { id: "cat-dresses", name: "Dresses & Jumpsuits" },
-          { id: "cat-tops", name: "Tops & Shirts" },
-          { id: "cat-bottoms", name: "Bottom Wear" },
-          { id: "cat-mens", name: "Men's Ethnic" },
-          { id: "cat-accessories", name: "Jewellery & Accessories" },
-        ];
-        setCategories(fallback);
-        const map: Record<string, number> = {};
-        fallback.forEach((c) => (map[c.id] = 12));
-        setCommissions(map);
+      .catch((err: any) => {
+        setCategories([]);
+        setCommissions({});
+        setError(err?.message || "Failed to load categories from backend. Please retry.");
       });
   }, [isOpen]);
 

@@ -291,7 +291,7 @@ export function DeepLinkSelector({
             <label className="text-xs font-medium text-[#2C2B29]">Destination Web URL</label>
             <input
               type="url"
-              placeholder="https://kudicart.in/campaign/diwali-specials"
+              placeholder="https://affordz.in/campaign/diwali-specials"
               value={actionValue || ""}
               onChange={(e) =>
                 onChange({

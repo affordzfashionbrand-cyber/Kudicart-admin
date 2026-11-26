@@ -20,7 +20,7 @@ const COLOR_PRESETS = [
   { name: "OneCard Metal", hex: "#18181B" },
   { name: "Kotak Red", hex: "#ED1C24" },
   { name: "Amex Charcoal", hex: "#262626" },
-  { name: "KudiCart Orange", hex: "#E05A47" },
+  { name: "Affordz Orange", hex: "#E05A47" },
 ];
 
 export function BankOfferModal({

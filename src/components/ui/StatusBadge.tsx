@@ -709,7 +709,7 @@ export function StatusBadge({
             className
           )}
         >
-          Express (60m)
+          Express (18m)
         </span>
       );
     }

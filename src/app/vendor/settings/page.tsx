@@ -169,8 +169,8 @@ export default function VendorSettingsPage() {
           </div>
 
           <p className="text-xs text-[#6B6667]">
-            When the store is closed or outside operating hours, customers will see your products marked as 
-            <span className="font-semibold text-[#111111]"> "Currently unavailable. Please check back when vendor is online"</span>.
+            When the store is closed or outside operating hours, customers will see your products marked as{' '}
+            <span className="font-semibold text-[#111111]">&ldquo;Currently unavailable. Please check back when vendor is online&rdquo;</span>.
           </p>
 
           <div className="divide-y divide-[#E4E0DB] border border-[#E4E0DB] rounded-[8px] overflow-hidden text-xs">

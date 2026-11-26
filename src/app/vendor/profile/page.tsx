@@ -18,6 +18,18 @@ function computeInitials(name: string): string {
   return (parts[0]?.slice(0, 2) || "VS").toUpperCase();
 }
 
+function formatOperatingHoursSummary(hours: any): string {
+  if (!hours || typeof hours !== "object") return "Managed via Store Settings";
+  const openDays = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+    .map((day) => {
+      const entry = hours[day];
+      if (!entry || entry.isOpen === false) return null;
+      return `${day.slice(0, 3).toUpperCase()} ${entry.open || "10:00"}–${entry.close || "21:00"}`;
+    })
+    .filter(Boolean);
+  return openDays.length > 0 ? openDays.join(" • ") : "Currently Closed (see Store Settings)";
+}
+
 export default function VendorProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -60,9 +72,11 @@ export default function VendorProfilePage() {
       }));
     }
 
-    api.vendorAuth
-      .getProfile()
-      .then((res) => {
+    Promise.all([
+      api.vendorAuth.getProfile(),
+      api.vendorPortal.getStoreStatus().catch(() => null),
+    ])
+      .then(([res, statusRes]) => {
         if (cancelled) return;
         const user = (res?.user || {}) as Record<string, any>;
         const vendor = (res?.vendor || {}) as Record<string, any>;
@@ -78,6 +92,9 @@ export default function VendorProfilePage() {
           cityLabel: String(vendor.operatingHub || prev.cityLabel),
           tagline: String(vendor.category || prev.tagline),
           tier: String(vendor.status || prev.tier),
+          operatingHours: statusRes?.operatingHours
+            ? formatOperatingHoursSummary(statusRes.operatingHours)
+            : prev.operatingHours,
         }));
       })
       .catch(() => {})
