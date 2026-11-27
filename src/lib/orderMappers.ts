@@ -1,11 +1,14 @@
 import {
   CANONICAL_ORDER_STATUSES,
+  DELIVERY_ASSIGNMENT_STATUSES,
   FULFILLMENT_TYPES,
   PAYMENT_METHODS,
   PAYMENT_STATUSES,
+  DeliveryAssignmentStatus,
   Order,
   OrderItem,
   OrderStatus,
+  OrderType,
   OrderStatusHistoryItem,
   PaymentMethod,
   PaymentStatus,
@@ -18,6 +21,16 @@ function normalizeOrderStatus(raw: unknown): OrderStatus {
     return value as OrderStatus;
   }
   return "PLACED";
+}
+
+function normalizeAssignmentStatus(raw: unknown, hasDriver: boolean, orderStatus: OrderStatus): DeliveryAssignmentStatus {
+  const value = String(raw || "").toUpperCase();
+  if ((DELIVERY_ASSIGNMENT_STATUSES as readonly string[]).includes(value)) {
+    return value as DeliveryAssignmentStatus;
+  }
+  if (orderStatus === "DELIVERED" || orderStatus === "RETURNED") return "COMPLETED";
+  if (hasDriver) return "ASSIGNED";
+  return "NOT_ASSIGNED";
 }
 
 function normalizePaymentMethod(raw: unknown): PaymentMethod {
@@ -110,6 +123,11 @@ export function mapBackendOrderToWebOrder(raw: any): Order {
   );
 
   const tnb = raw?.tryAndBuySession || raw?.tryAndBuyDetails || null;
+  const normalizedStatus = normalizeOrderStatus(raw?.status);
+  const orderType: OrderType =
+    raw?.orderType === "TRY_AND_BUY" || Boolean(raw?.isTryAndBuy)
+      ? "TRY_AND_BUY"
+      : "STANDARD";
 
   return {
     id: String(raw?.id || ""),
@@ -144,7 +162,15 @@ export function mapBackendOrderToWebOrder(raw: any): Order {
     vendorName,
     pickupHub: String(raw?.pickupHub || vendorName),
     pickupAddress,
-    status: normalizeOrderStatus(raw?.status),
+    status: normalizedStatus,
+    orderType,
+    deliveryAssignmentStatus: normalizeAssignmentStatus(
+      raw?.deliveryAssignmentStatus || raw?.dispatchAssignment?.assignmentStatus,
+      hasDriver,
+      normalizedStatus
+    ),
+    assignmentFailureReason:
+      raw?.assignmentFailureReason || raw?.dispatchAssignment?.failureReason || null,
     paymentMethod: normalizePaymentMethod(raw?.paymentMethod),
     paymentStatus: normalizePaymentStatus(raw?.paymentStatus),
     razorpayOrderId: raw?.razorpayOrderId ?? null,
@@ -158,9 +184,16 @@ export function mapBackendOrderToWebOrder(raw: any): Order {
     discountAmount: Math.round(Number(raw?.discountAmount ?? 0)),
     couponCode: raw?.couponCode ?? null,
     grandTotal: Math.round(Number(raw?.grandTotal ?? 0)),
-    isTryAndBuy: Boolean(raw?.isTryAndBuy),
+    isTryAndBuy: Boolean(raw?.isTryAndBuy || orderType === "TRY_AND_BUY"),
+    acceptedAt: raw?.acceptedAt ?? null,
+    packingStartedAt: raw?.packingStartedAt ?? null,
+    readyForPickupAt: raw?.readyForPickupAt ?? null,
+    pickedUpAt: raw?.pickedUpAt ?? null,
+    tryAndBuyStartedAt: raw?.tryAndBuyStartedAt ?? null,
     arrivedAt: raw?.arrivedAt ?? null,
     deliveredAt: raw?.deliveredAt ?? null,
+    returnedAt: raw?.returnedAt ?? null,
+    returnReason: raw?.returnReason ?? null,
     cancelledAt: raw?.cancelledAt ?? null,
     cancellationReason: raw?.cancellationReason ?? null,
     rejectedByVendor: Boolean(raw?.rejectedByVendor),
@@ -175,6 +208,7 @@ export function mapBackendOrderToWebOrder(raw: any): Order {
       ? raw.verificationPhotos.map(String).filter(Boolean)
       : [],
     tryAndBuySession: raw?.tryAndBuySession ?? null,
+    dispatchAssignment: raw?.dispatchAssignment ?? null,
     tryAndBuyDetails: tnb
       ? {
           stage: String(tnb.stage || "HANDOVER_PENDING"),
@@ -226,10 +260,12 @@ export interface CanonicalOrderStats {
   placed: number;
   accepted: number;
   preparing: number;
+  packing: number;
   readyForPickup: number;
   assigned: number;
   pickedUp: number;
   outForDelivery: number;
+  tryAndBuy: number;
   delivered: number;
   returning: number;
   returned: number;
@@ -244,11 +280,22 @@ export function calculateCanonicalOrderStats(
     all: orders.length,
     placed: orders.filter((o) => o.status === "PLACED").length,
     accepted: orders.filter((o) => o.status === "ACCEPTED").length,
-    preparing: orders.filter((o) => o.status === "PREPARING").length,
+    preparing: orders.filter(
+      (o) => o.status === "PACKING" || o.status === "PREPARING"
+    ).length,
+    packing: orders.filter(
+      (o) => o.status === "PACKING" || o.status === "PREPARING"
+    ).length,
     readyForPickup: orders.filter((o) => o.status === "READY_FOR_PICKUP").length,
-    assigned: orders.filter((o) => o.status === "ASSIGNED").length,
+    assigned: orders.filter(
+      (o) =>
+        o.status === "ASSIGNED" ||
+        o.deliveryAssignmentStatus === "ASSIGNED" ||
+        o.deliveryAssignmentStatus === "ACCEPTED_BY_DELIVERY_PARTNER"
+    ).length,
     pickedUp: orders.filter((o) => o.status === "PICKED_UP").length,
     outForDelivery: orders.filter((o) => o.status === "OUT_FOR_DELIVERY").length,
+    tryAndBuy: orders.filter((o) => o.status === "TRY_AND_BUY").length,
     delivered: orders.filter((o) => o.status === "DELIVERED").length,
     returning: orders.filter((o) => o.status === "RETURNING").length,
     returned: orders.filter((o) => o.status === "RETURNED").length,

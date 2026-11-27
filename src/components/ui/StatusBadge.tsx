@@ -6,6 +6,7 @@ interface StatusBadgeProps {
   status: OrderStatus | PaymentStatus | string;
   variant?:
     | "order"
+    | "assignment"
     | "payment"
     | "kyc"
     | "driver"
@@ -31,6 +32,50 @@ export function StatusBadge({
 }: StatusBadgeProps) {
   // Normalize string for comparison
   const normalized = String(status).toUpperCase();
+
+  if (variant === "assignment") {
+    switch (normalized) {
+      case "ASSIGNED":
+        return (
+          <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#EFF6FF] text-[#1D4ED8] border border-[#BFDBFE]", className)}>
+            Partner Assigned
+          </span>
+        );
+      case "ACCEPTED_BY_DELIVERY_PARTNER":
+        return (
+          <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0]", className)}>
+            Partner Accepted
+          </span>
+        );
+      case "COMPLETED":
+        return (
+          <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#ECFDF5] text-[#20885A] border border-[#A7F3D0]", className)}>
+            Assignment Completed
+          </span>
+        );
+      case "ASSIGNMENT_PENDING":
+      case "REASSIGNMENT_PENDING":
+        return (
+          <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#FFFBEB] text-[#B45309] border border-[#FDE68A]", className)}>
+            {normalized === "REASSIGNMENT_PENDING" ? "Reassignment Pending" : "Assignment Pending"}
+          </span>
+        );
+      case "REJECTED_BY_DELIVERY_PARTNER":
+      case "FAILED":
+        return (
+          <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#FEF2F2] text-[#B91C1C] border border-[#FECACA]", className)}>
+            {normalized === "REJECTED_BY_DELIVERY_PARTNER" ? "Rejected by Partner" : "Assignment Failed"}
+          </span>
+        );
+      case "NOT_ASSIGNED":
+      default:
+        return (
+          <span className={cn("inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#F7F7F5] text-[#6B6667] border border-[#E4E0DB]", className)}>
+            Not Assigned
+          </span>
+        );
+    }
+  }
 
   // Order status badge styling
   if (variant === "order") {
@@ -68,15 +113,16 @@ export function StatusBadge({
             Accepted
           </span>
         );
+      case "PACKING":
       case "PREPARING":
         return (
           <span
             className={cn(
-              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#F7F7F5] text-[#6B6667] border border-[#E4E0DB]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#EFF6FF] text-[#1D4ED8] border border-[#BFDBFE]",
               className
             )}
           >
-            Preparing
+            Packing
           </span>
         );
       case "ASSIGNED":
@@ -87,7 +133,7 @@ export function StatusBadge({
               className
             )}
           >
-            Assigned
+            Ready (Assigned)
           </span>
         );
       case "PICKED_UP":
@@ -106,11 +152,22 @@ export function StatusBadge({
         return (
           <span
             className={cn(
-              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#F4F1EA] text-[#475569] border border-[#E4E0DB]",
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#FFF7ED] text-[#C2410C] border border-[#FED7AA]",
               className
             )}
           >
-            In Transit
+            Out for Delivery
+          </span>
+        );
+      case "TRY_AND_BUY":
+        return (
+          <span
+            className={cn(
+              "inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-[#F3E8FF] text-[#6B21A8] border border-[#E9D5FF]",
+              className
+            )}
+          >
+            Try &amp; Buy
           </span>
         );
       case "DELIVERED":

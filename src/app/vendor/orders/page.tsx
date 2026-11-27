@@ -18,6 +18,7 @@ import { formatINR } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { adminApi } from "@/lib/api";
+import { useRealtimeOrderFeed } from "@/hooks/useRealtimeOrderFeed";
 import {
   formatFulfillmentBadgeLabel,
   mapBackendOrderToWebOrder,
@@ -28,11 +29,10 @@ const VENDOR_TABS: { id: string; label: string }[] = [
   { id: "ALL", label: "All Orders" },
   { id: "PLACED", label: "New (Placed)" },
   { id: "ACCEPTED", label: "Accepted" },
-  { id: "PREPARING", label: "Preparing" },
+  { id: "PACKING", label: "Packing" },
   { id: "READY_FOR_PICKUP", label: "Ready for Pickup" },
-  { id: "ASSIGNED", label: "Assigned" },
-  { id: "PICKED_UP", label: "Picked Up" },
   { id: "OUT_FOR_DELIVERY", label: "Out for Delivery" },
+  { id: "TRY_AND_BUY", label: "Try & Buy" },
   { id: "DELIVERED", label: "Delivered" },
   { id: "RETURNING", label: "Returning" },
   { id: "RETURNED", label: "Returned" },
@@ -41,6 +41,7 @@ const VENDOR_TABS: { id: string; label: string }[] = [
 ];
 
 function VendorOrdersContent() {
+  useRealtimeOrderFeed(true);
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const urlSearchParam = searchParams.get("search");
@@ -66,9 +67,9 @@ function VendorOrdersContent() {
   };
 
   const ordersQuery = useQuery({
-    queryKey: ["vendor-orders", "queue", activeTab],
+    queryKey: ["vendor-orders", "queue"],
     queryFn: async () => {
-      const res = await adminApi.vendorOrders.list(activeTab);
+      const res = await adminApi.vendorOrders.list();
       return {
         storeName: res.storeName,
         orders: res.orders.map(mapBackendOrderToWebOrder),
@@ -89,17 +90,20 @@ function VendorOrdersContent() {
       reason,
     }: {
       order: Order;
-      nextStatus: "ACCEPTED" | "PREPARING" | "READY_FOR_PICKUP" | "CANCELLED";
+      nextStatus: "ACCEPTED" | "PACKING" | "PREPARING" | "READY_FOR_PICKUP" | "RETURNED" | "CANCELLED";
       reason?: string;
     }) => {
       if (nextStatus === "ACCEPTED") {
         return adminApi.vendorOrders.accept(order.id);
       }
-      if (nextStatus === "PREPARING") {
+      if (nextStatus === "PACKING" || nextStatus === "PREPARING") {
         return adminApi.vendorOrders.prepare(order.id);
       }
       if (nextStatus === "READY_FOR_PICKUP") {
         return adminApi.vendorOrders.readyForPickup(order.id);
+      }
+      if (nextStatus === "RETURNED") {
+        return adminApi.vendorOrders.reconcileReturn(order.id, reason || "Vendor verified returned items");
       }
       return adminApi.vendorOrders.reject(
         order.id,
@@ -109,13 +113,14 @@ function VendorOrdersContent() {
     },
     onSuccess: (updatedRaw, variables) => {
       queryClient.invalidateQueries({ queryKey: ["vendor-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["vendor-header-meta"] });
       const mapped = mapBackendOrderToWebOrder(updatedRaw);
       if (selectedOrder && selectedOrder.id === mapped.id) {
         setSelectedOrder(mapped);
       }
       setRejectTarget(null);
       setRejectReason("");
-      showToast(`Order #${variables.order.orderNumber} updated to ${variables.nextStatus}.`);
+      showToast(`Order #${variables.order.orderNumber} updated to ${mapped.status}.`);
     },
     onError: (err: any) => {
       showToast(err?.message || "Order transition failed.", "error");
@@ -137,6 +142,9 @@ function VendorOrdersContent() {
         }
       }
       if (activeTab === "ALL") return true;
+      if (activeTab === "PACKING") {
+        return o.status === "PACKING" || o.status === "PREPARING";
+      }
       return o.status === activeTab;
     });
   }, [orders, activeTab, searchTerm]);
@@ -153,7 +161,7 @@ function VendorOrdersContent() {
 
   const handleTransition = (
     order: Order,
-    nextStatus: "ACCEPTED" | "PREPARING" | "READY_FOR_PICKUP"
+    nextStatus: "ACCEPTED" | "PACKING" | "PREPARING" | "READY_FOR_PICKUP" | "RETURNED"
   ) => {
     transitionMutation.mutate({ order, nextStatus });
   };
@@ -420,7 +428,12 @@ function VendorOrdersContent() {
                         {formatINR(order.grandTotal)}
                       </td>
                       <td className="px-4 text-center whitespace-nowrap">
-                        <StatusBadge status={order.status} variant="order" />
+                        <div className="flex flex-col items-center gap-1 py-1">
+                          <StatusBadge status={order.status} variant="order" />
+                          {order.status !== "PLACED" && (
+                            <StatusBadge status={order.deliveryAssignmentStatus} variant="assignment" />
+                          )}
+                        </div>
                       </td>
                       <td className="px-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
@@ -453,14 +466,14 @@ function VendorOrdersContent() {
                             <button
                               disabled={isBusy}
                               onClick={() =>
-                                handleTransition(order, "PREPARING")
+                                handleTransition(order, "PACKING")
                               }
                               className="h-7 px-2.5 rounded-[6px] bg-[#111111] hover:bg-[#333333] text-white text-xs font-medium transition-colors disabled:opacity-50"
                             >
-                              Start Prep
+                              Start Packing
                             </button>
                           )}
-                          {order.status === "PREPARING" && (
+                          {(order.status === "PACKING" || order.status === "PREPARING") && (
                             <button
                               disabled={isBusy}
                               onClick={() =>
@@ -470,6 +483,17 @@ function VendorOrdersContent() {
                             >
                               <CheckCheck className="w-3.5 h-3.5" />
                               <span>Mark Ready</span>
+                            </button>
+                          )}
+                          {order.status === "RETURNING" && (
+                            <button
+                              disabled={isBusy}
+                              onClick={() =>
+                                handleTransition(order, "RETURNED")
+                              }
+                              className="h-7 px-2.5 rounded-[6px] bg-[#6D28D9] hover:bg-[#5B21B6] text-white text-xs font-medium transition-colors disabled:opacity-50"
+                            >
+                              Confirm Return
                             </button>
                           )}
                           <button
@@ -591,13 +615,6 @@ function VendorOrdersContent() {
                 </div>
               </div>
 
-              {selectedOrder.deliveryInstructions && (
-                <div className="p-2.5 rounded-[8px] bg-[#FFF0E8]/70 border border-[#FF5A1F]/25 text-[11.5px] text-[#111111]">
-                  <span className="font-semibold text-[#D94B17]">Delivery Preferences: </span>
-                  <span>{selectedOrder.deliveryInstructions}</span>
-                </div>
-              )}
-
               {/* Delivery Preferences */}
               {selectedOrder.deliveryInstructions && (
                 <div className="p-3 rounded-[8px] bg-[#FFF7ED] border border-[#FED7AA]">
@@ -617,9 +634,7 @@ function VendorOrdersContent() {
                     <span className="text-[11px] font-semibold uppercase tracking-wider text-[#1D4ED8]">
                       Assigned Delivery Rider
                     </span>
-                    <span className="px-1.5 py-0.5 rounded bg-white text-[#1D4ED8] text-[10px] font-mono border border-[#BFDBFE]">
-                      {selectedOrder.status}
-                    </span>
+                    <StatusBadge status={selectedOrder.deliveryAssignmentStatus} variant="assignment" />
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
@@ -645,8 +660,30 @@ function VendorOrdersContent() {
                   </div>
                 </div>
               ) : (
-                <div className="p-2.5 rounded-[8px] bg-[#F7F7F5] border border-[#E4E0DB] text-[#6B6667] text-[11px]">
-                  Rider will be assigned by Central Ops once marked Ready for Pickup.
+                <div className="p-2.5 rounded-[8px] bg-[#F7F7F5] border border-[#E4E0DB] flex items-center justify-between gap-2 text-[11px] text-[#6B6667]">
+                  <span>
+                    {selectedOrder.assignmentFailureReason ||
+                      "Automatic delivery partner dispatch runs when order is accepted."}
+                  </span>
+                  <StatusBadge status={selectedOrder.deliveryAssignmentStatus} variant="assignment" />
+                </div>
+              )}
+
+              {selectedOrder.isTryAndBuy && selectedOrder.tryAndBuyDetails && (
+                <div className="p-3 rounded-[8px] bg-[#F5F3FF] border border-[#DDD6FE] space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-[#6D28D9]">Try &amp; Buy Stage</span>
+                    <span className="font-mono text-[11px] text-[#5B21B6]">
+                      {selectedOrder.tryAndBuyDetails.stage}
+                    </span>
+                  </div>
+                  <div className="flex gap-4 text-[11px] text-[#4C1D95]">
+                    <span>Kept: {selectedOrder.tryAndBuySession?.keptItemIds?.length ?? 0}</span>
+                    <span>Returned: {selectedOrder.tryAndBuySession?.returnedItemIds?.length ?? 0}</span>
+                    {selectedOrder.tryAndBuyDetails.returnManifestId && (
+                      <span className="font-mono">Manifest: {selectedOrder.tryAndBuyDetails.returnManifestId}</span>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -706,13 +743,13 @@ function VendorOrdersContent() {
                 {selectedOrder.status === "ACCEPTED" && (
                   <button
                     disabled={transitionMutation.isPending}
-                    onClick={() => handleTransition(selectedOrder, "PREPARING")}
+                    onClick={() => handleTransition(selectedOrder, "PACKING")}
                     className="px-3.5 py-1.5 bg-[#111111] hover:bg-[#333333] text-white rounded-[8px] text-xs font-medium transition-colors"
                   >
-                    Start Prep
+                    Start Packing
                   </button>
                 )}
-                {selectedOrder.status === "PREPARING" && (
+                {(selectedOrder.status === "PACKING" || selectedOrder.status === "PREPARING") && (
                   <button
                     disabled={transitionMutation.isPending}
                     onClick={() =>
@@ -721,6 +758,15 @@ function VendorOrdersContent() {
                     className="px-3.5 py-1.5 bg-[#FF5A1F] hover:bg-[#D94B17] text-white rounded-[8px] text-xs font-medium transition-colors"
                   >
                     Mark Ready for Pickup
+                  </button>
+                )}
+                {selectedOrder.status === "RETURNING" && (
+                  <button
+                    disabled={transitionMutation.isPending}
+                    onClick={() => handleTransition(selectedOrder, "RETURNED")}
+                    className="px-3.5 py-1.5 bg-[#6D28D9] hover:bg-[#5B21B6] text-white rounded-[8px] text-xs font-medium transition-colors"
+                  >
+                    Confirm Return
                   </button>
                 )}
                 <button

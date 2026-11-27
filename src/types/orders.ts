@@ -1,5 +1,7 @@
 import type {
   OrderStatus,
+  OrderType,
+  DeliveryAssignmentStatus,
   PaymentMethod,
   PaymentStatus,
   FulfillmentType,
@@ -7,10 +9,13 @@ import type {
   TryAndBuyDecision,
   ReturnCondition,
   TryAndBuySessionContract,
+  DispatchAssignmentContract,
 } from '@/contracts/order-contracts';
 
 export {
   CANONICAL_ORDER_STATUSES,
+  ORDER_TYPES,
+  DELIVERY_ASSIGNMENT_STATUSES,
   PAYMENT_METHODS,
   PAYMENT_STATUSES,
   FULFILLMENT_TYPES,
@@ -19,10 +24,14 @@ export {
   TERMINAL_ORDER_STATUSES,
   VALID_ORDER_TRANSITIONS,
   ORDER_TRANSITION_ROLES,
+  getCustomerOrderStatusLabel,
+  getDeliveryAssignmentLabel,
 } from '@/contracts/order-contracts';
 
 export type {
   OrderStatus,
+  OrderType,
+  DeliveryAssignmentStatus,
   PaymentMethod,
   PaymentStatus,
   FulfillmentType,
@@ -30,6 +39,7 @@ export type {
   TryAndBuyDecision,
   ReturnCondition,
   TryAndBuySessionContract,
+  DispatchAssignmentContract,
 };
 
 export interface OrderItem {
@@ -94,6 +104,9 @@ export interface Order {
   pickupHub: string;
   pickupAddress: string;
   status: OrderStatus;
+  orderType: OrderType;
+  deliveryAssignmentStatus: DeliveryAssignmentStatus;
+  assignmentFailureReason?: string | null;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   razorpayOrderId?: string | null;
@@ -108,8 +121,15 @@ export interface Order {
   couponCode?: string | null;
   grandTotal: number;
   isTryAndBuy: boolean;
+  acceptedAt?: string | null;
+  packingStartedAt?: string | null;
+  readyForPickupAt?: string | null;
+  pickedUpAt?: string | null;
+  tryAndBuyStartedAt?: string | null;
   arrivedAt?: string | null;
   deliveredAt?: string | null;
+  returnedAt?: string | null;
+  returnReason?: string | null;
   cancelledAt?: string | null;
   cancellationReason?: string | null;
   rejectedByVendor?: boolean;
@@ -120,6 +140,7 @@ export interface Order {
   gstBusinessName?: string | null;
   verificationPhotos?: string[];
   tryAndBuySession?: TryAndBuySessionContract | null;
+  dispatchAssignment?: DispatchAssignmentContract | null;
   tryAndBuyDetails?: {
     stage: TryAndBuyStage | string;
     trialDurationMinutes: number;

@@ -39,7 +39,7 @@ import {
 } from "./firebase";
 import { captureClientError } from "./sentry";
 
-const API_BASE_URL =
+export const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
 
 const TOKEN_KEY = "kudicart_admin_token";
@@ -742,6 +742,48 @@ export const api = {
         }
       );
     },
+    accept: async (orderId: string) => {
+      return request<{ success: boolean; order: any }>(
+        `/admin/orders/${orderId}/accept`,
+        { method: "POST" }
+      );
+    },
+    prepare: async (orderId: string) => {
+      return request<{ success: boolean; order: any }>(
+        `/admin/orders/${orderId}/prepare`,
+        { method: "POST" }
+      );
+    },
+    readyForPickup: async (orderId: string) => {
+      return request<{ success: boolean; order: any }>(
+        `/admin/orders/${orderId}/ready-for-pickup`,
+        { method: "POST" }
+      );
+    },
+    cancel: async (orderId: string, reason?: string, expectedVersion?: number) => {
+      return request<{ success: boolean; order: any }>(
+        `/admin/orders/${orderId}/cancel`,
+        {
+          method: "POST",
+          body: JSON.stringify({ reason, expectedVersion }),
+        }
+      );
+    },
+    retryAssignment: async (orderId: string) => {
+      return request<{ success: boolean; assignmentResult: any; order: any }>(
+        `/admin/orders/${orderId}/retry-assignment`,
+        { method: "POST" }
+      );
+    },
+    reconcileReturn: async (orderId: string, note?: string) => {
+      return request<{ success: boolean; order: any }>(
+        `/admin/orders/${orderId}/reconcile-return`,
+        {
+          method: "POST",
+          body: JSON.stringify({ note }),
+        }
+      );
+    },
   },
 
   assignments: {
@@ -752,6 +794,7 @@ export const api = {
         total: number;
         readyCount: number;
         assignedCount: number;
+        failedCount?: number;
       }>(`/admin/assignments${qs ? `?${qs}` : ""}`);
     },
     assign: async (orderId: string, driverId: string) => {
@@ -1087,6 +1130,12 @@ export const api = {
       return request<any>(`/vendor/orders/${id}/reject`, {
         method: "POST",
         body: JSON.stringify({ reason, expectedVersion }),
+      });
+    },
+    reconcileReturn: async (id: string, note?: string) => {
+      return request<any>(`/vendor/orders/${id}/reconcile-return`, {
+        method: "POST",
+        body: JSON.stringify({ note }),
       });
     },
   },

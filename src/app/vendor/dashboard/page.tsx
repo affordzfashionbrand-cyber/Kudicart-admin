@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { formatINR } from "@/lib/utils";
 import { adminApi } from "@/lib/api";
+import { useRealtimeOrderFeed } from "@/hooks/useRealtimeOrderFeed";
 import {
   exportOrdersListToCSV,
   mapBackendOrderToWebOrder,
@@ -31,6 +32,7 @@ const DOWNSTREAM_TRANSIT_STATUSES: readonly OrderStatus[] = [
   "ASSIGNED",
   "PICKED_UP",
   "OUT_FOR_DELIVERY",
+  "TRY_AND_BUY",
   "DELIVERED",
   "RETURNING",
   "RETURNED",
@@ -48,6 +50,7 @@ function formatRelativeOrderTime(iso: string): string {
 }
 
 export default function VendorDashboardPage() {
+  useRealtimeOrderFeed(true);
   const queryClient = useQueryClient();
   const [activeFilter, setActiveFilter] = useState<string>("ALL");
   const [toastMessage, setToastMessage] = useState<{
@@ -91,13 +94,14 @@ export default function VendorDashboardPage() {
       if (action === "PREPARE") return adminApi.vendorOrders.prepare(orderId);
       return adminApi.vendorOrders.readyForPickup(orderId);
     },
-    onSuccess: (_data, variables) => {
+    onSuccess: (updatedRaw, variables) => {
       queryClient.invalidateQueries({ queryKey: ["vendor-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["vendor-header-meta"] });
       const label =
         variables.action === "ACCEPT"
           ? "ACCEPTED"
           : variables.action === "PREPARE"
-          ? "PREPARING"
+          ? "PACKING"
           : "READY_FOR_PICKUP";
       showToast(`Order transitioned to ${label}.`);
     },
@@ -108,7 +112,7 @@ export default function VendorDashboardPage() {
 
   const counts = useMemo(() => {
     const placed = orders.filter((o) => o.status === "PLACED").length;
-    const preparing = orders.filter((o) => o.status === "PREPARING").length;
+    const preparing = orders.filter((o) => o.status === "PACKING" || o.status === "PREPARING").length;
     const readyForPickup = orders.filter(
       (o) => o.status === "READY_FOR_PICKUP"
     ).length;
@@ -139,7 +143,7 @@ export default function VendorDashboardPage() {
     return orders.filter((o) => {
       if (activeFilter === "PLACED") return o.status === "PLACED";
       if (activeFilter === "PREPARING") {
-        return o.status === "ACCEPTED" || o.status === "PREPARING";
+        return o.status === "ACCEPTED" || o.status === "PACKING" || o.status === "PREPARING";
       }
       if (activeFilter === "READY_FOR_PICKUP") {
         return o.status === "READY_FOR_PICKUP";
@@ -510,7 +514,7 @@ export default function VendorDashboardPage() {
                             Start Prep
                           </button>
                         )}
-                        {order.status === "PREPARING" && (
+                        {(order.status === "PACKING" || order.status === "PREPARING") && (
                           <button
                             disabled={isBusy}
                             onClick={() =>
@@ -527,7 +531,9 @@ export default function VendorDashboardPage() {
                         )}
                         {order.status === "READY_FOR_PICKUP" && (
                           <span className="text-[11px] text-[#B45309] font-medium">
-                            Awaiting Admin Rider
+                            {order.assignedDriver
+                              ? `Rider: ${order.assignedDriver.fullName}`
+                              : "Awaiting Rider Assignment"}
                           </span>
                         )}
                         {DOWNSTREAM_TRANSIT_STATUSES.includes(order.status) && (

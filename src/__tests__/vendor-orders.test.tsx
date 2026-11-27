@@ -131,7 +131,9 @@ describe("Vendor Orders 12-State Queue, Instructions & Transitions", () => {
     expect(screen.getByText(/Note: Call customer on arrival at gate B/i)).toBeInTheDocument();
 
     // Check newly added canonical tabs exist
-    expect(screen.getByRole("button", { name: /^Picked Up/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Packing/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Out for Delivery/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Try & Buy/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Returning/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Returned/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Failed/i })).toBeInTheDocument();

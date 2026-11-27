@@ -8,14 +8,16 @@ import { DeliveryPartner } from "@/types/drivers";
 import { mapBackendOrderToWebOrder } from "@/lib/orderMappers";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ManualDeliveryAssignmentDrawer } from "@/components/admin/ManualDeliveryAssignmentDrawer";
+import { useRealtimeOrderFeed } from "@/hooks/useRealtimeOrderFeed";
 import { formatINR } from "@/lib/utils";
 import { api } from "@/lib/api";
 
-type AssignmentTab = "READY" | "ASSIGNED" | "ALL";
+type AssignmentTab = "FAILED" | "READY" | "ASSIGNED" | "ALL";
 
 export default function AdminAssignmentsPage() {
+  useRealtimeOrderFeed(true);
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<AssignmentTab>("READY");
+  const [activeTab, setActiveTab] = useState<AssignmentTab>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -41,11 +43,21 @@ export default function AdminAssignmentsPage() {
     [assignmentsQuery.data]
   );
 
+  const isFailedOrPending = (o: Order) =>
+    ["FAILED", "ASSIGNMENT_PENDING", "REASSIGNMENT_PENDING", "REJECTED_BY_DELIVERY_PARTNER", "NOT_ASSIGNED"].includes(
+      o.deliveryAssignmentStatus
+    );
+
+  const isAssignedPartner = (o: Order) =>
+    o.deliveryAssignmentStatus === "ASSIGNED" ||
+    o.deliveryAssignmentStatus === "ACCEPTED_BY_DELIVERY_PARTNER";
+
   // Filter orders
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
-      if (activeTab === "READY" && order.status !== "READY_FOR_PICKUP") return false;
-      if (activeTab === "ASSIGNED" && order.status !== "ASSIGNED") return false;
+      if (activeTab === "FAILED" && !isFailedOrPending(order)) return false;
+      if (activeTab === "READY" && (order.status !== "READY_FOR_PICKUP" || isAssignedPartner(order))) return false;
+      if (activeTab === "ASSIGNED" && !isAssignedPartner(order)) return false;
 
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -60,12 +72,28 @@ export default function AdminAssignmentsPage() {
     });
   }, [orders, activeTab, searchQuery]);
 
-  const readyCount = useMemo(() => orders.filter((o) => o.status === "READY_FOR_PICKUP").length, [orders]);
-  const assignedCount = useMemo(() => orders.filter((o) => o.status === "ASSIGNED").length, [orders]);
+  const failedCount = useMemo(() => orders.filter(isFailedOrPending).length, [orders]);
+  const readyCount = useMemo(() => orders.filter((o) => o.status === "READY_FOR_PICKUP" && !isAssignedPartner(o)).length, [orders]);
+  const assignedCount = useMemo(() => orders.filter(isAssignedPartner).length, [orders]);
 
   const handleOpenAssign = (order: Order) => {
     setSelectedOrder(order);
     setIsDrawerOpen(true);
+  };
+
+  const handleRetryAutoAssign = async (orderId: string) => {
+    try {
+      const res = await api.orders.retryAssignment(orderId);
+      if (res.success) {
+        showToast("Delivery partner automatically assigned.");
+      } else {
+        showToast("Still no eligible online delivery partner available.");
+      }
+      await queryClient.invalidateQueries({ queryKey: ["admin-assignments"] });
+      await queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+    } catch (err: any) {
+      showToast(err?.message || "Retry auto-assignment failed.");
+    }
   };
 
   const handleConfirmAssignment = async (orderId: string, driver: DeliveryPartner) => {
@@ -118,6 +146,28 @@ export default function AdminAssignmentsPage() {
         <div className="flex items-center gap-1.5 overflow-x-auto">
           <button
             type="button"
+            onClick={() => setActiveTab("ALL")}
+            className={`px-3 py-1.5 rounded-[8px] text-xs font-medium transition-colors ${
+              activeTab === "ALL"
+                ? "bg-[#111111] text-white"
+                : "text-[#6B6667] hover:bg-[#F4F1EA] hover:text-[#111111]"
+            }`}
+          >
+            All Active ({orders.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("FAILED")}
+            className={`px-3 py-1.5 rounded-[8px] text-xs font-medium transition-colors ${
+              activeTab === "FAILED"
+                ? "bg-[#DA1E28] text-white"
+                : "text-[#B91C1C] hover:bg-[#FEF2F2]"
+            }`}
+          >
+            Needs Partner / Failed ({failedCount})
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab("READY")}
             className={`px-3 py-1.5 rounded-[8px] text-xs font-medium transition-colors ${
               activeTab === "READY"
@@ -125,7 +175,7 @@ export default function AdminAssignmentsPage() {
                 : "text-[#6B6667] hover:bg-[#F4F1EA] hover:text-[#111111]"
             }`}
           >
-            Ready for Pickup ({readyCount})
+            Ready Unassigned ({readyCount})
           </button>
           <button
             type="button"
@@ -137,17 +187,6 @@ export default function AdminAssignmentsPage() {
             }`}
           >
             Assigned ({assignedCount})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("ALL")}
-            className={`px-3 py-1.5 rounded-[8px] text-xs font-medium transition-colors ${
-              activeTab === "ALL"
-                ? "bg-[#111111] text-white"
-                : "text-[#6B6667] hover:bg-[#F4F1EA] hover:text-[#111111]"
-            }`}
-          >
-            All Active ({orders.length})
           </button>
         </div>
 
@@ -217,8 +256,8 @@ export default function AdminAssignmentsPage() {
                 </tr>
               ) : (
                 filteredOrders.map((order) => {
-                  const isReady = order.status === "READY_FOR_PICKUP";
-                  const isAssigned = order.status === "ASSIGNED" || !!order.assignedDriver;
+                  const needsPartner = isFailedOrPending(order);
+                  const isAssigned = isAssignedPartner(order);
 
                   return (
                     <tr key={order.id} className="h-12 hover:bg-[#F7F7F5]/50 transition-colors">
@@ -246,7 +285,10 @@ export default function AdminAssignmentsPage() {
                         {formatINR(order.grandTotal)}
                       </td>
                       <td className="px-4 py-0 text-center whitespace-nowrap">
-                        <StatusBadge status={order.status} variant="order" />
+                        <div className="flex flex-col items-center gap-1 py-1">
+                          <StatusBadge status={order.status} variant="order" />
+                          <StatusBadge status={order.deliveryAssignmentStatus} variant="assignment" />
+                        </div>
                       </td>
                       <td className="px-4 py-0 text-xs whitespace-nowrap">
                         {order.assignedDriver ? (
@@ -255,34 +297,52 @@ export default function AdminAssignmentsPage() {
                             <span className="text-[#6B6667]">({order.assignedDriver.phone})</span>
                           </div>
                         ) : (
-                          <span className="text-[#DA1E28] font-medium text-xs">Unassigned</span>
+                          <div>
+                            <span className="text-[#DA1E28] font-medium text-xs">Unassigned</span>
+                            {order.assignmentFailureReason && (
+                              <p className="text-[10px] text-[#6B6667] max-w-[180px] truncate">
+                                {order.assignmentFailureReason}
+                              </p>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="px-4 sm:px-5 py-0 text-right whitespace-nowrap">
-                        {isReady ? (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenAssign(order)}
-                            className="h-7 px-3 rounded-[6px] bg-[#FF5A1F] hover:bg-[#D94B17] text-white text-xs font-medium transition-colors shadow-xs"
-                          >
-                            Assign Partner
-                          </button>
-                        ) : isAssigned ? (
-                          <button
-                            type="button"
-                            onClick={() => handleOpenAssign(order)}
-                            className="text-xs font-medium text-[#FF5A1F] hover:text-[#D94B17] hover:bg-[#FFF0E8] px-2 py-1 rounded transition-colors"
-                          >
-                            Reassign
-                          </button>
-                        ) : (
-                          <Link
-                            href={`/admin/orders/${order.id}`}
-                            className="text-xs font-medium text-[#6B6667] hover:text-[#111111] px-2 py-1 rounded transition-colors"
-                          >
-                            View Order
-                          </Link>
-                        )}
+                        <div className="flex items-center justify-end gap-1.5">
+                          {needsPartner && (
+                            <button
+                              type="button"
+                              onClick={() => void handleRetryAutoAssign(order.id)}
+                              className="h-7 px-2.5 rounded-[6px] border border-[#E4E0DB] bg-white hover:bg-[#F7F7F5] text-xs font-medium text-[#111111] transition-colors"
+                            >
+                              Retry Auto
+                            </button>
+                          )}
+                          {needsPartner ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAssign(order)}
+                              className="h-7 px-3 rounded-[6px] bg-[#FF5A1F] hover:bg-[#D94B17] text-white text-xs font-medium transition-colors shadow-xs"
+                            >
+                              Assign Partner
+                            </button>
+                          ) : isAssigned ? (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAssign(order)}
+                              className="text-xs font-medium text-[#FF5A1F] hover:text-[#D94B17] hover:bg-[#FFF0E8] px-2 py-1 rounded transition-colors"
+                            >
+                              Reassign
+                            </button>
+                          ) : (
+                            <Link
+                              href={`/admin/orders/${order.id}`}
+                              className="text-xs font-medium text-[#6B6667] hover:text-[#111111] px-2 py-1 rounded transition-colors"
+                            >
+                              View Order
+                            </Link>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

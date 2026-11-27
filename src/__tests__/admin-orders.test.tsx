@@ -141,11 +141,10 @@ describe("Admin Orders 12-State Pipeline & Split Checkout Groups", () => {
     const expectedLabels = [
       "Placed",
       "Accepted",
-      "Preparing",
+      "Packing",
       "Ready for Pickup",
-      "Assigned",
-      "Picked Up",
       "Out for Delivery",
+      "Try & Buy",
       "Delivered",
       "Returning",
       "Returned",

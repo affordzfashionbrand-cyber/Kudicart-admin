@@ -29,6 +29,7 @@ import {
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ManualDeliveryAssignmentDrawer } from "@/components/admin/ManualDeliveryAssignmentDrawer";
+import { useRealtimeOrderFeed } from "@/hooks/useRealtimeOrderFeed";
 import { formatINR } from "@/lib/utils";
 import { api } from "@/lib/api";
 
@@ -38,11 +39,10 @@ const CANONICAL_STATUS_TABS: { id: TabFilter; label: string }[] = [
   { id: "ALL", label: "All Orders" },
   { id: "PLACED", label: "Placed" },
   { id: "ACCEPTED", label: "Accepted" },
-  { id: "PREPARING", label: "Preparing" },
+  { id: "PACKING", label: "Packing" },
   { id: "READY_FOR_PICKUP", label: "Ready for Pickup" },
-  { id: "ASSIGNED", label: "Assigned" },
-  { id: "PICKED_UP", label: "Picked Up" },
   { id: "OUT_FOR_DELIVERY", label: "Out for Delivery" },
+  { id: "TRY_AND_BUY", label: "Try & Buy" },
   { id: "DELIVERED", label: "Delivered" },
   { id: "RETURNING", label: "Returning" },
   { id: "RETURNED", label: "Returned" },
@@ -53,6 +53,7 @@ const CANONICAL_STATUS_TABS: { id: TabFilter; label: string }[] = [
 const PAGE_SIZE = 8;
 
 function AdminMarketplaceOrdersContent() {
+  useRealtimeOrderFeed(true);
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -134,6 +135,7 @@ function AdminMarketplaceOrdersContent() {
         return orderStats.placed;
       case "ACCEPTED":
         return orderStats.accepted;
+      case "PACKING":
       case "PREPARING":
         return orderStats.preparing;
       case "READY_FOR_PICKUP":
@@ -144,6 +146,8 @@ function AdminMarketplaceOrdersContent() {
         return orderStats.pickedUp;
       case "OUT_FOR_DELIVERY":
         return orderStats.outForDelivery;
+      case "TRY_AND_BUY":
+        return orderStats.tryAndBuy;
       case "DELIVERED":
         return orderStats.delivered;
       case "RETURNING":
@@ -163,8 +167,12 @@ function AdminMarketplaceOrdersContent() {
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       // 1. Tab filter
-      if (activeTab !== "ALL" && order.status !== activeTab) {
-        return false;
+      if (activeTab !== "ALL") {
+        if (activeTab === "PACKING") {
+          if (order.status !== "PACKING" && order.status !== "PREPARING") return false;
+        } else if (order.status !== activeTab) {
+          return false;
+        }
       }
 
       // 2. Status dropdown filter
@@ -243,15 +251,34 @@ function AdminMarketplaceOrdersContent() {
   // Handle drawer open for manual partner assignment
   const handleOpenAssignDrawer = (order: Order, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (order.status !== "READY_FOR_PICKUP" && order.status !== "ASSIGNED") {
+    const assignableStatuses = ["ACCEPTED", "PACKING", "PREPARING", "READY_FOR_PICKUP", "ASSIGNED"];
+    if (!assignableStatuses.includes(order.status)) {
       showToast(
-        `Order #${order.orderNumber} is in "${order.status}" status. Only orders Ready for Pickup can be assigned.`,
+        `Order #${order.orderNumber} is in "${order.status}" status. Accept order before assigning a partner.`,
         "error"
       );
       return;
     }
     setSelectedOrderForDrawer(order);
     setIsDrawerOpen(true);
+  };
+
+  const handleQuickAccept = async (order: Order, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await api.orders.accept(order.id);
+      const assigned = res?.order?.driverProfileId || res?.order?.driverId;
+      showToast(
+        assigned
+          ? `Order #${order.orderNumber} accepted & auto-assigned to partner.`
+          : `Order #${order.orderNumber} accepted (assignment pending partner availability).`,
+        "success"
+      );
+      await queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+      await queryClient.invalidateQueries({ queryKey: ["admin-assignments"] });
+    } catch (err: any) {
+      showToast(err?.message || "Failed to accept order.", "error");
+    }
   };
 
   // Handle assignment completion
@@ -623,42 +650,47 @@ function AdminMarketplaceOrdersContent() {
 
                       {/* Assigned Partner */}
                       <td className="px-3 py-2 whitespace-nowrap">
-                        {order.assignedDriver ? (
-                          <div className="flex items-center gap-1.5">
-                            <Bike className="w-3.5 h-3.5 text-[#20885A] shrink-0" />
-                            <div>
-                              <div className="font-medium text-xs text-[#111111]">
-                                {order.assignedDriver.fullName}
-                              </div>
-                              <div className="text-[11px] text-[#6B6667] font-mono whitespace-nowrap">
-                                {order.assignedDriver.vehicleRegistration}
+                        <div className="space-y-1">
+                          {order.assignedDriver ? (
+                            <div className="flex items-center gap-1.5">
+                              <Bike className="w-3.5 h-3.5 text-[#20885A] shrink-0" />
+                              <div>
+                                <div className="font-medium text-xs text-[#111111]">
+                                  {order.assignedDriver.fullName}
+                                </div>
+                                <div className="text-[11px] text-[#6B6667] font-mono whitespace-nowrap">
+                                  {order.assignedDriver.vehicleRegistration}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ) : isReadyForPickup ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-[4px] text-[11px] font-medium bg-[#FEF2F2] text-[#DA1E28] border border-[#ffdad6]">
-                            <AlertTriangle className="w-3 h-3" />
-                            Awaiting Partner
-                          </span>
-                        ) : (
-                          <span className="text-[#6B6667] text-[11px]">
-                            Not required yet
-                          </span>
-                        )}
+                          ) : (
+                            <StatusBadge status={order.deliveryAssignmentStatus} variant="assignment" />
+                          )}
+                        </div>
                       </td>
 
                       {/* Actions */}
                       <td className="px-4 py-2 text-right whitespace-nowrap">
-                        {isReadyForPickup ? (
-                          <button
-                            type="button"
-                            onClick={(e) => handleOpenAssignDrawer(order, e)}
-                            className="h-8 px-2.5 rounded-[8px] bg-[#FF5A1F] hover:bg-[#D94B17] text-white text-xs font-medium shadow-xs transition-colors inline-flex items-center gap-1"
-                          >
-                            <UserPlus className="w-3.5 h-3.5" />
-                            <span>Assign</span>
-                          </button>
-                        ) : (
+                        <div className="flex items-center justify-end gap-1.5">
+                          {order.status === "PLACED" ? (
+                            <button
+                              type="button"
+                              onClick={(e) => void handleQuickAccept(order, e)}
+                              className="h-8 px-2.5 rounded-[8px] bg-[#111111] hover:bg-[#333333] text-white text-xs font-medium shadow-xs transition-colors"
+                            >
+                              Accept
+                            </button>
+                          ) : ["ACCEPTED", "PACKING", "PREPARING", "READY_FOR_PICKUP"].includes(order.status) &&
+                            !order.assignedDriver ? (
+                            <button
+                              type="button"
+                              onClick={(e) => handleOpenAssignDrawer(order, e)}
+                              className="h-8 px-2.5 rounded-[8px] bg-[#FF5A1F] hover:bg-[#D94B17] text-white text-xs font-medium shadow-xs transition-colors inline-flex items-center gap-1"
+                            >
+                              <UserPlus className="w-3.5 h-3.5" />
+                              <span>Assign</span>
+                            </button>
+                          ) : null}
                           <Link
                             href={`/admin/orders/${order.id}`}
                             onClick={(e) => e.stopPropagation()}
@@ -667,7 +699,7 @@ function AdminMarketplaceOrdersContent() {
                             <span>View</span>
                             <ChevronRight className="w-3.5 h-3.5 text-[#6B6667]" />
                           </Link>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   );

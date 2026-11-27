@@ -5,12 +5,14 @@ interface OrderLifecyclePipelineProps {
   pipelineCounts?: {
     placed: number;
     accepted: number;
+    packing?: number;
     preparing: number;
     readyForPickup: number;
     assigned: number;
     pickedUp: number;
     inTransit?: number;
     outForDelivery?: number;
+    tryAndBuy?: number;
     delivered: number;
     returning?: number;
     returned?: number;
@@ -23,11 +25,13 @@ export function OrderLifecyclePipeline({
   pipelineCounts = {
     placed: 0,
     accepted: 0,
+    packing: 0,
     preparing: 0,
     readyForPickup: 0,
     assigned: 0,
     pickedUp: 0,
     inTransit: 0,
+    tryAndBuy: 0,
     delivered: 0,
     returning: 0,
     returned: 0,
@@ -55,10 +59,10 @@ export function OrderLifecyclePipeline({
       href: "/admin/orders?status=ACCEPTED",
     },
     {
-      key: "PREPARING",
-      label: "Preparing",
-      count: pipelineCounts.preparing ?? 0,
-      href: "/admin/orders?status=PREPARING",
+      key: "PACKING",
+      label: "Packing",
+      count: (pipelineCounts.packing ?? 0) + (pipelineCounts.preparing ?? 0),
+      href: "/admin/orders?status=PACKING",
     },
     {
       key: "READY_FOR_PICKUP",
@@ -68,22 +72,19 @@ export function OrderLifecyclePipeline({
       tone: "action",
     },
     {
-      key: "ASSIGNED",
-      label: "Assigned",
-      count: pipelineCounts.assigned ?? 0,
-      href: "/admin/orders?status=ASSIGNED",
-    },
-    {
-      key: "PICKED_UP",
-      label: "Picked Up",
-      count: pipelineCounts.pickedUp ?? 0,
-      href: "/admin/orders?status=PICKED_UP",
-    },
-    {
       key: "OUT_FOR_DELIVERY",
       label: "Out for Delivery",
-      count: pipelineCounts.inTransit ?? pipelineCounts.outForDelivery ?? 0,
+      count:
+        (pipelineCounts.inTransit ?? pipelineCounts.outForDelivery ?? 0) +
+        (pipelineCounts.pickedUp ?? 0),
       href: "/admin/orders?status=OUT_FOR_DELIVERY",
+    },
+    {
+      key: "TRY_AND_BUY",
+      label: "Try & Buy",
+      count: pipelineCounts.tryAndBuy ?? 0,
+      href: "/admin/orders?status=TRY_AND_BUY",
+      tone: "action",
     },
     {
       key: "DELIVERED",

@@ -5,46 +5,72 @@ import { OrderStatus, OrderStatusHistoryItem } from "@/types/orders";
 interface TimelineProps {
   currentStatus: OrderStatus;
   history?: OrderStatusHistoryItem[];
+  isTryAndBuy?: boolean;
 }
 
-const FORWARD_MILESTONES: { status: OrderStatus; label: string; stepNumber: number }[] = [
-  { status: "PLACED", label: "Placed", stepNumber: 1 },
-  { status: "ACCEPTED", label: "Accepted", stepNumber: 2 },
-  { status: "PREPARING", label: "Preparing", stepNumber: 3 },
-  { status: "READY_FOR_PICKUP", label: "Ready for pickup", stepNumber: 4 },
-  { status: "ASSIGNED", label: "Assigned", stepNumber: 5 },
-  { status: "PICKED_UP", label: "Picked up", stepNumber: 6 },
-  { status: "OUT_FOR_DELIVERY", label: "Out for delivery", stepNumber: 7 },
-  { status: "DELIVERED", label: "Delivered", stepNumber: 8 },
-];
+export function OrderLifecycleTimeline({
+  currentStatus,
+  history = [],
+  isTryAndBuy = false,
+}: TimelineProps) {
+  const showTryAndBuy = Boolean(
+    isTryAndBuy ||
+      currentStatus === "TRY_AND_BUY" ||
+      history.some((h) => h.status === "TRY_AND_BUY")
+  );
+  const normalizedCurrent: OrderStatus =
+    currentStatus === "PREPARING"
+      ? "PACKING"
+      : currentStatus === "ASSIGNED"
+        ? "READY_FOR_PICKUP"
+        : currentStatus === "PICKED_UP"
+          ? "OUT_FOR_DELIVERY"
+          : currentStatus;
 
-const RETURN_MILESTONES: { status: OrderStatus; label: string; stepNumber: number }[] = [
-  { status: "RETURNING", label: "Returning", stepNumber: 9 },
-  { status: "RETURNED", label: "Returned", stepNumber: 10 },
-];
+  const isReturnState =
+    normalizedCurrent === "RETURNING" || normalizedCurrent === "RETURNED";
+  const isTerminalFailure =
+    normalizedCurrent === "CANCELLED" || normalizedCurrent === "FAILED";
 
-export function OrderLifecycleTimeline({ currentStatus, history = [] }: TimelineProps) {
-  const isReturnState = currentStatus === "RETURNING" || currentStatus === "RETURNED";
-  const isTerminalFailure = currentStatus === "CANCELLED" || currentStatus === "FAILED";
+  const FORWARD_MILESTONES: { status: OrderStatus; label: string; stepNumber: number }[] = [
+    { status: "PLACED", label: "Placed", stepNumber: 1 },
+    { status: "ACCEPTED", label: "Accepted", stepNumber: 2 },
+    { status: "PACKING", label: "Packing", stepNumber: 3 },
+    { status: "READY_FOR_PICKUP", label: "Ready for Pickup", stepNumber: 4 },
+    { status: "OUT_FOR_DELIVERY", label: "Out for Delivery", stepNumber: 5 },
+    ...(showTryAndBuy
+      ? [{ status: "TRY_AND_BUY" as OrderStatus, label: "Try & Buy", stepNumber: 6 }]
+      : []),
+    ...(isReturnState
+      ? [
+          { status: "RETURNING" as OrderStatus, label: "Returning", stepNumber: showTryAndBuy ? 7 : 6 },
+          { status: "RETURNED" as OrderStatus, label: "Returned", stepNumber: showTryAndBuy ? 8 : 7 },
+        ]
+      : [{ status: "DELIVERED" as OrderStatus, label: "Delivered", stepNumber: showTryAndBuy ? 7 : 6 }]),
+  ];
 
-  const milestones = isReturnState
-    ? [...FORWARD_MILESTONES, ...RETURN_MILESTONES]
-    : FORWARD_MILESTONES;
+  const milestones = FORWARD_MILESTONES;
 
-  const historyStatuses = new Set(history.map((h) => h.status));
-  const highestHistoryForwardIdx = FORWARD_MILESTONES.reduce((maxIdx, m, idx) => {
-    return historyStatuses.has(m.status) ? Math.max(maxIdx, idx) : maxIdx;
+  const normalizedHistoryStatuses = new Set<string>(
+    history.map((h) =>
+      h.status === "PREPARING"
+        ? "PACKING"
+        : h.status === "ASSIGNED"
+          ? "READY_FOR_PICKUP"
+          : h.status === "PICKED_UP"
+            ? "OUT_FOR_DELIVERY"
+            : h.status
+    )
+  );
+  const highestHistoryForwardIdx = milestones.reduce((maxIdx, m, idx) => {
+    return normalizedHistoryStatuses.has(m.status) ? Math.max(maxIdx, idx) : maxIdx;
   }, -1);
 
   const activeIndex = isTerminalFailure
     ? -1
-    : milestones.findIndex((m) => m.status === currentStatus);
+    : milestones.findIndex((m) => m.status === normalizedCurrent);
 
-  const completedUpToIdx = isTerminalFailure
-    ? highestHistoryForwardIdx
-    : isReturnState
-    ? Math.max(FORWARD_MILESTONES.length - 1, highestHistoryForwardIdx)
-    : activeIndex;
+  const completedUpToIdx = isTerminalFailure ? highestHistoryForwardIdx : activeIndex;
 
   const progressIndex = activeIndex >= 0 ? activeIndex : Math.max(0, completedUpToIdx);
   const progressPercent = Math.min(

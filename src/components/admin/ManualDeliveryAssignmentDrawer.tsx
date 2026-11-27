@@ -168,7 +168,8 @@ export function ManualDeliveryAssignmentDrawer({
       return;
     }
 
-    if (order.status !== "READY_FOR_PICKUP" && order.status !== "ASSIGNED") {
+    const assignableStatuses = ["ACCEPTED", "PACKING", "PREPARING", "READY_FOR_PICKUP", "ASSIGNED"];
+    if (!assignableStatuses.includes(order.status)) {
       setErrorMessage(`Order #${order.orderNumber} is in status "${order.status}" and cannot be assigned.`);
       return;
     }

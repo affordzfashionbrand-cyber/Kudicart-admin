@@ -32,10 +32,12 @@ import { OrderLifecycleTimeline } from "@/components/admin/OrderLifecycleTimelin
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { ManualDeliveryAssignmentDrawer } from "@/components/admin/ManualDeliveryAssignmentDrawer";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { useRealtimeOrderFeed } from "@/hooks/useRealtimeOrderFeed";
 import { formatINR } from "@/lib/utils";
 import { api } from "@/lib/api";
 
 export default function AdminOrderDetailPage() {
+  useRealtimeOrderFeed(true);
   const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -43,6 +45,7 @@ export default function AdminOrderDetailPage() {
 
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showMoreActions, setShowMoreActions] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
   const showToast = (text: string, type: "success" | "error" = "success") => {
@@ -121,8 +124,31 @@ export default function AdminOrderDetailPage() {
   }
 
   const isReadyForPickup = order.status === "READY_FOR_PICKUP";
-  const isAssigned = order.status === "ASSIGNED" || !!order.assignedDriver;
+  const canAssignPartner = ["ACCEPTED", "PACKING", "PREPARING", "READY_FOR_PICKUP", "ASSIGNED"].includes(order.status);
+  const isAssigned =
+    Boolean(order.assignedDriver) &&
+    ["ASSIGNED", "ACCEPTED_BY_DELIVERY_PARTNER", "COMPLETED"].includes(order.deliveryAssignmentStatus);
+  const needsAssignmentRecovery =
+    canAssignPartner &&
+    ["FAILED", "ASSIGNMENT_PENDING", "REASSIGNMENT_PENDING", "REJECTED_BY_DELIVERY_PARTNER", "NOT_ASSIGNED"].includes(
+      order.deliveryAssignmentStatus
+    );
   const totalUnits = order.items.reduce((acc, it) => acc + it.quantity, 0);
+
+  const runAdminAction = async (fn: () => Promise<any>, successText: string) => {
+    setActionBusy(true);
+    try {
+      await fn();
+      await queryClient.invalidateQueries({ queryKey: ["admin-order", orderId] });
+      await queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+      await queryClient.invalidateQueries({ queryKey: ["admin-assignments"] });
+      showToast(successText, "success");
+    } catch (err: any) {
+      showToast(err?.message || "Order action failed.", "error");
+    } finally {
+      setActionBusy(false);
+    }
+  };
 
   const handleConfirmAssignment = async (assignedOrderId: string, driver: DeliveryPartner) => {
     try {
@@ -197,6 +223,7 @@ export default function AdminOrderDetailPage() {
               #{order.orderNumber}
             </h1>
             <StatusBadge status={order.status} variant="order" />
+            <StatusBadge status={order.deliveryAssignmentStatus} variant="assignment" />
             {order.isTryAndBuy && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-[4px] text-xs font-medium bg-[#F3E8FF] text-[#6B21A8] border border-[#E9D5FF]">
                 Try &amp; Buy Active
@@ -250,15 +277,76 @@ export default function AdminOrderDetailPage() {
             )}
           </div>
 
-          {/* Primary CTA: Assign Delivery Partner */}
-          {isReadyForPickup && (
+          {/* Admin Workflow Lifecycle Actions */}
+          {order.status === "PLACED" && (
             <button
               type="button"
+              disabled={actionBusy}
+              onClick={() =>
+                void runAdminAction(
+                  () => api.orders.accept(order.id),
+                  "Order accepted & auto-dispatch triggered."
+                )
+              }
+              className="h-9 px-4 bg-[#111111] text-white rounded-[8px] text-xs font-medium hover:bg-[#333333] transition-colors shadow-xs disabled:opacity-50"
+            >
+              Accept Order
+            </button>
+          )}
+          {order.status === "ACCEPTED" && (
+            <button
+              type="button"
+              disabled={actionBusy}
+              onClick={() =>
+                void runAdminAction(
+                  () => api.orders.prepare(order.id),
+                  "Order moved to Packing."
+                )
+              }
+              className="h-9 px-4 bg-[#111111] text-white rounded-[8px] text-xs font-medium hover:bg-[#333333] transition-colors shadow-xs disabled:opacity-50"
+            >
+              Start Packing
+            </button>
+          )}
+          {(order.status === "PACKING" || order.status === "PREPARING") && (
+            <button
+              type="button"
+              disabled={actionBusy}
+              onClick={() =>
+                void runAdminAction(
+                  () => api.orders.readyForPickup(order.id),
+                  "Order marked Ready for Pickup."
+                )
+              }
+              className="h-9 px-4 bg-[#20885A] text-white rounded-[8px] text-xs font-medium hover:bg-[#196E48] transition-colors shadow-xs disabled:opacity-50"
+            >
+              Mark Ready for Pickup
+            </button>
+          )}
+          {order.status === "RETURNING" && (
+            <button
+              type="button"
+              disabled={actionBusy}
+              onClick={() =>
+                void runAdminAction(
+                  () => api.orders.reconcileReturn(order.id, "Admin verified returned items at hub"),
+                  "Return reconciled & inventory restored."
+                )
+              }
+              className="h-9 px-4 bg-[#6D28D9] text-white rounded-[8px] text-xs font-medium hover:bg-[#5B21B6] transition-colors shadow-xs disabled:opacity-50"
+            >
+              Confirm Store Return
+            </button>
+          )}
+          {canAssignPartner && (
+            <button
+              type="button"
+              disabled={actionBusy}
               onClick={() => setIsDrawerOpen(true)}
-              className="h-9 px-4 bg-[#FF5A1F] text-white rounded-[8px] text-xs font-medium flex items-center gap-2 hover:bg-[#D94B17] transition-colors shadow-xs"
+              className="h-9 px-4 bg-[#FF5A1F] text-white rounded-[8px] text-xs font-medium flex items-center gap-2 hover:bg-[#D94B17] transition-colors shadow-xs disabled:opacity-50"
             >
               <Truck className="w-4 h-4" />
-              <span>Assign Delivery Partner</span>
+              <span>{isAssigned ? "Reassign Partner" : "Assign Delivery Partner"}</span>
             </button>
           )}
         </div>
@@ -268,6 +356,7 @@ export default function AdminOrderDetailPage() {
       <OrderLifecycleTimeline
         currentStatus={order.status}
         history={order.history}
+        isTryAndBuy={order.isTryAndBuy}
       />
 
       {/* ================= 4. TWO-COLUMN OPERATIONAL LAYOUT (65% / 35%) ================= */}
@@ -324,6 +413,18 @@ export default function AdminOrderDetailPage() {
                         {item.trialSize && (
                           <span className="inline-block mt-1 text-[10px] font-medium text-[#FF5A1F] bg-[#FFF0E8] px-1.5 py-0.5 rounded-[4px] border border-[#FF5A1F]/20">
                             Try &amp; Buy Tagged
+                          </span>
+                        )}
+                        {item.tryAndBuyDecision && (
+                          <span
+                            className={`inline-block mt-1 ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-[4px] border ${
+                              item.tryAndBuyDecision === "KEEP"
+                                ? "bg-[#ECFDF5] text-[#20885A] border-[#A7F3D0]"
+                                : "bg-[#FEF2F2] text-[#B91C1C] border-[#FECACA]"
+                            }`}
+                          >
+                            {item.tryAndBuyDecision}
+                            {item.returnCondition ? ` (${item.returnCondition})` : ""}
                           </span>
                         )}
                       </td>
@@ -468,9 +569,18 @@ export default function AdminOrderDetailPage() {
                 </div>
               </div>
 
-              <div className="p-3 rounded-[8px] bg-[#F7F7F5] border border-[#E4E0DB] flex items-start gap-2.5">
-                <Info className="w-4 h-4 text-[#6B6667] shrink-0 mt-0.5" />
-                <p className="text-xs text-[#6B6667] leading-relaxed">
+              <div className="p-3 rounded-[8px] bg-[#F7F7F5] border border-[#E4E0DB] space-y-1.5 text-xs">
+                <div className="flex flex-wrap gap-x-6 gap-y-1 text-[#6B6667]">
+                  <span>Kept Items: <strong className="text-[#111111]">{order.tryAndBuySession?.keptItemIds?.length ?? 0}</strong></span>
+                  <span>Returned Items: <strong className="text-[#111111]">{order.tryAndBuySession?.returnedItemIds?.length ?? 0}</strong></span>
+                  {order.tryAndBuySession?.finalPayableTotal != null && (
+                    <span>Final Payable: <strong className="font-mono text-[#111111]">{formatINR(order.tryAndBuySession.finalPayableTotal)}</strong></span>
+                  )}
+                  {order.tryAndBuySession?.refundAmount ? (
+                    <span>Refund Due: <strong className="font-mono text-[#6D28D9]">{formatINR(order.tryAndBuySession.refundAmount)}</strong></span>
+                  ) : null}
+                </div>
+                <p className="text-[#6B6667] leading-relaxed">
                   Delivery partner allows up to {order.tryAndBuyDetails.trialDurationMinutes} minutes for doorstep fitting. Unaccepted items must be secured into return satchels with customer confirmation.
                 </p>
               </div>
@@ -572,24 +682,50 @@ export default function AdminOrderDetailPage() {
                       {order.assignedDriver.phone}
                     </span>
                   </div>
+                  {canAssignPartner && (
+                    <button
+                      type="button"
+                      disabled={actionBusy}
+                      onClick={() => setIsDrawerOpen(true)}
+                      className="w-full h-8 border border-[#FF5A1F] text-[#FF5A1F] rounded-[8px] text-xs font-medium hover:bg-[#FFF0E8] transition-colors"
+                    >
+                      Reassign Delivery Partner
+                    </button>
+                  )}
                 </div>
-              ) : isReadyForPickup ? (
+              ) : needsAssignmentRecovery ? (
                 <>
-                  <p className="text-xs text-[#6B6667] leading-relaxed">
-                    This order is packed by {order.vendorName} and ready for pickup at {order.pickupHub}. Assign an available delivery partner now.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setIsDrawerOpen(true)}
-                    className="w-full h-9 bg-[#FF5A1F] text-white rounded-[8px] text-xs font-medium flex items-center justify-center gap-2 hover:bg-[#D94B17] transition-colors shadow-xs"
-                  >
-                    <Truck className="w-4 h-4" />
-                    <span>Assign Delivery Partner</span>
-                  </button>
+                  <div className="p-2.5 rounded-[8px] bg-[#FEF2F2] border border-[#FECACA] text-xs text-[#991B1B]">
+                    {order.assignmentFailureReason || "No eligible online delivery partner was available during acceptance."}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={actionBusy}
+                      onClick={() =>
+                        void runAdminAction(
+                          () => api.orders.retryAssignment(order.id),
+                          "Retried automatic partner assignment."
+                        )
+                      }
+                      className="flex-1 h-9 border border-[#E4E0DB] bg-white text-[#111111] rounded-[8px] text-xs font-medium hover:bg-[#F7F7F5] transition-colors"
+                    >
+                      Retry Auto-Assign
+                    </button>
+                    <button
+                      type="button"
+                      disabled={actionBusy}
+                      onClick={() => setIsDrawerOpen(true)}
+                      className="flex-1 h-9 bg-[#FF5A1F] text-white rounded-[8px] text-xs font-medium flex items-center justify-center gap-1.5 hover:bg-[#D94B17] transition-colors shadow-xs"
+                    >
+                      <Truck className="w-4 h-4" />
+                      <span>Manual Assign</span>
+                    </button>
+                  </div>
                 </>
               ) : (
                 <p className="text-xs text-[#6B6667] leading-relaxed">
-                  Dispatch assignment will be unlocked as soon as the merchant finishes packing and marks the order as <code className="font-mono text-[#D94B17] font-medium">READY_FOR_PICKUP</code>.
+                  Accept the order to automatically dispatch an available delivery partner or assign manually once accepted.
                 </p>
               )}
             </div>
