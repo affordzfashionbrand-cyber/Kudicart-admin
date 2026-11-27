@@ -4,6 +4,8 @@ export type BannerPlacement =
   | 'MODERN_REDEFINED'
   | 'PROMO_POPUP';
 
+export type BannerApprovalStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
 export type DeepLinkActionType =
   | 'CATEGORY'
   | 'PRODUCT'
@@ -18,9 +20,16 @@ export interface HomeBanner {
   tag?: string | null;
   title1: string;
   title2?: string | null;
+  discountText?: string | null;
   imageUrl: string;
   mobileImageUrl?: string | null;
   targetGender: string;
+  vendorId?: string | null;
+  vendor?: { id: string; storeName: string; userId?: string } | null;
+  status?: BannerApprovalStatus;
+  rejectionComment?: string | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
   actionType: DeepLinkActionType;
   actionValue?: string | null;
   categoryId?: string | null;
@@ -40,6 +49,9 @@ export interface CreateBannerInput {
   tag?: string;
   title1: string;
   title2?: string;
+  discountText?: string;
+  vendorId?: string;
+  status?: BannerApprovalStatus;
   imageUrl: string;
   mobileImageUrl?: string;
   targetGender?: string;

@@ -625,10 +625,20 @@ export default function AdminOrderDetailPage() {
               </p>
               <div className="mt-2.5 p-2 rounded-[8px] bg-[#F7F7F5] border border-[#E4E0DB] flex items-start gap-2">
                 <MapPin className="w-3.5 h-3.5 text-[#FF5A1F] shrink-0 mt-0.5" />
-                <p className="text-[11px] text-[#6B6667] leading-tight">
-                  <strong className="text-[#111111] font-medium">Delivery Label:</strong>{" "}
-                  {order.customerAddress.label}
-                </p>
+                <div className="text-[11px] text-[#6B6667] leading-tight space-y-0.5">
+                  <p>
+                    <strong className="text-[#111111] font-medium">Delivery Label:</strong>{" "}
+                    {order.customerAddress.label}
+                  </p>
+                  {(order.customerAddress.recipientName || order.customerAddress.recipientPhone) && (
+                    <p>
+                      <strong className="text-[#111111] font-medium">Receiver:</strong>{" "}
+                      {[order.customerAddress.recipientName, order.customerAddress.recipientPhone]
+                        .filter(Boolean)
+                        .join(" • ")}
+                    </p>
+                  )}
+                </div>
               </div>
               {order.deliveryInstructions && (
                 <div className="mt-2 p-2 rounded-[8px] bg-[#FFF0E8]/60 border border-[#FF5A1F]/20 text-[11px] text-[#111111]">
@@ -708,9 +718,28 @@ export default function AdminOrderDetailPage() {
                 </div>
               )}
               <div className="flex justify-between text-[#6B6667]">
-                <span>Taxes &amp; GST</span>
-                <span className="font-mono text-[#111111]">{formatINR(order.taxes)}</span>
+                <span>{order.taxes > 0 ? "Taxes & GST" : "Included GST"}</span>
+                <span className="font-mono text-[#111111]">
+                  {order.taxes > 0 ? formatINR(order.taxes) : "Inclusive in MRP"}
+                </span>
               </div>
+              {order.needGstInvoice && (
+                <div className="p-2.5 rounded-[8px] bg-[#FAF8F5] border border-[#E4E0DB] space-y-1">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-[#111111]">
+                    GST Invoice Requested
+                  </div>
+                  {order.gstBusinessName && (
+                    <div className="text-[11px] text-[#6B6667]">
+                      Business: <span className="font-medium text-[#111111]">{order.gstBusinessName}</span>
+                    </div>
+                  )}
+                  {order.customerGstin && (
+                    <div className="text-[11px] text-[#6B6667]">
+                      GSTIN: <span className="font-mono font-medium text-[#111111]">{order.customerGstin}</span>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="pt-2 border-t border-[#E4E0DB] flex justify-between items-baseline">
                 <span className="font-medium text-[#111111] text-xs">Grand Total</span>
                 <span className="font-mono font-semibold text-[17px] text-[#111111]">

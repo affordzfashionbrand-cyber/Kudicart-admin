@@ -591,6 +591,25 @@ function VendorOrdersContent() {
                 </div>
               </div>
 
+              {selectedOrder.deliveryInstructions && (
+                <div className="p-2.5 rounded-[8px] bg-[#FFF0E8]/70 border border-[#FF5A1F]/25 text-[11.5px] text-[#111111]">
+                  <span className="font-semibold text-[#D94B17]">Delivery Preferences: </span>
+                  <span>{selectedOrder.deliveryInstructions}</span>
+                </div>
+              )}
+
+              {/* Delivery Preferences */}
+              {selectedOrder.deliveryInstructions && (
+                <div className="p-3 rounded-[8px] bg-[#FFF7ED] border border-[#FED7AA]">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[#C2410C] block">
+                    Customer Delivery Preferences
+                  </span>
+                  <p className="text-xs font-medium text-[#7C2D12] mt-1">
+                    {selectedOrder.deliveryInstructions}
+                  </p>
+                </div>
+              )}
+
               {/* Assigned Delivery Driver Details */}
               {selectedOrder.assignedDriver ? (
                 <div className="p-3 rounded-[8px] bg-[#EFF6FF] border border-[#BFDBFE] space-y-2">

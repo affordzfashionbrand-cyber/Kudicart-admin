@@ -295,7 +295,7 @@ export default function AdminHubsPage() {
             Dark Store Hubs
           </h1>
           <p className="text-[13px] text-[#6B6667] mt-1">
-            Manage Affordz Official Store dark store staging hubs and pickup addresses.
+            Manage Affordz Official Store dark store staging hubs and pickup addresses (3 km express service radius).
           </p>
         </div>
 
@@ -423,7 +423,7 @@ export default function AdminHubsPage() {
                       <td className="py-2.5 px-3 text-[#111111]">
                         <span className="inline-flex items-center gap-1 font-mono text-[11px]">
                           <Clock className="w-3 h-3 text-[#6B6667]" />
-                          {hub.deliveryMinutes ?? hub.slaMinutes ?? 30} min
+                          {hub.deliveryMinutes ?? hub.slaMinutes ?? 30} min • 3 km radius
                         </span>
                       </td>
                       <td className="py-2.5 px-3">

@@ -77,4 +77,62 @@ describe("Admin Support Ticket Resolution (CLOSED + resolutionRemarks)", () => {
       ).toBeInTheDocument();
     });
   });
+
+  it("supports sending an admin reply via Send Reply while keeping OPEN or IN_PROGRESS status", async () => {
+    const user = userEvent.setup();
+
+    vi.spyOn(api.support, "list").mockResolvedValueOnce({
+      total: 1,
+      page: 1,
+      limit: 100,
+      data: [
+        {
+          id: "TICK-902",
+          timeAgo: "2m ago",
+          createdAt: "2026-11-11T10:05:00.000Z",
+          customerName: "Rohan Verma",
+          customerEmail: "rohan@example.com",
+          customerPhone: "9876500002",
+          customerNumber: "CUS-102",
+          customerTier: "Atelier",
+          location: "Koramangala, Bengaluru",
+          category: "TRY_AND_BUY",
+          orderNumber: "#KC-5501",
+          orderProductSummary: "1x Silk Kurta",
+          orderAmount: 4500,
+          orderDeliveryStatus: "OUT_FOR_DELIVERY",
+          status: "OPEN",
+          priority: "URGENT",
+          assignee: "Ops Desk",
+          subject: "Need doorstep trial extension",
+          description: "Rider arrived; need 5 extra minutes.",
+        },
+      ],
+    });
+
+    const updateSpy = vi
+      .spyOn(api.support, "updateTicket")
+      .mockResolvedValueOnce({
+        success: true,
+        ticket: { id: "TICK-902", status: "IN_PROGRESS", resolutionRemarks: "Extended trial window by 5 minutes" },
+      });
+
+    render(<AdminSupportPage />);
+
+    expect((await screen.findAllByText("TICK-902")).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText("URGENT").length).toBeGreaterThanOrEqual(1);
+
+    await user.type(
+      screen.getByPlaceholderText(/add internal resolution note/i),
+      "Extended trial window by 5 minutes"
+    );
+    await user.click(screen.getByRole("button", { name: /send reply/i }));
+
+    await waitFor(() => {
+      expect(updateSpy).toHaveBeenCalledWith("TICK-902", {
+        status: "IN_PROGRESS",
+        resolutionRemarks: "Extended trial window by 5 minutes",
+      });
+    });
+  });
 });

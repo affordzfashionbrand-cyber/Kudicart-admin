@@ -75,6 +75,8 @@ export interface OrderAddressInfo {
   city: string;
   pincode: string;
   label: string;
+  recipientName?: string;
+  recipientPhone?: string;
 }
 
 export interface Order {
@@ -113,6 +115,9 @@ export interface Order {
   rejectedByVendor?: boolean;
   expiresAt?: string | null;
   deliveryInstructions?: string | null;
+  needGstInvoice?: boolean;
+  customerGstin?: string | null;
+  gstBusinessName?: string | null;
   verificationPhotos?: string[];
   tryAndBuySession?: TryAndBuySessionContract | null;
   tryAndBuyDetails?: {

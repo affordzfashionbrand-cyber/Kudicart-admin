@@ -137,6 +137,8 @@ export function mapBackendOrderToWebOrder(raw: any): Order {
       city: String(addr?.city || ""),
       pincode: String(addr?.pincode || addr?.postalCode || ""),
       label: String(addr?.label || "Delivery Address"),
+      recipientName: addr?.recipientName ? String(addr.recipientName) : undefined,
+      recipientPhone: addr?.recipientPhone ? String(addr.recipientPhone) : undefined,
     },
     vendorId: String(raw?.vendorId || raw?.vendor?.id || ""),
     vendorName,
@@ -166,6 +168,9 @@ export function mapBackendOrderToWebOrder(raw: any): Order {
     deliveryInstructions: raw?.deliveryInstructions
       ? String(raw.deliveryInstructions)
       : null,
+    needGstInvoice: Boolean(raw?.needGstInvoice),
+    customerGstin: raw?.customerGstin ? String(raw.customerGstin) : null,
+    gstBusinessName: raw?.gstBusinessName ? String(raw.gstBusinessName) : null,
     verificationPhotos: Array.isArray(raw?.verificationPhotos)
       ? raw.verificationPhotos.map(String).filter(Boolean)
       : [],

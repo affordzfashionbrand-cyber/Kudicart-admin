@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Edit2, Trash2, ArrowUp, ArrowDown, ExternalLink, Calendar, CheckCircle2, XCircle } from "lucide-react";
+import { Edit2, Trash2, ArrowUp, ArrowDown, ExternalLink, Calendar, CheckCircle2, XCircle, Clock, Store, ThumbsUp, ThumbsDown } from "lucide-react";
 import type { HomeBanner } from "@/types/marketing";
 
 interface BannerCardProps {
@@ -9,6 +9,8 @@ interface BannerCardProps {
   onEdit: () => void;
   onDelete: () => void;
   onToggleActive: () => void;
+  onApprove?: () => void;
+  onReject?: () => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   isFirst?: boolean;
@@ -20,12 +22,15 @@ export function BannerCard({
   onEdit,
   onDelete,
   onToggleActive,
+  onApprove,
+  onReject,
   onMoveUp,
   onMoveDown,
   isFirst,
   isLast,
 }: BannerCardProps) {
   const isExpired = banner.endDate && new Date(banner.endDate) < new Date();
+  const approvalStatus = banner.status || "APPROVED";
 
   return (
     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-xl border border-[#E4E0DB] bg-white p-4 shadow-sm hover:shadow transition-all">
@@ -64,6 +69,35 @@ export function BannerCard({
           </h3>
 
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            {approvalStatus === "PENDING" && (
+              <span className="flex items-center gap-1 rounded bg-[#FFFBEB] border border-[#FDE68A] px-2 py-0.5 text-[10px] font-semibold text-[#B45309]">
+                <Clock className="h-3 w-3" />
+                Pending Approval
+              </span>
+            )}
+            {approvalStatus === "REJECTED" && (
+              <span className="flex items-center gap-1 rounded bg-[#FEF2F2] border border-[#FCA5A5] px-2 py-0.5 text-[10px] font-semibold text-[#DC2626]">
+                <XCircle className="h-3 w-3" />
+                Rejected
+              </span>
+            )}
+            {approvalStatus === "APPROVED" && (
+              <span className="flex items-center gap-1 rounded bg-[#ECFDF5] border border-[#A7F3D0] px-2 py-0.5 text-[10px] font-semibold text-[#20885A]">
+                <CheckCircle2 className="h-3 w-3" />
+                Approved
+              </span>
+            )}
+            {banner.vendor?.storeName && (
+              <span className="flex items-center gap-1 rounded bg-[#FFF0E8] px-2 py-0.5 text-[10px] font-semibold text-[#D94B17]">
+                <Store className="h-3 w-3" />
+                {banner.vendor.storeName}
+              </span>
+            )}
+            {banner.discountText && (
+              <span className="rounded bg-[#FEF3C7] px-2 py-0.5 text-[10px] font-semibold text-[#92400E]">
+                {banner.discountText}
+              </span>
+            )}
             <span className="rounded bg-[#F4F1EA] px-2 py-0.5 text-[10px] font-medium text-[#4A4742]">
               {banner.placement}
             </span>
@@ -76,6 +110,12 @@ export function BannerCard({
               {banner.actionValue ? `: ${banner.actionValue}` : ""}
             </span>
           </div>
+
+          {approvalStatus === "REJECTED" && banner.rejectionComment && (
+            <p className="mt-1 rounded border border-[#FECACA] bg-[#FEF2F2] px-2.5 py-1 text-[11px] text-[#991B1B]">
+              <span className="font-semibold">Rejection reason:</span> {banner.rejectionComment}
+            </p>
+          )}
 
           {(banner.startDate || banner.endDate) && (
             <p className="flex items-center gap-1 text-[11px] text-[#A09C94] pt-1">
@@ -94,7 +134,33 @@ export function BannerCard({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-2 self-end sm:self-center">
+      <div className="flex flex-wrap items-center gap-2 self-end sm:self-center">
+        {/* Admin Approval / Rejection Controls for Vendor Banners */}
+        {(approvalStatus === "PENDING" || Boolean(banner.vendorId)) && (
+          <>
+            {approvalStatus !== "APPROVED" && onApprove && (
+              <button
+                type="button"
+                onClick={onApprove}
+                className="flex items-center gap-1 rounded-lg bg-[#20885A] px-2.5 py-1 text-xs font-semibold text-white hover:bg-[#196D48] transition-colors"
+              >
+                <ThumbsUp className="h-3.5 w-3.5" />
+                <span>Approve</span>
+              </button>
+            )}
+            {approvalStatus !== "REJECTED" && onReject && (
+              <button
+                type="button"
+                onClick={onReject}
+                className="flex items-center gap-1 rounded-lg border border-[#F5C2C7] bg-[#FFF5F5] px-2.5 py-1 text-xs font-semibold text-[#DC2626] hover:bg-[#FEE2E2] transition-colors"
+              >
+                <ThumbsDown className="h-3.5 w-3.5" />
+                <span>Reject</span>
+              </button>
+            )}
+          </>
+        )}
+
         {/* Reorder Buttons */}
         <div className="flex items-center rounded-lg border border-[#E4E0DB] bg-[#FAF8F5] p-0.5">
           <button

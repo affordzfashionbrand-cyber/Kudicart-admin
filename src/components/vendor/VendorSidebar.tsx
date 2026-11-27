@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
+  Image as ImageIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api, getAuthToken, getStoredProfile } from "@/lib/api";
@@ -30,6 +31,7 @@ const VENDOR_NAVIGATION: VendorNavItem[] = [
   { name: "Dashboard", href: "/vendor/dashboard", icon: LayoutDashboard },
   { name: "Profile", href: "/vendor/profile", icon: Store },
   { name: "Products", href: "/vendor/products", icon: Package },
+  { name: "Banners", href: "/vendor/banners", icon: ImageIcon },
   { name: "Orders", href: "/vendor/orders", icon: ShoppingCart },
   { name: "Reviews", href: "/vendor/reviews", icon: Star },
   { name: "Reports", href: "/vendor/reports", icon: BarChart3 },

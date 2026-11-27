@@ -10,6 +10,7 @@ export interface AdminCoupon {
   minOrderValue: number;
   maxDiscount?: number | null;
   usageLimit?: number | null;
+  perUserLimit?: number | null;
   usedCount?: number;
   startDate: string;
   endDate: string;
@@ -26,6 +27,7 @@ export interface CreateCouponInput {
   minOrderValue?: number;
   maxDiscount?: number;
   usageLimit?: number;
+  perUserLimit?: number;
   startDate?: string;
   endDate: string;
   isActive?: boolean;
@@ -38,6 +40,7 @@ export interface UpdateCouponInput {
   minOrderValue?: number;
   maxDiscount?: number | null;
   usageLimit?: number | null;
+  perUserLimit?: number | null;
   startDate?: string;
   endDate?: string;
   isActive?: boolean;

@@ -27,6 +27,7 @@ export function BannerModal({
   const [tag, setTag] = useState(banner?.tag || "");
   const [title1, setTitle1] = useState(banner?.title1 || "");
   const [title2, setTitle2] = useState(banner?.title2 || "");
+  const [discountText, setDiscountText] = useState(banner?.discountText || "");
   const [imageUrl, setImageUrl] = useState(banner?.imageUrl || "");
   const [mobileImageUrl, setMobileImageUrl] = useState(banner?.mobileImageUrl || "");
   const [targetGender, setTargetGender] = useState(banner?.targetGender || "All");
@@ -97,6 +98,7 @@ export function BannerModal({
         tag: tag.trim() || undefined,
         title1: title1.trim(),
         title2: title2.trim() || undefined,
+        discountText: discountText.trim() || undefined,
         imageUrl: imageUrl.trim(),
         mobileImageUrl: mobileImageUrl.trim() || undefined,
         targetGender,
@@ -198,18 +200,32 @@ export function BannerModal({
                 </div>
               </div>
 
-              {/* Tag / Eyebrow */}
-              <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-[#6E6B65] mb-1">
-                  Tag / Eyebrow Badge
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. DROP_04 • 00:28 or TODAY'S LOOK. TODAY."
-                  value={tag}
-                  onChange={(e) => setTag(e.target.value)}
-                  className="w-full rounded-lg border border-[#D5D0C7] bg-white px-3 py-2 text-sm text-[#2C2B29] placeholder-[#A09C94] focus:border-[#E05A47] focus:outline-none"
-                />
+              {/* Tag / Eyebrow & Discount Text */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#6E6B65] mb-1">
+                    Tag / Eyebrow Badge
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. DROP_04 • 00:28 or TODAY'S LOOK."
+                    value={tag}
+                    onChange={(e) => setTag(e.target.value)}
+                    className="w-full rounded-lg border border-[#D5D0C7] bg-white px-3 py-2 text-sm text-[#2C2B29] placeholder-[#A09C94] focus:border-[#E05A47] focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#6E6B65] mb-1">
+                    Discount Badge Text
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. FLAT 30% OFF"
+                    value={discountText}
+                    onChange={(e) => setDiscountText(e.target.value)}
+                    className="w-full rounded-lg border border-[#D5D0C7] bg-white px-3 py-2 text-sm text-[#2C2B29] placeholder-[#A09C94] focus:border-[#E05A47] focus:outline-none"
+                  />
+                </div>
               </div>
 
               {/* Heading 1 & Heading 2 */}

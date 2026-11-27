@@ -1092,11 +1092,19 @@ export const api = {
   },
   marketing: {
     // Banners
-    getBanners: async (params?: { placement?: string; targetGender?: string; isActive?: boolean | string }) => {
+    getBanners: async (params?: {
+      placement?: string;
+      targetGender?: string;
+      isActive?: boolean | string;
+      status?: string;
+      vendorId?: string;
+    }) => {
       const q = new URLSearchParams();
       if (params?.placement) q.set("placement", params.placement);
       if (params?.targetGender) q.set("targetGender", params.targetGender);
       if (params?.isActive !== undefined) q.set("isActive", String(params.isActive));
+      if (params?.status && params.status !== "ALL") q.set("status", params.status);
+      if (params?.vendorId) q.set("vendorId", params.vendorId);
       const qs = q.toString() ? `?${q.toString()}` : "";
       return request<HomeBanner[]>(`/admin/home/banners${qs}`);
     },
@@ -1113,6 +1121,17 @@ export const api = {
       return request<HomeBanner>(`/admin/home/banners/${id}`, {
         method: "PATCH",
         body: JSON.stringify(data),
+      });
+    },
+    approveBanner: async (id: string) => {
+      return request<HomeBanner>(`/admin/home/banners/${encodeURIComponent(id)}/approve`, {
+        method: "POST",
+      });
+    },
+    rejectBanner: async (id: string, rejectionComment: string) => {
+      return request<HomeBanner>(`/admin/home/banners/${encodeURIComponent(id)}/reject`, {
+        method: "POST",
+        body: JSON.stringify({ rejectionComment }),
       });
     },
     deleteBanner: async (id: string) => {
@@ -1267,6 +1286,49 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify({ stock }),
       });
+    },
+    uploadMedia: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return request<{
+        success: boolean;
+        url: string;
+        path: string;
+      }>("/media/upload", {
+        method: "POST",
+        body: formData,
+      });
+    },
+    getBanners: async () => {
+      return request<{
+        vendorId: string | null;
+        storeName: string;
+        banners: HomeBanner[];
+      }>("/vendor/banners");
+    },
+    createBanner: async (data: {
+      title: string;
+      subtitle?: string;
+      discountText?: string;
+      imageUrl: string;
+      placement?: "HERO_CAROUSEL" | "EDITORIAL_STRIP" | "MODERN_REDEFINED";
+      targetGender?: string;
+      tag?: string;
+    }) => {
+      return request<{
+        success: boolean;
+        message: string;
+        banner: HomeBanner;
+      }>("/vendor/banners", {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+    },
+    deleteBanner: async (id: string) => {
+      return request<{ success: boolean; message: string }>(
+        `/vendor/banners/${encodeURIComponent(id)}`,
+        { method: "DELETE" }
+      );
     },
   },
 };

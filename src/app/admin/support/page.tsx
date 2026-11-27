@@ -74,6 +74,10 @@ export default function AdminSupportPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    setResolutionNotes("");
+  }, [selectedTicket?.id]);
+
   const categoryOptions = useMemo(() => {
     return Array.from(new Set(tickets.map((t) => t.category).filter(Boolean))).sort();
   }, [tickets]);
@@ -157,9 +161,13 @@ export default function AdminSupportPage() {
     showToast(`Exported ${filteredTickets.length} support tickets.`);
   };
 
-  const handleTransition = async (newStatus: TicketStatus) => {
+  const handleTransition = async (newStatus: TicketStatus, requireRemarks = false) => {
     if (!selectedTicket) return;
     const trimmedNotes = resolutionNotes.trim();
+    if (requireRemarks && !trimmedNotes) {
+      showToast("Please enter a reply or resolution note first.", "error");
+      return;
+    }
     try {
       await api.support.updateTicket(selectedTicket.id, {
         status: newStatus,
@@ -493,7 +501,7 @@ export default function AdminSupportPage() {
                         <td className="py-2 px-2">
                           <span
                             className={`inline-flex items-center text-[11px] font-medium ${
-                              tick.priority === "HIGH"
+                              tick.priority === "URGENT" || tick.priority === "HIGH"
                                 ? "text-[#DA1E28]"
                                 : tick.priority === "MEDIUM"
                                 ? "text-[#C9822E]"
@@ -593,23 +601,29 @@ export default function AdminSupportPage() {
             <div className="p-3 rounded-[8px] bg-white border border-[#E4E0DB] space-y-1.5 text-xs">
               <div className="flex items-center justify-between text-[#6B6667]">
                 <span className="font-medium text-[11px]">Associated Order</span>
-                <Link
-                  href={`/admin/orders/${selectedTicket.orderNumber.replace("#", "")}`}
-                  className="font-mono font-medium text-[#FF5A1F] hover:underline"
-                >
-                  {selectedTicket.orderNumber}
-                </Link>
+                {selectedTicket.orderNumber ? (
+                  <Link
+                    href={`/admin/orders/${selectedTicket.orderNumber.replace("#", "")}`}
+                    className="font-mono font-medium text-[#FF5A1F] hover:underline"
+                  >
+                    {selectedTicket.orderNumber}
+                  </Link>
+                ) : (
+                  <span className="font-mono text-[#6B6667]">General Inquiry</span>
+                )}
               </div>
               <div className="flex justify-between items-baseline">
                 <p className="font-medium text-[#111111] text-xs leading-snug">
-                  {selectedTicket.orderProductSummary}
+                  {selectedTicket.orderProductSummary || selectedTicket.subject}
                 </p>
-                <span className="font-mono font-medium text-[#111111] ml-2 shrink-0">
-                  {formatINR(selectedTicket.orderAmount)}
-                </span>
+                {Number(selectedTicket.orderAmount || 0) > 0 && (
+                  <span className="font-mono font-medium text-[#111111] ml-2 shrink-0">
+                    {formatINR(selectedTicket.orderAmount)}
+                  </span>
+                )}
               </div>
               <div className="text-[11px] text-[#6B6667] flex items-center gap-3 pt-1 border-t border-[#E4E0DB]">
-                <span>Status: <strong className="text-[#111111] font-medium">{selectedTicket.orderDeliveryStatus}</strong></span>
+                <span>Status: <strong className="text-[#111111] font-medium">{selectedTicket.orderDeliveryStatus || "N/A"}</strong></span>
               </div>
             </div>
 
@@ -619,7 +633,7 @@ export default function AdminSupportPage() {
                 Issue Description
               </span>
               <div className="p-3 bg-[#F7F7F5] rounded-[8px] border border-[#E4E0DB] text-[#111111] leading-relaxed italic">
-                &ldquo;{selectedTicket.description}&rdquo;
+                &ldquo;{selectedTicket.description || selectedTicket.subject}&rdquo;
               </div>
             </div>
 
@@ -637,13 +651,13 @@ export default function AdminSupportPage() {
               {selectedTicket.status !== "CLOSED" && (
                 <div className="space-y-1">
                   <label className="block text-[11px] font-medium text-[#6B6667]">
-                    Resolution Remarks (Optional)
+                    Reply / Resolution Remarks (Visible to Customer)
                   </label>
                   <textarea
                     value={resolutionNotes}
                     onChange={(e) => setResolutionNotes(e.target.value)}
                     rows={2}
-                    placeholder="Add internal resolution note or action summary..."
+                    placeholder="Add internal resolution note or customer reply..."
                     className="w-full p-2.5 rounded-[8px] border border-[#E4E0DB] bg-white text-xs text-[#111111] focus:outline-none focus:border-[#FF5A1F] placeholder:text-[#6B6667]"
                   />
                 </div>
@@ -660,6 +674,20 @@ export default function AdminSupportPage() {
 
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-2 pt-1">
+                {selectedTicket.status !== "CLOSED" && (
+                  <button
+                    onClick={() =>
+                      handleTransition(
+                        selectedTicket.status === "OPEN" ? "IN_PROGRESS" : selectedTicket.status,
+                        true
+                      )
+                    }
+                    className="h-8 px-3.5 rounded-[8px] border border-[#E4E0DB] bg-white text-[#111111] font-medium text-xs hover:bg-[#F7F7F5] transition-colors shadow-xs"
+                  >
+                    Send Reply
+                  </button>
+                )}
+
                 {selectedTicket.status === "OPEN" && (
                   <button
                     onClick={() => handleTransition("IN_PROGRESS")}
@@ -669,7 +697,7 @@ export default function AdminSupportPage() {
                   </button>
                 )}
 
-                {selectedTicket.status === "IN_PROGRESS" && (
+                {(selectedTicket.status === "OPEN" || selectedTicket.status === "IN_PROGRESS") && (
                   <button
                     onClick={() => handleTransition("RESOLVED")}
                     className="h-8 px-3.5 rounded-[8px] bg-[#20885A] text-white font-medium text-xs hover:bg-[#1b734c] transition-colors shadow-xs"

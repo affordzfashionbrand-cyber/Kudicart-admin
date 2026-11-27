@@ -44,6 +44,19 @@ export function SectionRow({
   const [title, setTitle] = useState(section.title || "");
   const [subtitle, setSubtitle] = useState(section.subtitle || "");
 
+  // Flash Drop / Sale Countdown Config State
+  const existingMeta = (section.metadata && typeof section.metadata === "object" ? section.metadata : {}) as Record<string, any>;
+  const [isEditingFlashSale, setIsEditingFlashSale] = useState(false);
+  const [flashEndsAt, setFlashEndsAt] = useState(
+    existingMeta.endsAt ? new Date(existingMeta.endsAt).toISOString().slice(0, 16) : ""
+  );
+  const [flashMinutes, setFlashMinutes] = useState(String(existingMeta.endsInMinutes ?? 45));
+  const [flashBadgeText, setFlashBadgeText] = useState(String(existingMeta.badgeText || "DROP_04 • LIVE"));
+  const [notifyCustomers, setNotifyCustomers] = useState(true);
+  const [savingFlashSale, setSavingFlashSale] = useState(false);
+
+  const isFlashDrop = section.sectionKey === "FLASH_DROP";
+
   // Add Item Modal / Inline Form
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [itemTitle, setItemTitle] = useState("");
@@ -121,6 +134,33 @@ export function SectionRow({
     }
   };
 
+  const handleSaveFlashSale = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSavingFlashSale(true);
+      const parsedMinutes = Math.max(1, parseInt(flashMinutes, 10) || 45);
+      await api.marketing.updateSection(section.sectionKey, {
+        title: title.trim() || undefined,
+        subtitle: subtitle.trim() || undefined,
+        isEnabled: true,
+        metadata: {
+          ...existingMeta,
+          endsAt: flashEndsAt ? new Date(flashEndsAt).toISOString() : null,
+          endsInMinutes: parsedMinutes,
+          badgeText: flashBadgeText.trim() || "DROP_04 • LIVE",
+          notifyCustomers,
+          updatedAt: new Date().toISOString(),
+        },
+      });
+      setIsEditingFlashSale(false);
+      onUpdate();
+    } catch (err: any) {
+      alert(`Failed to update flash drop schedule: ${err.message}`);
+    } finally {
+      setSavingFlashSale(false);
+    }
+  };
+
   const hasCuratedItems =
     section.sectionKey === "BUDGET_STORES" ||
     section.sectionKey === "TREND_RADAR" ||
@@ -193,6 +233,16 @@ export function SectionRow({
 
         {/* Controls */}
         <div className="flex items-center gap-2 self-end sm:self-center">
+          {isFlashDrop && (
+            <button
+              type="button"
+              onClick={() => setIsEditingFlashSale(!isEditingFlashSale)}
+              className="flex items-center gap-1 rounded-lg border border-[#FFD9CC] bg-[#FFF0E8] px-2.5 py-1 text-xs font-semibold text-[#D94B17] hover:bg-[#FFE3D3] transition-colors"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Sale Timer &amp; Notify</span>
+            </button>
+          )}
           {/* Curated Items toggle button */}
           {hasCuratedItems && (
             <button
@@ -251,6 +301,82 @@ export function SectionRow({
           </button>
         </div>
       </div>
+
+      {/* Flash Drop Sale Countdown & Notification Editor */}
+      {isFlashDrop && isEditingFlashSale && (
+        <form
+          onSubmit={handleSaveFlashSale}
+          className="border-t border-[#E4E0DB] bg-[#FFF8F5] p-4 space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-[#D94B17]">
+              Flash Drop / Sale Schedule &amp; Customer Push Alert
+            </h4>
+            <button
+              type="button"
+              onClick={() => setIsEditingFlashSale(false)}
+              className="text-xs text-[#6E6B65] hover:underline"
+            >
+              Close
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[11px] font-medium text-[#6E6B65] mb-1">
+                Sale End Date &amp; Time (Optional)
+              </label>
+              <input
+                type="datetime-local"
+                value={flashEndsAt}
+                onChange={(e) => setFlashEndsAt(e.target.value)}
+                className="w-full rounded border border-[#D5D0C7] bg-white px-2.5 py-1.5 text-xs text-[#2C2B29]"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-[#6E6B65] mb-1">
+                Fallback Countdown (Minutes)
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={flashMinutes}
+                onChange={(e) => setFlashMinutes(e.target.value)}
+                className="w-full rounded border border-[#D5D0C7] bg-white px-2.5 py-1.5 text-xs text-[#2C2B29]"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-medium text-[#6E6B65] mb-1">
+                Drop Pill Badge
+              </label>
+              <input
+                type="text"
+                value={flashBadgeText}
+                onChange={(e) => setFlashBadgeText(e.target.value)}
+                placeholder="e.g. DROP_04 • LIVE"
+                className="w-full rounded border border-[#D5D0C7] bg-white px-2.5 py-1.5 text-xs text-[#2C2B29]"
+              />
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+            <label className="flex items-center gap-2 text-xs font-medium text-[#2C2B29]">
+              <input
+                type="checkbox"
+                checked={notifyCustomers}
+                onChange={(e) => setNotifyCustomers(e.target.checked)}
+                className="h-4 w-4 rounded border-[#D5D0C7] text-[#E05A47]"
+              />
+              <span>Send push &amp; in-app notification to all customers on save</span>
+            </label>
+            <button
+              type="submit"
+              disabled={savingFlashSale}
+              className="rounded-lg bg-[#E05A47] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[#D04C39] disabled:opacity-50"
+            >
+              {savingFlashSale ? "Publishing Sale..." : "Save Sale & Notify"}
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* Expanded Curated Items Section */}
       {isExpanded && hasCuratedItems && (

@@ -31,6 +31,7 @@ interface CouponFormState {
   minOrderValue: string;
   maxDiscount: string;
   usageLimit: string;
+  perUserLimit: string;
   startDate: string;
   endDate: string;
   isActive: boolean;
@@ -53,6 +54,7 @@ function defaultFormState(): CouponFormState {
     minOrderValue: "0",
     maxDiscount: "",
     usageLimit: "",
+    perUserLimit: "1",
     startDate: today.toISOString().slice(0, 10),
     endDate: nextMonth.toISOString().slice(0, 10),
     isActive: true,
@@ -164,6 +166,10 @@ export default function AdminCouponsPage() {
         coupon.usageLimit !== null && coupon.usageLimit !== undefined
           ? String(coupon.usageLimit)
           : "",
+      perUserLimit:
+        coupon.perUserLimit !== null && coupon.perUserLimit !== undefined
+          ? String(coupon.perUserLimit)
+          : "",
       startDate: toDateInputValue(coupon.startDate),
       endDate: toDateInputValue(coupon.endDate),
       isActive: Boolean(coupon.isActive),
@@ -216,6 +222,9 @@ export default function AdminCouponsPage() {
     const usageLimitNum = formState.usageLimit.trim()
       ? Math.floor(Number(formState.usageLimit))
       : undefined;
+    const perUserLimitNum = formState.perUserLimit.trim()
+      ? Math.floor(Number(formState.perUserLimit))
+      : undefined;
 
     if (maxDiscountNum !== undefined && (!Number.isFinite(maxDiscountNum) || maxDiscountNum <= 0)) {
       setFormError("Max discount cap must be a positive number.");
@@ -223,6 +232,10 @@ export default function AdminCouponsPage() {
     }
     if (usageLimitNum !== undefined && (!Number.isFinite(usageLimitNum) || usageLimitNum <= 0)) {
       setFormError("Usage limit must be a positive integer.");
+      return;
+    }
+    if (perUserLimitNum !== undefined && (!Number.isFinite(perUserLimitNum) || perUserLimitNum <= 0)) {
+      setFormError("Per-account usage limit must be a positive integer.");
       return;
     }
 
@@ -236,6 +249,7 @@ export default function AdminCouponsPage() {
           minOrderValue,
           maxDiscount: formState.maxDiscount.trim() ? maxDiscountNum : null,
           usageLimit: formState.usageLimit.trim() ? usageLimitNum : null,
+          perUserLimit: formState.perUserLimit.trim() ? perUserLimitNum : null,
           ...(startIso ? { startDate: startIso } : {}),
           endDate: endIso,
           isActive: formState.isActive,
@@ -258,6 +272,7 @@ export default function AdminCouponsPage() {
           minOrderValue,
           ...(maxDiscountNum !== undefined ? { maxDiscount: maxDiscountNum } : {}),
           ...(usageLimitNum !== undefined ? { usageLimit: usageLimitNum } : {}),
+          ...(perUserLimitNum !== undefined ? { perUserLimit: perUserLimitNum } : {}),
           ...(startIso ? { startDate: startIso } : {}),
           endDate: endIso,
           isActive: formState.isActive,
@@ -498,8 +513,13 @@ export default function AdminCouponsPage() {
                         {formatINR(coupon.minOrderValue ?? 0)}
                       </td>
                       <td className="py-2.5 px-3 font-mono text-[#6B6667]">
-                        {coupon.usedCount ?? 0}
-                        {coupon.usageLimit ? ` / ${coupon.usageLimit}` : " / Unlimited"}
+                        <div>
+                          {coupon.usedCount ?? 0}
+                          {coupon.usageLimit ? ` / ${coupon.usageLimit}` : " / Unlimited"}
+                        </div>
+                        <div className="text-[10px] text-[#8E877E]">
+                          {coupon.perUserLimit ? `${coupon.perUserLimit}/acct` : "∞/acct"}
+                        </div>
                       </td>
                       <td className="py-2.5 px-3 text-[11px] text-[#6B6667]">
                         <div>Start: {toDateInputValue(coupon.startDate) || "—"}</div>
@@ -684,7 +704,7 @@ export default function AdminCouponsPage() {
 
               <div>
                 <label htmlFor="coupon-usage-limit" className="block font-medium text-[#111111] mb-1">
-                  Usage Limit (Optional)
+                  Total Usage Limit (Optional)
                 </label>
                 <input
                   id="coupon-usage-limit"
@@ -694,6 +714,24 @@ export default function AdminCouponsPage() {
                   value={formState.usageLimit}
                   onChange={(e) =>
                     setFormState((prev) => ({ ...prev, usageLimit: e.target.value }))
+                  }
+                  placeholder="Unlimited"
+                  className="w-full h-9 px-3 rounded-[8px] border border-[#E4E0DB] bg-[#F7F7F5] font-mono focus:bg-white focus:border-[#FF5A1F] outline-none"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="coupon-per-user-limit" className="block font-medium text-[#111111] mb-1">
+                  Per-Account Limit (Optional)
+                </label>
+                <input
+                  id="coupon-per-user-limit"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={formState.perUserLimit}
+                  onChange={(e) =>
+                    setFormState((prev) => ({ ...prev, perUserLimit: e.target.value }))
                   }
                   placeholder="Unlimited"
                   className="w-full h-9 px-3 rounded-[8px] border border-[#E4E0DB] bg-[#F7F7F5] font-mono focus:bg-white focus:border-[#FF5A1F] outline-none"
